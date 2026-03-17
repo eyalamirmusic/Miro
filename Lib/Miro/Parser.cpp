@@ -53,8 +53,8 @@ public:
 
     [[noreturn]] void error(const std::string& messageToUse) const
     {
-        throw ParseError("JSON parse error at position " + std::to_string(position)
-                         + ": " + messageToUse);
+        throw std::runtime_error("JSON parse error at position "
+                                 + std::to_string(position) + ": " + messageToUse);
     }
 
 private:
@@ -64,9 +64,7 @@ private:
         auto remaining = input.substr(position);
 
         if (!remaining.starts_with(keyword))
-        {
             error("expected 'null'");
-        }
 
         position += keyword.size();
 
@@ -99,59 +97,44 @@ private:
         auto start = position;
 
         if (current() == '-')
-        {
             advance();
-        }
 
         if (atEnd())
-        {
             error("unexpected end of number");
-        }
 
         if (current() == '0')
-        {
             advance();
-        }
         else if (current() >= '1' && current() <= '9')
         {
             while (!atEnd() && current() >= '0' && current() <= '9')
-            {
                 advance();
-            }
         }
         else
-        {
             error("invalid number");
-        }
 
         if (!atEnd() && current() == '.')
         {
             advance();
+
             if (atEnd() || current() < '0' || current() > '9')
-            {
                 error("expected digit after decimal point");
-            }
+
             while (!atEnd() && current() >= '0' && current() <= '9')
-            {
                 advance();
-            }
         }
 
         if (!atEnd() && (current() == 'e' || current() == 'E'))
         {
             advance();
+
             if (!atEnd() && (current() == '+' || current() == '-'))
-            {
                 advance();
-            }
+
             if (atEnd() || current() < '0' || current() > '9')
-            {
                 error("expected digit in exponent");
-            }
+
             while (!atEnd() && current() >= '0' && current() <= '9')
-            {
                 advance();
-            }
         }
 
         auto text = input.substr(start, position - start);
@@ -179,10 +162,9 @@ private:
             if (current() == '\\')
             {
                 advance();
+
                 if (atEnd())
-                {
                     error("unexpected end of string escape");
-                }
 
                 auto escaped = current();
                 advance();
@@ -291,7 +273,7 @@ private:
         }
 
         expect(']');
-        return Value(std::move(elements));
+        return {std::move(elements)};
     }
 
     Value parseObject()
@@ -325,7 +307,7 @@ private:
         }
 
         expect('}');
-        return Value(std::move(entries));
+        return {std::move(entries)};
     }
 
     char current() const { return input[position]; }

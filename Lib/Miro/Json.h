@@ -53,11 +53,6 @@ struct Value
     Variant data;
 };
 
-class ParseError : public std::runtime_error
-{
-    using std::runtime_error::runtime_error;
-};
-
 Value parse(std::string_view inputToUse);
 std::string print(const Value& valueToUse);
 
