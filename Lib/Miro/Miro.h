@@ -115,6 +115,31 @@ void reflect(Reflector& ref, std::array<T, N>& value)
     }
 }
 
+template <typename V>
+void reflect(Reflector& ref, std::map<std::string, V>& value)
+{
+    if (ref.isSaving())
+    {
+        auto& obj = ref.json.data.emplace<Json::Object>();
+
+        for (auto& [key, element]: value)
+        {
+            auto child = Reflector {obj[key], true};
+            reflect(child, element);
+        }
+    }
+    else
+    {
+        auto& obj = std::get<Json::Object>(ref.json.data);
+
+        for (auto& [key, node]: obj)
+        {
+            auto child = Reflector {node, false};
+            reflect(child, value[key]);
+        }
+    }
+}
+
 template <typename T>
 void reflect(Reflector& ref, std::string_view key, T& value)
 {

@@ -369,6 +369,94 @@ auto roundtrip = test("Save then load roundtrip") = []
     check(loaded.label == original.label);
 };
 
+// --- Map tests ---
+
+auto saveMapOfStrings = test("Save map of strings") = []
+{
+    struct S
+    {
+        void reflect(Miro::Reflector& ref) { ref["data"](data); }
+
+        std::map<std::string, std::string> data = {{"a", "hello"}, {"b", "world"}};
+    };
+
+    auto val = S {};
+    auto json = Miro::toJSON(val);
+
+    check(json["data"].isObject());
+    check(json["data"]["a"].asString() == "hello");
+    check(json["data"]["b"].asString() == "world");
+};
+
+auto loadMapOfStrings = test("Load map of strings") = []
+{
+    struct S
+    {
+        void reflect(Miro::Reflector& ref) { ref["data"](data); }
+
+        std::map<std::string, std::string> data;
+    };
+
+    auto val =
+        Miro::createFromJSONString<S>(R"({"data": {"x": "one", "y": "two"}})");
+
+    check(val.data.size() == 2);
+    check(val.data["x"] == "one");
+    check(val.data["y"] == "two");
+};
+
+auto saveMapOfInts = test("Save map of ints") = []
+{
+    struct S
+    {
+        void reflect(Miro::Reflector& ref) { ref["counts"](counts); }
+
+        std::map<std::string, int> counts = {{"apples", 3}, {"bananas", 5}};
+    };
+
+    auto val = S {};
+    auto json = Miro::toJSON(val);
+
+    check(json["counts"]["apples"].asNumber() == 3.0);
+    check(json["counts"]["bananas"].asNumber() == 5.0);
+};
+
+auto loadMapOfObjects = test("Load map of objects") = []
+{
+    struct S
+    {
+        void reflect(Miro::Reflector& ref) { ref["items"](items); }
+
+        std::map<std::string, Inner> items;
+    };
+
+    auto val = Miro::createFromJSONString<S>(
+        R"({"items": {"first": {"x": 1}, "second": {"x": 2}}})");
+
+    check(val.items.size() == 2);
+    check(val.items["first"].x == 1);
+    check(val.items["second"].x == 2);
+};
+
+auto mapRoundtrip = test("Map roundtrip") = []
+{
+    struct S
+    {
+        void reflect(Miro::Reflector& ref) { ref["m"](m); }
+
+        std::map<std::string, int> m = {{"a", 1}, {"b", 2}, {"c", 3}};
+    };
+
+    auto original = S {};
+    auto json = Miro::toJSON(original);
+    auto loaded = Miro::createFromJSON<S>(json);
+
+    check(loaded.m.size() == 3);
+    check(loaded.m["a"] == 1);
+    check(loaded.m["b"] == 2);
+    check(loaded.m["c"] == 3);
+};
+
 // --- fromJSON test ---
 
 auto fromJSONTest = test("fromJSON into existing object") = []
