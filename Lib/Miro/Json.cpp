@@ -103,6 +103,11 @@ const Object& Value::asObject() const
     return std::get<Object>(data);
 }
 
+Value::operator bool() const { return asBool(); }
+Value::operator int() const { return static_cast<int>(asNumber()); }
+Value::operator double() const { return asNumber(); }
+Value::operator std::string() const { return asString(); }
+
 Value& Value::operator[](const std::string& keyToUse)
 {
     return std::get<Object>(data).at(keyToUse);

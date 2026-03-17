@@ -39,17 +39,51 @@ struct Reflector
     virtual Child addChild(std::string_view key) = 0;
 };
 
-void reflect(Reflector& ref, std::string_view key, bool& value);
-void reflect(Reflector& ref, std::string_view key, int& value);
-void reflect(Reflector& ref, std::string_view key, double& value);
-
-void reflect(Reflector& ref, std::string_view key, std::string& value);
-
 template <typename T>
+constexpr bool isPrimitive()
+{
+    return std::is_same_v<T, bool> || std::is_same_v<T, int>
+           || std::is_same_v<T, double> || std::is_same_v<T, std::string>;
+}
+
+// User-facing overload point 1: primitive types via JSON
+template <typename T>
+    requires(isPrimitive<T>())
+void reflect(JSON& json, T& value, bool isSaving)
+{
+    if (isSaving)
+        json = JSON(value);
+    else
+        value = static_cast<T>(json);
+}
+
+// User-facing overload point 2: compound types
+template <typename T>
+void reflect(Reflector& ref, T& value)
+{
+    value.reflect(ref);
+}
+
+// Keyed dispatch for JSON-reflectable (primitive) types
+template <typename T>
+    requires(isPrimitive<T>())
+void reflect(Reflector& ref, std::string_view key, T& value)
+{
+    auto json = JSON {};
+    if (ref.isSaving())
+        reflect(json, value, true);
+    ref.reflect(key, json);
+    if (!ref.isSaving())
+        reflect(json, value, false);
+}
+
+// Keyed dispatch for compound types
+template <typename T>
+    requires(!isPrimitive<T>())
 void reflect(Reflector& ref, std::string_view key, T& value)
 {
     auto child = ref.addChild(key);
-    value.reflect(child);
+    reflect(static_cast<Reflector&>(child), value);
 }
 
 template <typename T>

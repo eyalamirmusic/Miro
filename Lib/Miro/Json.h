@@ -43,6 +43,11 @@ struct Value
     const Array& asArray() const;
     const Object& asObject() const;
 
+    explicit operator bool() const;
+    explicit operator int() const;
+    explicit operator double() const;
+    explicit operator std::string() const;
+
     Value& operator[](const std::string& keyToUse);
     const Value& operator[](const std::string& keyToUse) const;
     Value& operator[](std::size_t indexToUse);
