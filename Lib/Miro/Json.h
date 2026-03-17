@@ -58,33 +58,7 @@ class ParseError : public std::runtime_error
     using std::runtime_error::runtime_error;
 };
 
-class Parser
-{
-public:
-    static Value parse(std::string_view inputToUse);
-
-private:
-    explicit Parser(std::string_view inputToUse);
-
-    Value parseValue();
-    Value parseNull();
-    Value parseBool();
-    Value parseNumber();
-    Value parseString();
-    Value parseArray();
-    Value parseObject();
-
-    std::string parseStringRaw();
-    char current() const;
-    char advance();
-    bool atEnd() const;
-    void skipWhitespace();
-    void expect(char charToUse);
-    [[noreturn]] void error(const std::string& messageToUse) const;
-
-    std::string_view input;
-    std::size_t position;
-};
+Value parse(std::string_view inputToUse);
 
 } // namespace Miro::Json
 

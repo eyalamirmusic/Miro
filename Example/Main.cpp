@@ -12,7 +12,7 @@ int main()
         "metadata": null
     })"};
 
-    auto value = Miro::Json::Parser::parse(json);
+    auto value = Miro::Json::parse(json);
 
     std::cout << "name: " << value["name"].asString() << "\n";
     std::cout << "version: " << value["version"].asNumber() << "\n";
