@@ -1,5 +1,6 @@
 #include "Json.h"
 
+#include <array>
 #include <cmath>
 #include <sstream>
 
