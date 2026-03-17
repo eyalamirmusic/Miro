@@ -44,7 +44,7 @@ jobs:
               -DCMAKE_SYSTEM_NAME=iOS
               -DCMAKE_OSX_DEPLOYMENT_TARGET=13.0
             cmake_build_args: --config Release -- -sdk iphonesimulator
-            ctest_args: -C Release
+            ios_test: true
 
     steps:
       - uses: actions/checkout@v4
@@ -67,4 +67,13 @@ jobs:
         run: cmake --build build ${{ matrix.cmake_build_args }}
 
       - name: Test
-        run: ctest --test-dir build ${{ matrix.ctest_args }} --output-on-failure
+        if: ${{ !matrix.ios_test }}
+        run: ctest --test-dir build --output-on-failure
+
+      - name: Test (iOS Simulator)
+        if: ${{ matrix.ios_test }}
+        run: |
+          DEVICE=$(xcrun simctl list devices available -j | python3 -c "import sys,json; devs=json.load(sys.stdin)['devices']; print(next(d['udid'] for r,ds in devs.items() if 'iPhone' in r for d in ds if d['isAvailable']))")
+          xcrun simctl boot "$DEVICE"
+          xcrun simctl spawn "$DEVICE" build/Tests/Release-iphonesimulator/MiroTests.app/MiroTests
+          xcrun simctl shutdown "$DEVICE"
