@@ -56,6 +56,9 @@ struct Value
     Value& operator[](std::size_t indexToUse);
     const Value& operator[](std::size_t indexToUse) const;
 
+    Value& operator[](int indexToUse);
+    const Value& operator[](int indexToUse) const;
+
     bool operator==(const Value& otherToUse) const = default;
 
     Variant data;

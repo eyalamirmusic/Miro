@@ -76,10 +76,10 @@ auto parseArray = test("Parse array") = []
     auto value = parse(R"([1, "two", true, null])");
     check(value.isArray());
     check(value.asArray().size() == 4);
-    check(value[std::size_t {0}].asNumber() == 1.0);
-    check(value[std::size_t {1}].asString() == "two");
-    check(value[std::size_t {2}].asBool() == true);
-    check(value[std::size_t {3}].isNull());
+    check(value[0].asNumber() == 1.0);
+    check(value[1].asString() == "two");
+    check(value[2].asBool() == true);
+    check(value[3].isNull());
 };
 
 auto parseEmptyObject = test("Parse empty object") = []
@@ -105,8 +105,8 @@ auto parseObject = test("Parse object") = []
     check(value["active"].asBool() == true);
     check(value["metadata"].isNull());
     check(value["features"].isArray());
-    check(value["features"][std::size_t {0}].asString() == "json");
-    check(value["features"][std::size_t {1}].asString() == "reflection");
+    check(value["features"][0].asString() == "json");
+    check(value["features"][1].asString() == "reflection");
 };
 
 auto parseNestedObjects = test("Parse nested objects") = []

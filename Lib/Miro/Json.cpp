@@ -116,10 +116,22 @@ Object& Value::asObject()
     return std::get<Object>(data);
 }
 
-Value::operator bool() const { return asBool(); }
-Value::operator int() const { return static_cast<int>(asNumber()); }
-Value::operator double() const { return asNumber(); }
-Value::operator std::string() const { return asString(); }
+Value::operator bool() const
+{
+    return asBool();
+}
+Value::operator int() const
+{
+    return static_cast<int>(asNumber());
+}
+Value::operator double() const
+{
+    return asNumber();
+}
+Value::operator std::string() const
+{
+    return asString();
+}
 
 Value& Value::operator[](const std::string& keyToUse)
 {
@@ -139,6 +151,15 @@ Value& Value::operator[](std::size_t indexToUse)
 const Value& Value::operator[](std::size_t indexToUse) const
 {
     return std::get<Array>(data).at(indexToUse);
+}
+Value& Value::operator[](int indexToUse)
+{
+    return operator[]((size_t) indexToUse);
+}
+
+const Value& Value::operator[](int indexToUse) const
+{
+    return operator[]((size_t) indexToUse);
 }
 
 } // namespace Miro::Json
