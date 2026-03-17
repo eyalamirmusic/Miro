@@ -2,7 +2,6 @@
 
 #include "Json.h"
 
-#include <memory>
 #include <string>
 #include <string_view>
 
@@ -19,24 +18,20 @@ struct Property
     std::string_view key;
 };
 
-struct Child
-{
-    std::unique_ptr<Reflector> ref;
-
-    operator Reflector&() { return *ref; }
-};
-
 struct Reflector
 {
-    virtual ~Reflector() = default;
+    Reflector(JSON& jsonToUse, bool savingToUse)
+        : json(jsonToUse)
+        , saving(savingToUse)
+    {
+    }
 
     Property operator[](std::string_view key) { return {*this, key}; }
 
-    virtual bool isSaving() const = 0;
+    bool isSaving() const { return saving; }
 
-    virtual void reflect(std::string_view key, Json::Value& value) = 0;
-
-    virtual Child addChild(std::string_view key) = 0;
+    JSON& json;
+    bool saving;
 };
 
 template <typename T>
@@ -46,44 +41,45 @@ constexpr bool isPrimitive()
            || std::is_same_v<T, double> || std::is_same_v<T, std::string>;
 }
 
-// User-facing overload point 1: primitive types via JSON
 template <typename T>
-    requires(isPrimitive<T>())
-void reflect(JSON& json, T& value, bool isSaving)
+void reflectPrimitive(Reflector& ref, T& value)
 {
-    if (isSaving)
-        json = JSON(value);
+    if (ref.isSaving())
+        ref.json = JSON(value);
     else
-        value = static_cast<T>(json);
+        value = static_cast<T>(ref.json);
 }
 
-// User-facing overload point 2: compound types
 template <typename T>
 void reflect(Reflector& ref, T& value)
 {
-    value.reflect(ref);
+    if constexpr (isPrimitive<T>())
+        reflectPrimitive(ref, value);
+    else
+        value.reflect(ref);
 }
 
-// Keyed dispatch for JSON-reflectable (primitive) types
 template <typename T>
-    requires(isPrimitive<T>())
 void reflect(Reflector& ref, std::string_view key, T& value)
 {
-    auto json = JSON {};
+    auto& obj = ref.json.toObject();
+
+
     if (ref.isSaving())
-        reflect(json, value, true);
-    ref.reflect(key, json);
-    if (!ref.isSaving())
-        reflect(json, value, false);
-}
+    {
+        auto child = Reflector {obj[std::string(key)], true};
+        reflect(child, value);
+    }
+    else
+    {
+        auto it = obj.find(std::string(key));
 
-// Keyed dispatch for compound types
-template <typename T>
-    requires(!isPrimitive<T>())
-void reflect(Reflector& ref, std::string_view key, T& value)
-{
-    auto child = ref.addChild(key);
-    reflect(static_cast<Reflector&>(child), value);
+        if (it != obj.end())
+        {
+            auto child = Reflector {it->second, false};
+            reflect(child, value);
+        }
+    }
 }
 
 template <typename T>

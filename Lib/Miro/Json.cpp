@@ -78,6 +78,14 @@ bool Value::isObject() const
     return std::holds_alternative<Object>(data);
 }
 
+Object& Value::toObject()
+{
+    if (!isObject())
+        data = Object();
+
+    return asObject();
+}
+
 bool Value::asBool() const
 {
     return std::get<bool>(data);
@@ -99,6 +107,11 @@ const Array& Value::asArray() const
 }
 
 const Object& Value::asObject() const
+{
+    return std::get<Object>(data);
+}
+
+Object& Value::asObject()
 {
     return std::get<Object>(data);
 }

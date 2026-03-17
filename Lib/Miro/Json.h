@@ -37,11 +37,14 @@ struct Value
     bool isArray() const;
     bool isObject() const;
 
+    Object& toObject();
+
     bool asBool() const;
     double asNumber() const;
     const std::string& asString() const;
     const Array& asArray() const;
     const Object& asObject() const;
+    Object& asObject();
 
     explicit operator bool() const;
     explicit operator int() const;
