@@ -131,6 +131,7 @@ void reflect(Reflector& ref, std::map<std::string, V>& value)
     else
     {
         auto& obj = std::get<Json::Object>(ref.json.data);
+        value.clear();
 
         for (auto& [key, node]: obj)
         {

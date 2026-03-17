@@ -1,43 +1,14 @@
-#include <Miro/Miro.h>
+#include "TestTypes.h"
+
 #include <NanoTest/NanoTest.h>
 
 using namespace nano;
-
-// --- Test types ---
-
-struct Inner
-{
-    void reflect(Miro::Reflector& ref) { ref["x"](x); }
-
-    int x = 0;
-};
-
-struct Outer
-{
-    void reflect(Miro::Reflector& ref)
-    {
-        ref["a"](a);
-        ref["nested"](nested);
-        ref["label"](label);
-    }
-
-    int a = 0;
-    Inner nested;
-    std::string label;
-};
 
 // --- Save tests ---
 
 auto saveBool = test("Save bool") = []
 {
-    struct S
-    {
-        void reflect(Miro::Reflector& ref) { ref["active"](active); }
-
-        bool active = true;
-    };
-
-    auto val = S {};
+    auto val = ClassWithBool {};
     auto json = Miro::toJSON(val);
 
     check(json["active"].isBool());
@@ -46,14 +17,7 @@ auto saveBool = test("Save bool") = []
 
 auto saveInt = test("Save int") = []
 {
-    struct S
-    {
-        void reflect(Miro::Reflector& ref) { ref["count"](count); }
-
-        int count = 42;
-    };
-
-    auto val = S {};
+    auto val = ClassWithInt {};
     auto json = Miro::toJSON(val);
 
     check(json["count"].isNumber());
@@ -62,14 +26,7 @@ auto saveInt = test("Save int") = []
 
 auto saveDouble = test("Save double") = []
 {
-    struct S
-    {
-        void reflect(Miro::Reflector& ref) { ref["ratio"](ratio); }
-
-        double ratio = 3.14;
-    };
-
-    auto val = S {};
+    auto val = ClassWithDouble {};
     auto json = Miro::toJSON(val);
 
     check(json["ratio"].isNumber());
@@ -78,14 +35,7 @@ auto saveDouble = test("Save double") = []
 
 auto saveString = test("Save string") = []
 {
-    struct S
-    {
-        void reflect(Miro::Reflector& ref) { ref["name"](name); }
-
-        std::string name = "hello";
-    };
-
-    auto val = S {};
+    auto val = ClassWithString {};
     auto json = Miro::toJSON(val);
 
     check(json["name"].isString());
@@ -96,56 +46,28 @@ auto saveString = test("Save string") = []
 
 auto loadBool = test("Load bool") = []
 {
-    struct S
-    {
-        void reflect(Miro::Reflector& ref) { ref["active"](active); }
-
-        bool active = false;
-    };
-
-    auto val = Miro::createFromJSONString<S>(R"({"active": true})");
+    auto val = Miro::createFromJSONString<ClassWithBool>(R"({"active": true})");
 
     check(val.active == true);
 };
 
 auto loadInt = test("Load int") = []
 {
-    struct S
-    {
-        void reflect(Miro::Reflector& ref) { ref["count"](count); }
-
-        int count = 0;
-    };
-
-    auto val = Miro::createFromJSONString<S>(R"({"count": 7})");
+    auto val = Miro::createFromJSONString<ClassWithInt>(R"({"count": 7})");
 
     check(val.count == 7);
 };
 
 auto loadDouble = test("Load double") = []
 {
-    struct S
-    {
-        void reflect(Miro::Reflector& ref) { ref["ratio"](ratio); }
-
-        double ratio = 0.0;
-    };
-
-    auto val = Miro::createFromJSONString<S>(R"({"ratio": 2.72})");
+    auto val = Miro::createFromJSONString<ClassWithDouble>(R"({"ratio": 2.72})");
 
     check(val.ratio == 2.72);
 };
 
 auto loadString = test("Load string") = []
 {
-    struct S
-    {
-        void reflect(Miro::Reflector& ref) { ref["name"](name); }
-
-        std::string name;
-    };
-
-    auto val = Miro::createFromJSONString<S>(R"({"name": "world"})");
+    auto val = Miro::createFromJSONString<ClassWithString>(R"({"name": "world"})");
 
     check(val.name == "world");
 };
@@ -194,14 +116,7 @@ auto loadNested = test("Load nested objects") = []
 
 auto saveVectorOfInts = test("Save vector of ints") = []
 {
-    struct S
-    {
-        void reflect(Miro::Reflector& ref) { ref["nums"](nums); }
-
-        std::vector<int> nums = {1, 2, 3};
-    };
-
-    auto val = S {};
+    auto val = ClassWithVectorOfInts {};
     auto json = Miro::toJSON(val);
 
     check(json["nums"].isArray());
@@ -214,14 +129,8 @@ auto saveVectorOfInts = test("Save vector of ints") = []
 
 auto loadVectorOfInts = test("Load vector of ints") = []
 {
-    struct S
-    {
-        void reflect(Miro::Reflector& ref) { ref["nums"](nums); }
-
-        std::vector<int> nums;
-    };
-
-    auto val = Miro::createFromJSONString<S>(R"({"nums": [10, 20, 30]})");
+    auto val = Miro::createFromJSONString<ClassWithVectorOfInts>(
+        R"({"nums": [10, 20, 30]})");
 
     check(val.nums.size() == 3);
     check(val.nums[0] == 10);
@@ -231,14 +140,7 @@ auto loadVectorOfInts = test("Load vector of ints") = []
 
 auto saveVectorOfObjects = test("Save vector of objects") = []
 {
-    struct S
-    {
-        void reflect(Miro::Reflector& ref) { ref["items"](items); }
-
-        std::vector<Inner> items = {{1}, {2}, {3}};
-    };
-
-    auto val = S {};
+    auto val = ClassWithVectorOfObjects {};
     auto json = Miro::toJSON(val);
 
     check(json["items"].isArray());
@@ -251,14 +153,8 @@ auto saveVectorOfObjects = test("Save vector of objects") = []
 
 auto loadVectorOfObjects = test("Load vector of objects") = []
 {
-    struct S
-    {
-        void reflect(Miro::Reflector& ref) { ref["items"](items); }
-
-        std::vector<Inner> items;
-    };
-
-    auto val = Miro::createFromJSONString<S>(R"({"items": [{"x": 5}, {"x": 10}]})");
+    auto val = Miro::createFromJSONString<ClassWithVectorOfObjects>(
+        R"({"items": [{"x": 5}, {"x": 10}]})");
 
     check(val.items.size() == 2);
     check(val.items[0].x == 5);
@@ -267,16 +163,9 @@ auto loadVectorOfObjects = test("Load vector of objects") = []
 
 auto vectorRoundtrip = test("Vector roundtrip") = []
 {
-    struct S
-    {
-        void reflect(Miro::Reflector& ref) { ref["tags"](tags); }
-
-        std::vector<std::string> tags = {"a", "b", "c"};
-    };
-
-    auto original = S {};
+    auto original = ClassWithVectorOfStrings {};
     auto json = Miro::toJSON(original);
-    auto loaded = Miro::createFromJSON<S>(json);
+    auto loaded = Miro::createFromJSON<ClassWithVectorOfStrings>(json);
 
     check(loaded.tags.size() == 3);
     check(loaded.tags[0] == "a");
@@ -288,14 +177,7 @@ auto vectorRoundtrip = test("Vector roundtrip") = []
 
 auto saveArrayOfDoubles = test("Save array of doubles") = []
 {
-    struct S
-    {
-        void reflect(Miro::Reflector& ref) { ref["vals"](vals); }
-
-        std::array<double, 3> vals = {1.0, 2.0, 3.0};
-    };
-
-    auto val = S {};
+    auto val = ClassWithArrayOfDoubles {};
     auto json = Miro::toJSON(val);
 
     check(json["vals"].isArray());
@@ -308,14 +190,8 @@ auto saveArrayOfDoubles = test("Save array of doubles") = []
 
 auto loadArrayOfDoubles = test("Load array of doubles") = []
 {
-    struct S
-    {
-        void reflect(Miro::Reflector& ref) { ref["vals"](vals); }
-
-        std::array<double, 3> vals = {};
-    };
-
-    auto val = Miro::createFromJSONString<S>(R"({"vals": [4.0, 5.0, 6.0]})");
+    auto val = Miro::createFromJSONString<ClassWithArrayOfDoubles>(
+        R"({"vals": [4.0, 5.0, 6.0]})");
 
     check(val.vals[0] == 4.0);
     check(val.vals[1] == 5.0);
@@ -324,14 +200,7 @@ auto loadArrayOfDoubles = test("Load array of doubles") = []
 
 auto saveArrayOfObjects = test("Save array of objects") = []
 {
-    struct S
-    {
-        void reflect(Miro::Reflector& ref) { ref["items"](items); }
-
-        std::array<Inner, 2> items = {Inner {7}, Inner {8}};
-    };
-
-    auto val = S {};
+    auto val = ClassWithArrayOfObjects {};
     auto json = Miro::toJSON(val);
 
     check(json["items"].isArray());
@@ -343,14 +212,8 @@ auto saveArrayOfObjects = test("Save array of objects") = []
 
 auto loadArrayOfObjects = test("Load array of objects") = []
 {
-    struct S
-    {
-        void reflect(Miro::Reflector& ref) { ref["items"](items); }
-
-        std::array<Inner, 2> items = {};
-    };
-
-    auto val = Miro::createFromJSONString<S>(R"({"items": [{"x": 11}, {"x": 22}]})");
+    auto val = Miro::createFromJSONString<ClassWithArrayOfObjects>(
+        R"({"items": [{"x": 11}, {"x": 22}]})");
 
     check(val.items[0].x == 11);
     check(val.items[1].x == 22);
@@ -373,14 +236,7 @@ auto roundtrip = test("Save then load roundtrip") = []
 
 auto saveMapOfStrings = test("Save map of strings") = []
 {
-    struct S
-    {
-        void reflect(Miro::Reflector& ref) { ref["data"](data); }
-
-        std::map<std::string, std::string> data = {{"a", "hello"}, {"b", "world"}};
-    };
-
-    auto val = S {};
+    auto val = ClassWithStringMap {};
     auto json = Miro::toJSON(val);
 
     check(json["data"].isObject());
@@ -390,15 +246,8 @@ auto saveMapOfStrings = test("Save map of strings") = []
 
 auto loadMapOfStrings = test("Load map of strings") = []
 {
-    struct S
-    {
-        void reflect(Miro::Reflector& ref) { ref["data"](data); }
-
-        std::map<std::string, std::string> data;
-    };
-
-    auto val =
-        Miro::createFromJSONString<S>(R"({"data": {"x": "one", "y": "two"}})");
+    auto val = Miro::createFromJSONString<ClassWithStringMap>(
+        R"({"data": {"x": "one", "y": "two"}})");
 
     check(val.data.size() == 2);
     check(val.data["x"] == "one");
@@ -407,14 +256,7 @@ auto loadMapOfStrings = test("Load map of strings") = []
 
 auto saveMapOfInts = test("Save map of ints") = []
 {
-    struct S
-    {
-        void reflect(Miro::Reflector& ref) { ref["counts"](counts); }
-
-        std::map<std::string, int> counts = {{"apples", 3}, {"bananas", 5}};
-    };
-
-    auto val = S {};
+    auto val = ClassWithIntMap {};
     auto json = Miro::toJSON(val);
 
     check(json["counts"]["apples"].asNumber() == 3.0);
@@ -423,14 +265,7 @@ auto saveMapOfInts = test("Save map of ints") = []
 
 auto loadMapOfObjects = test("Load map of objects") = []
 {
-    struct S
-    {
-        void reflect(Miro::Reflector& ref) { ref["items"](items); }
-
-        std::map<std::string, Inner> items;
-    };
-
-    auto val = Miro::createFromJSONString<S>(
+    auto val = Miro::createFromJSONString<ClassWithObjectMap>(
         R"({"items": {"first": {"x": 1}, "second": {"x": 2}}})");
 
     check(val.items.size() == 2);
@@ -440,21 +275,13 @@ auto loadMapOfObjects = test("Load map of objects") = []
 
 auto mapRoundtrip = test("Map roundtrip") = []
 {
-    struct S
-    {
-        void reflect(Miro::Reflector& ref) { ref["m"](m); }
-
-        std::map<std::string, int> m = {{"a", 1}, {"b", 2}, {"c", 3}};
-    };
-
-    auto original = S {};
+    auto original = ClassWithIntMap {};
     auto json = Miro::toJSON(original);
-    auto loaded = Miro::createFromJSON<S>(json);
+    auto loaded = Miro::createFromJSON<ClassWithIntMap>(json);
 
-    check(loaded.m.size() == 3);
-    check(loaded.m["a"] == 1);
-    check(loaded.m["b"] == 2);
-    check(loaded.m["c"] == 3);
+    check(loaded.counts.size() == 2);
+    check(loaded.counts["apples"] == 3);
+    check(loaded.counts["bananas"] == 5);
 };
 
 // --- fromJSON test ---
