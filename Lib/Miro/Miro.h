@@ -4,6 +4,7 @@
 
 #include <string>
 #include <string_view>
+#include <vector>
 
 namespace Miro
 {
@@ -60,10 +61,36 @@ void reflect(Reflector& ref, T& value)
 }
 
 template <typename T>
+void reflect(Reflector& ref, std::vector<T>& value)
+{
+    if (ref.isSaving())
+    {
+        auto& arr = ref.json.data.emplace<Json::Array>();
+
+        for (auto& element: value)
+        {
+            auto& node = arr.emplace_back();
+            auto child = Reflector {node, true};
+            reflect(child, element);
+        }
+    }
+    else
+    {
+        auto& arr = std::get<Json::Array>(ref.json.data);
+        value.resize(arr.size());
+
+        for (std::size_t i = 0; i < arr.size(); ++i)
+        {
+            auto child = Reflector {arr[i], false};
+            reflect(child, value[i]);
+        }
+    }
+}
+
+template <typename T>
 void reflect(Reflector& ref, std::string_view key, T& value)
 {
     auto& obj = ref.json.toObject();
-
 
     if (ref.isSaving())
     {

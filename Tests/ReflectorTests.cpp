@@ -220,6 +220,116 @@ auto loadNested = test("Load nested objects") = []
     check(val.label == "loaded");
 };
 
+// --- Vector tests ---
+
+auto saveVectorOfInts = test("Save vector of ints") = []
+{
+    struct S
+    {
+        std::vector<int> nums = {1, 2, 3};
+
+        void reflect(Miro::Reflector& ref) { ref["nums"](nums); }
+    };
+
+    auto json = Value {Object {}};
+    auto ref = Miro::Reflector {json, true};
+    auto val = S {};
+    val.reflect(ref);
+
+    check(json["nums"].isArray());
+    auto& arr = json["nums"].asArray();
+    check(arr.size() == 3);
+    check(arr[0].asNumber() == 1.0);
+    check(arr[1].asNumber() == 2.0);
+    check(arr[2].asNumber() == 3.0);
+};
+
+auto loadVectorOfInts = test("Load vector of ints") = []
+{
+    struct S
+    {
+        std::vector<int> nums;
+
+        void reflect(Miro::Reflector& ref) { ref["nums"](nums); }
+    };
+
+    auto json = parse(R"({"nums": [10, 20, 30]})");
+    auto ref = Miro::Reflector {json, false};
+    auto val = S {};
+    val.reflect(ref);
+
+    check(val.nums.size() == 3);
+    check(val.nums[0] == 10);
+    check(val.nums[1] == 20);
+    check(val.nums[2] == 30);
+};
+
+auto saveVectorOfObjects = test("Save vector of objects") = []
+{
+    struct S
+    {
+        std::vector<Inner> items = {{1}, {2}, {3}};
+
+        void reflect(Miro::Reflector& ref) { ref["items"](items); }
+    };
+
+    auto json = Value {Object {}};
+    auto ref = Miro::Reflector {json, true};
+    auto val = S {};
+    val.reflect(ref);
+
+    check(json["items"].isArray());
+    auto& arr = json["items"].asArray();
+    check(arr.size() == 3);
+    check(arr[0]["x"].asNumber() == 1.0);
+    check(arr[1]["x"].asNumber() == 2.0);
+    check(arr[2]["x"].asNumber() == 3.0);
+};
+
+auto loadVectorOfObjects = test("Load vector of objects") = []
+{
+    struct S
+    {
+        std::vector<Inner> items;
+
+        void reflect(Miro::Reflector& ref) { ref["items"](items); }
+    };
+
+    auto json = parse(R"({"items": [{"x": 5}, {"x": 10}]})");
+    auto ref = Miro::Reflector {json, false};
+    auto val = S {};
+    val.reflect(ref);
+
+    check(val.items.size() == 2);
+    check(val.items[0].x == 5);
+    check(val.items[1].x == 10);
+};
+
+auto vectorRoundtrip = test("Vector roundtrip") = []
+{
+    struct S
+    {
+        std::vector<std::string> tags = {"a", "b", "c"};
+
+        void reflect(Miro::Reflector& ref) { ref["tags"](tags); }
+    };
+
+    auto original = S {};
+
+    auto json = Value {Object {}};
+    auto saver = Miro::Reflector {json, true};
+    original.reflect(saver);
+
+    auto loaded = S {{}};
+    auto loader = Miro::Reflector {json, false};
+    loaded.reflect(loader);
+
+    check(loaded.tags.size() == 3);
+    check(loaded.tags[0] == "a");
+    check(loaded.tags[1] == "b");
+    check(loaded.tags[2] == "c");
+};
+
 // --- Roundtrip test ---
 
 auto roundtrip = test("Save then load roundtrip") = []
