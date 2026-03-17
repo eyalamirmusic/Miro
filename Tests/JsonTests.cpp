@@ -122,3 +122,55 @@ auto valueEquality = test("Value equality") = []
     check(parse("true") == parse("true"));
     check(parse("null") == parse("null"));
 };
+
+// --- Print tests ---
+
+auto printNull = test("Print null") = [] { check(print(parse("null")) == "null"); };
+
+auto printBool = test("Print bool") = []
+{
+    check(print(parse("true")) == "true");
+    check(print(parse("false")) == "false");
+};
+
+auto printInteger = test("Print integer") = []
+{
+    check(print(parse("42")) == "42");
+    check(print(parse("-7")) == "-7");
+    check(print(parse("0")) == "0");
+};
+
+auto printFloat =
+    test("Print float") = [] { check(print(parse("3.14")) == "3.14"); };
+
+auto printString =
+    test("Print string") = [] { check(print(parse(R"("hello")")) == R"("hello")"); };
+
+auto printStringEscapes = test("Print string escapes") = []
+{
+    check(print(parse(R"("a\nb")")) == R"("a\nb")");
+    check(print(parse(R"("a\tb")")) == R"("a\tb")");
+    check(print(parse(R"("a\"b")")) == R"("a\"b")");
+    check(print(parse(R"("a\\b")")) == R"("a\\b")");
+};
+
+auto printEmptyArray =
+    test("Print empty array") = [] { check(print(parse("[]")) == "[]"); };
+
+auto printArray =
+    test("Print array") = [] { check(print(parse("[1,2,3]")) == "[1,2,3]"); };
+
+auto printEmptyObject =
+    test("Print empty object") = [] { check(print(parse("{}")) == "{}"); };
+
+auto printObject = test("Print object") = []
+{
+    auto value = parse(R"({"a":1,"b":"two"})");
+    check(print(value) == R"({"a":1,"b":"two"})");
+};
+
+auto printRoundtrip = test("Print roundtrip") = []
+{
+    auto input = R"({"active":true,"items":[1,"two",null],"name":"Miro"})";
+    check(print(parse(input)) == input);
+};

@@ -59,6 +59,7 @@ class ParseError : public std::runtime_error
 };
 
 Value parse(std::string_view inputToUse);
+std::string print(const Value& valueToUse);
 
 } // namespace Miro::Json
 
