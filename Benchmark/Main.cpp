@@ -14,8 +14,8 @@ struct BenchmarkResult
     double average() const { return total / iterations; }
 
     std::string name;
-    double total;
-    int iterations;
+    double total = 0.0;
+    int iterations = 1;
 };
 
 BenchmarkResult measure(const std::string& nameToUse,

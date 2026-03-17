@@ -9,8 +9,9 @@ class Parser
 {
 public:
     explicit Parser(std::string_view inputToUse)
-        : input(inputToUse)
-        , position(0)
+        : input(inputToUse.data())
+        , end(inputToUse.data() + inputToUse.size())
+        , pos(inputToUse.data())
     {
     }
 
@@ -21,71 +22,75 @@ public:
         if (atEnd())
             error("unexpected end of input");
 
-        auto c = current();
+        auto c = *pos;
 
-        if (c == 'n')
-            return parseNull();
-        if (c == 't' || c == 'f')
-            return parseBool();
         if (c == '"')
             return parseString();
-        if (c == '[')
-            return parseArray();
         if (c == '{')
             return parseObject();
+        if (c == '[')
+            return parseArray();
+        if (c == 't' || c == 'f')
+            return parseBool();
+        if (c == 'n')
+            return parseNull();
         if (c == '-' || (c >= '0' && c <= '9'))
             return parseNumber();
 
-        error("unexpected character '" + std::string(1, c) + "'");
+        error("unexpected character '"
+              + std::string(1, c) + "'");
     }
 
-    bool atEnd() const { return position >= input.size(); }
+    bool atEnd() const { return pos >= end; }
 
     void skipWhitespace()
     {
-        while (!atEnd()
-               && (current() == ' ' || current() == '\t' || current() == '\n'
-                   || current() == '\r'))
+        while (pos < end
+               && (*pos == ' ' || *pos == '\t'
+                   || *pos == '\n' || *pos == '\r'))
         {
-            advance();
+            ++pos;
         }
     }
 
-    [[noreturn]] void error(const std::string& messageToUse) const
+    [[noreturn]] void
+    error(const std::string& messageToUse) const
     {
-        throw std::runtime_error("JSON parse error at position "
-                                 + std::to_string(position) + ": " + messageToUse);
+        throw ParseError(
+            "JSON parse error at position "
+            + std::to_string(pos - input) + ": "
+            + messageToUse);
     }
 
 private:
     Value parseNull()
     {
-        auto keyword = std::string_view("null");
-        auto remaining = input.substr(position);
-
-        if (!remaining.starts_with(keyword))
+        if (end - pos < 4 || pos[0] != 'n'
+            || pos[1] != 'u' || pos[2] != 'l'
+            || pos[3] != 'l')
+        {
             error("expected 'null'");
+        }
 
-        position += keyword.size();
-
+        pos += 4;
         return {nullptr};
     }
 
     Value parseBool()
     {
-        auto trueKeyword = std::string_view("true");
-        auto falseKeyword = std::string_view("false");
-        auto remaining = input.substr(position);
-
-        if (remaining.starts_with(trueKeyword))
+        if (end - pos >= 4 && pos[0] == 't'
+            && pos[1] == 'r' && pos[2] == 'u'
+            && pos[3] == 'e')
         {
-            position += trueKeyword.size();
+            pos += 4;
             return {true};
         }
 
-        if (remaining.starts_with(falseKeyword))
+        if (end - pos >= 5 && pos[0] == 'f'
+            && pos[1] == 'a' && pos[2] == 'l'
+            && pos[3] == 's' && pos[4] == 'e')
         {
-            position += falseKeyword.size();
+            pos += 5;
             return {false};
         }
 
@@ -94,58 +99,63 @@ private:
 
     Value parseNumber()
     {
-        auto start = position;
+        auto start = pos;
 
-        if (current() == '-')
-            advance();
+        if (*pos == '-')
+            ++pos;
 
-        if (atEnd())
+        if (pos >= end)
             error("unexpected end of number");
 
-        if (current() == '0')
-            advance();
-        else if (current() >= '1' && current() <= '9')
+        if (*pos == '0')
         {
-            while (!atEnd() && current() >= '0' && current() <= '9')
-                advance();
+            ++pos;
+        }
+        else if (*pos >= '1' && *pos <= '9')
+        {
+            while (pos < end && *pos >= '0'
+                   && *pos <= '9')
+                ++pos;
         }
         else
-            error("invalid number");
-
-        if (!atEnd() && current() == '.')
         {
-            advance();
+            error("invalid number");
+        }
 
-            if (atEnd() || current() < '0' || current() > '9')
+        if (pos < end && *pos == '.')
+        {
+            ++pos;
+
+            if (pos >= end || *pos < '0' || *pos > '9')
                 error("expected digit after decimal point");
 
-            while (!atEnd() && current() >= '0' && current() <= '9')
-                advance();
+            while (pos < end && *pos >= '0'
+                   && *pos <= '9')
+                ++pos;
         }
 
-        if (!atEnd() && (current() == 'e' || current() == 'E'))
+        if (pos < end && (*pos == 'e' || *pos == 'E'))
         {
-            advance();
+            ++pos;
 
-            if (!atEnd() && (current() == '+' || current() == '-'))
-                advance();
+            if (pos < end
+                && (*pos == '+' || *pos == '-'))
+                ++pos;
 
-            if (atEnd() || current() < '0' || current() > '9')
+            if (pos >= end || *pos < '0' || *pos > '9')
                 error("expected digit in exponent");
 
-            while (!atEnd() && current() >= '0' && current() <= '9')
-                advance();
+            while (pos < end && *pos >= '0'
+                   && *pos <= '9')
+                ++pos;
         }
 
-        auto text = input.substr(start, position - start);
         auto value = double {};
         auto [ptr, ec] =
-            std::from_chars(text.data(), text.data() + text.size(), value);
+            std::from_chars(start, pos, value);
 
         if (ec != std::errc {})
-        {
             error("failed to parse number");
-        }
 
         return {value};
     }
@@ -155,19 +165,41 @@ private:
     std::string parseStringRaw()
     {
         expect('"');
-        auto result = std::string {};
 
-        while (!atEnd() && current() != '"')
+        auto start = pos;
+
+        while (pos < end && *pos != '"'
+               && *pos != '\\')
+            ++pos;
+
+        if (pos < end && *pos == '"')
         {
-            if (current() == '\\')
+            auto result =
+                std::string(start, pos - start);
+            ++pos;
+            return result;
+        }
+
+        auto result = std::string(start, pos - start);
+        return parseStringSlowPath(result);
+    }
+
+    std::string
+    parseStringSlowPath(std::string& result)
+    {
+        while (pos < end && *pos != '"')
+        {
+            if (*pos == '\\')
             {
-                advance();
+                ++pos;
 
-                if (atEnd())
-                    error("unexpected end of string escape");
+                if (pos >= end)
+                    error(
+                        "unexpected end of string "
+                        "escape");
 
-                auto escaped = current();
-                advance();
+                auto escaped = *pos;
+                ++pos;
 
                 switch (escaped)
                 {
@@ -197,58 +229,96 @@ private:
                         break;
                     case 'u':
                     {
-                        auto hex = std::string {};
-                        for (auto i = 0; i < 4; ++i)
-                        {
-                            if (atEnd())
-                            {
-                                error("unexpected end of "
-                                      "unicode escape");
-                            }
-                            hex += current();
-                            advance();
-                        }
+                        if (end - pos < 4)
+                            error(
+                                "unexpected end of "
+                                "unicode escape");
+
+                        auto hex =
+                            std::array<char, 4> {};
+                        hex[0] = pos[0];
+                        hex[1] = pos[1];
+                        hex[2] = pos[2];
+                        hex[3] = pos[3];
+                        pos += 4;
 
                         auto codepoint = unsigned {};
-                        auto [ptr, ec] = std::from_chars(
-                            hex.data(), hex.data() + hex.size(), codepoint, 16);
+                        auto [ptr, ec] =
+                            std::from_chars(
+                                hex.data(),
+                                hex.data() + 4,
+                                codepoint,
+                                16);
 
                         if (ec != std::errc {})
-                        {
-                            error("invalid unicode escape");
-                        }
+                            error(
+                                "invalid unicode "
+                                "escape");
 
                         if (codepoint <= 0x7F)
                         {
-                            result += static_cast<char>(codepoint);
+                            result +=
+                                static_cast<char>(
+                                    codepoint);
                         }
                         else if (codepoint <= 0x7FF)
                         {
-                            result += static_cast<char>(0xC0 | (codepoint >> 6));
-                            result += static_cast<char>(0x80 | (codepoint & 0x3F));
+                            result +=
+                                static_cast<char>(
+                                    0xC0
+                                    | (codepoint >> 6));
+                            result +=
+                                static_cast<char>(
+                                    0x80
+                                    | (codepoint
+                                       & 0x3F));
                         }
                         else
                         {
-                            result += static_cast<char>(0xE0 | (codepoint >> 12));
                             result +=
-                                static_cast<char>(0x80 | ((codepoint >> 6) & 0x3F));
-                            result += static_cast<char>(0x80 | (codepoint & 0x3F));
+                                static_cast<char>(
+                                    0xE0
+                                    | (codepoint
+                                       >> 12));
+                            result +=
+                                static_cast<char>(
+                                    0x80
+                                    | ((codepoint >> 6)
+                                       & 0x3F));
+                            result +=
+                                static_cast<char>(
+                                    0x80
+                                    | (codepoint
+                                       & 0x3F));
                         }
                         break;
                     }
                     default:
-                        error("invalid escape character '" + std::string(1, escaped)
-                              + "'");
+                        error(
+                            "invalid escape "
+                            "character '"
+                            + std::string(1, escaped)
+                            + "'");
                 }
             }
             else
             {
-                result += current();
-                advance();
+                auto start = pos;
+
+                while (pos < end && *pos != '"'
+                       && *pos != '\\')
+                    ++pos;
+
+                result.append(start, pos - start);
             }
         }
 
-        expect('"');
+        if (pos >= end)
+            error(
+                "expected '\"' but reached end of "
+                "input");
+
+        ++pos;
         return result;
     }
 
@@ -259,14 +329,15 @@ private:
 
         auto elements = Array {};
 
-        if (!atEnd() && current() != ']')
+        if (pos < end && *pos != ']')
         {
+            elements.reserve(16);
             elements.push_back(parseValue());
             skipWhitespace();
 
-            while (!atEnd() && current() == ',')
+            while (pos < end && *pos == ',')
             {
-                advance();
+                ++pos;
                 elements.push_back(parseValue());
                 skipWhitespace();
             }
@@ -283,25 +354,27 @@ private:
 
         auto entries = Object {};
 
-        if (!atEnd() && current() != '}')
+        if (pos < end && *pos != '}')
         {
             skipWhitespace();
             auto key = parseStringRaw();
             skipWhitespace();
             expect(':');
             auto value = parseValue();
-            entries.emplace(std::move(key), std::move(value));
+            entries.emplace(
+                std::move(key), std::move(value));
             skipWhitespace();
 
-            while (!atEnd() && current() == ',')
+            while (pos < end && *pos == ',')
             {
-                advance();
+                ++pos;
                 skipWhitespace();
                 key = parseStringRaw();
                 skipWhitespace();
                 expect(':');
                 value = parseValue();
-                entries.emplace(std::move(key), std::move(value));
+                entries.emplace(
+                    std::move(key), std::move(value));
                 skipWhitespace();
             }
         }
@@ -310,23 +383,25 @@ private:
         return {std::move(entries)};
     }
 
-    char current() const { return input[position]; }
-
-    char advance() { return input[position++]; }
-
     void expect(char charToUse)
     {
-        if (atEnd() || current() != charToUse)
+        if (pos >= end || *pos != charToUse)
         {
-            error("expected '" + std::string(1, charToUse) + "'"
-                  + (atEnd() ? " but reached end of input"
-                             : " but got '" + std::string(1, current()) + "'"));
+            error(
+                "expected '" + std::string(1, charToUse)
+                + "'"
+                + (pos >= end
+                       ? " but reached end of input"
+                       : " but got '"
+                           + std::string(1, *pos)
+                           + "'"));
         }
-        advance();
+        ++pos;
     }
 
-    std::string_view input;
-    std::size_t position;
+    const char* input;
+    const char* end;
+    const char* pos;
 };
 
 Value parse(std::string_view inputToUse)
@@ -336,9 +411,7 @@ Value parse(std::string_view inputToUse)
     parser.skipWhitespace();
 
     if (!parser.atEnd())
-    {
         parser.error("unexpected trailing content");
-    }
 
     return result;
 }
