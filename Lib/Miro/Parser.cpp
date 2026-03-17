@@ -1,5 +1,6 @@
 #include "Json.h"
 
+#include <array>
 #include <charconv>
 
 namespace Miro::Json
@@ -37,8 +38,7 @@ public:
         if (c == '-' || (c >= '0' && c <= '9'))
             return parseNumber();
 
-        error("unexpected character '"
-              + std::string(1, c) + "'");
+        error("unexpected character '" + std::string(1, c) + "'");
     }
 
     bool atEnd() const { return pos >= end; }
@@ -46,55 +46,38 @@ public:
     void skipWhitespace()
     {
         while (pos < end
-               && (*pos == ' ' || *pos == '\t'
-                   || *pos == '\n' || *pos == '\r'))
+               && (*pos == ' ' || *pos == '\t' || *pos == '\n' || *pos == '\r'))
         {
             ++pos;
         }
     }
 
-    [[noreturn]] void
-    error(const std::string& messageToUse) const
+    [[noreturn]] void error(const std::string& messageToUse) const
     {
-        throw ParseError(
-            "JSON parse error at position "
-            + std::to_string(pos - input) + ": "
-            + messageToUse);
+        throw ParseError("JSON parse error at position "
+                         + std::to_string(pos - input) + ": " + messageToUse);
     }
 
 private:
+    // --- Primitives ---
+
     Value parseNull()
     {
-        if (end - pos < 4 || pos[0] != 'n'
-            || pos[1] != 'u' || pos[2] != 'l'
-            || pos[3] != 'l')
-        {
-            error("expected 'null'");
-        }
-
-        pos += 4;
+        expectKeyword("null", 4);
         return {nullptr};
     }
 
     Value parseBool()
     {
-        if (end - pos >= 4 && pos[0] == 't'
-            && pos[1] == 'r' && pos[2] == 'u'
+        if (remaining() >= 4 && pos[0] == 't' && pos[1] == 'r' && pos[2] == 'u'
             && pos[3] == 'e')
         {
             pos += 4;
             return {true};
         }
 
-        if (end - pos >= 5 && pos[0] == 'f'
-            && pos[1] == 'a' && pos[2] == 'l'
-            && pos[3] == 's' && pos[4] == 'e')
-        {
-            pos += 5;
-            return {false};
-        }
-
-        error("expected 'true' or 'false'");
+        expectKeyword("false", 5);
+        return {false};
     }
 
     Value parseNumber()
@@ -108,57 +91,39 @@ private:
             error("unexpected end of number");
 
         if (*pos == '0')
-        {
             ++pos;
-        }
         else if (*pos >= '1' && *pos <= '9')
-        {
-            while (pos < end && *pos >= '0'
-                   && *pos <= '9')
-                ++pos;
-        }
+            skipDigits();
         else
-        {
             error("invalid number");
-        }
 
         if (pos < end && *pos == '.')
         {
             ++pos;
-
             if (pos >= end || *pos < '0' || *pos > '9')
                 error("expected digit after decimal point");
-
-            while (pos < end && *pos >= '0'
-                   && *pos <= '9')
-                ++pos;
+            skipDigits();
         }
 
         if (pos < end && (*pos == 'e' || *pos == 'E'))
         {
             ++pos;
-
-            if (pos < end
-                && (*pos == '+' || *pos == '-'))
+            if (pos < end && (*pos == '+' || *pos == '-'))
                 ++pos;
-
             if (pos >= end || *pos < '0' || *pos > '9')
                 error("expected digit in exponent");
-
-            while (pos < end && *pos >= '0'
-                   && *pos <= '9')
-                ++pos;
+            skipDigits();
         }
 
         auto value = double {};
-        auto [ptr, ec] =
-            std::from_chars(start, pos, value);
-
+        auto [ptr, ec] = std::from_chars(start, pos, value);
         if (ec != std::errc {})
             error("failed to parse number");
 
         return {value};
     }
+
+    // --- Strings ---
 
     Value parseString() { return {parseStringRaw()}; }
 
@@ -167,160 +132,105 @@ private:
         expect('"');
 
         auto start = pos;
-
-        while (pos < end && *pos != '"'
-               && *pos != '\\')
-            ++pos;
+        skipToStringBreak();
 
         if (pos < end && *pos == '"')
         {
-            auto result =
-                std::string(start, pos - start);
+            auto result = std::string(start, pos - start);
             ++pos;
             return result;
         }
 
         auto result = std::string(start, pos - start);
-        return parseStringSlowPath(result);
+        parseStringEscapes(result);
+        return result;
     }
 
-    std::string
-    parseStringSlowPath(std::string& result)
+    void parseStringEscapes(std::string& result)
     {
         while (pos < end && *pos != '"')
         {
             if (*pos == '\\')
             {
-                ++pos;
-
-                if (pos >= end)
-                    error(
-                        "unexpected end of string "
-                        "escape");
-
-                auto escaped = *pos;
-                ++pos;
-
-                switch (escaped)
-                {
-                    case '"':
-                        result += '"';
-                        break;
-                    case '\\':
-                        result += '\\';
-                        break;
-                    case '/':
-                        result += '/';
-                        break;
-                    case 'b':
-                        result += '\b';
-                        break;
-                    case 'f':
-                        result += '\f';
-                        break;
-                    case 'n':
-                        result += '\n';
-                        break;
-                    case 'r':
-                        result += '\r';
-                        break;
-                    case 't':
-                        result += '\t';
-                        break;
-                    case 'u':
-                    {
-                        if (end - pos < 4)
-                            error(
-                                "unexpected end of "
-                                "unicode escape");
-
-                        auto hex =
-                            std::array<char, 4> {};
-                        hex[0] = pos[0];
-                        hex[1] = pos[1];
-                        hex[2] = pos[2];
-                        hex[3] = pos[3];
-                        pos += 4;
-
-                        auto codepoint = unsigned {};
-                        auto [ptr, ec] =
-                            std::from_chars(
-                                hex.data(),
-                                hex.data() + 4,
-                                codepoint,
-                                16);
-
-                        if (ec != std::errc {})
-                            error(
-                                "invalid unicode "
-                                "escape");
-
-                        if (codepoint <= 0x7F)
-                        {
-                            result +=
-                                static_cast<char>(
-                                    codepoint);
-                        }
-                        else if (codepoint <= 0x7FF)
-                        {
-                            result +=
-                                static_cast<char>(
-                                    0xC0
-                                    | (codepoint >> 6));
-                            result +=
-                                static_cast<char>(
-                                    0x80
-                                    | (codepoint
-                                       & 0x3F));
-                        }
-                        else
-                        {
-                            result +=
-                                static_cast<char>(
-                                    0xE0
-                                    | (codepoint
-                                       >> 12));
-                            result +=
-                                static_cast<char>(
-                                    0x80
-                                    | ((codepoint >> 6)
-                                       & 0x3F));
-                            result +=
-                                static_cast<char>(
-                                    0x80
-                                    | (codepoint
-                                       & 0x3F));
-                        }
-                        break;
-                    }
-                    default:
-                        error(
-                            "invalid escape "
-                            "character '"
-                            + std::string(1, escaped)
-                            + "'");
-                }
+                parseEscapeSequence(result);
             }
             else
             {
                 auto start = pos;
-
-                while (pos < end && *pos != '"'
-                       && *pos != '\\')
-                    ++pos;
-
+                skipToStringBreak();
                 result.append(start, pos - start);
             }
         }
 
         if (pos >= end)
-            error(
-                "expected '\"' but reached end of "
-                "input");
+            error("expected '\"' but reached end of "
+                  "input");
 
         ++pos;
-        return result;
     }
+
+    void parseEscapeSequence(std::string& result)
+    {
+        ++pos;
+
+        if (pos >= end)
+            error("unexpected end of string escape");
+
+        auto escaped = *pos;
+        ++pos;
+
+        switch (escaped)
+        {
+            case '"':
+                result += '"';
+                break;
+            case '\\':
+                result += '\\';
+                break;
+            case '/':
+                result += '/';
+                break;
+            case 'b':
+                result += '\b';
+                break;
+            case 'f':
+                result += '\f';
+                break;
+            case 'n':
+                result += '\n';
+                break;
+            case 'r':
+                result += '\r';
+                break;
+            case 't':
+                result += '\t';
+                break;
+            case 'u':
+                parseUnicodeEscape(result);
+                break;
+            default:
+                error("invalid escape character '" + std::string(1, escaped) + "'");
+        }
+    }
+
+    void parseUnicodeEscape(std::string& result)
+    {
+        if (remaining() < 4)
+            error("unexpected end of unicode escape");
+
+        auto hex = std::array<char, 4> {pos[0], pos[1], pos[2], pos[3]};
+        pos += 4;
+
+        auto codepoint = unsigned {};
+        auto [ptr, ec] = std::from_chars(hex.data(), hex.data() + 4, codepoint, 16);
+
+        if (ec != std::errc {})
+            error("invalid unicode escape");
+
+        appendUtf8(result, codepoint);
+    }
+
+    // --- Containers ---
 
     Value parseArray()
     {
@@ -356,26 +266,12 @@ private:
 
         if (pos < end && *pos != '}')
         {
-            skipWhitespace();
-            auto key = parseStringRaw();
-            skipWhitespace();
-            expect(':');
-            auto value = parseValue();
-            entries.emplace(
-                std::move(key), std::move(value));
-            skipWhitespace();
+            parseKeyValueInto(entries);
 
             while (pos < end && *pos == ',')
             {
                 ++pos;
-                skipWhitespace();
-                key = parseStringRaw();
-                skipWhitespace();
-                expect(':');
-                value = parseValue();
-                entries.emplace(
-                    std::move(key), std::move(value));
-                skipWhitespace();
+                parseKeyValueInto(entries);
             }
         }
 
@@ -383,18 +279,73 @@ private:
         return {std::move(entries)};
     }
 
+    void parseKeyValueInto(Object& entries)
+    {
+        skipWhitespace();
+        auto key = parseStringRaw();
+        skipWhitespace();
+        expect(':');
+        auto value = parseValue();
+        entries.emplace(std::move(key), std::move(value));
+        skipWhitespace();
+    }
+
+    // --- Helpers ---
+
+    static void appendUtf8(std::string& result, unsigned codepoint)
+    {
+        if (codepoint <= 0x7F)
+        {
+            result += static_cast<char>(codepoint);
+        }
+        else if (codepoint <= 0x7FF)
+        {
+            result += static_cast<char>(0xC0 | (codepoint >> 6));
+            result += static_cast<char>(0x80 | (codepoint & 0x3F));
+        }
+        else
+        {
+            result += static_cast<char>(0xE0 | (codepoint >> 12));
+            result += static_cast<char>(0x80 | ((codepoint >> 6) & 0x3F));
+            result += static_cast<char>(0x80 | (codepoint & 0x3F));
+        }
+    }
+
+    void skipDigits()
+    {
+        while (pos < end && *pos >= '0' && *pos <= '9')
+            ++pos;
+    }
+
+    void skipToStringBreak()
+    {
+        while (pos < end && *pos != '"' && *pos != '\\')
+            ++pos;
+    }
+
+    std::ptrdiff_t remaining() const { return end - pos; }
+
+    void expectKeyword(const char* keywordToUse, int lengthToUse)
+    {
+        if (remaining() < lengthToUse)
+            error("expected '" + std::string(keywordToUse) + "'");
+
+        for (auto i = 0; i < lengthToUse; ++i)
+        {
+            if (pos[i] != keywordToUse[i])
+                error("expected '" + std::string(keywordToUse) + "'");
+        }
+
+        pos += lengthToUse;
+    }
+
     void expect(char charToUse)
     {
         if (pos >= end || *pos != charToUse)
         {
-            error(
-                "expected '" + std::string(1, charToUse)
-                + "'"
-                + (pos >= end
-                       ? " but reached end of input"
-                       : " but got '"
-                           + std::string(1, *pos)
-                           + "'"));
+            error("expected '" + std::string(1, charToUse) + "'"
+                  + (pos >= end ? " but reached end of input"
+                                : " but got '" + std::string(1, *pos) + "'"));
         }
         ++pos;
     }
