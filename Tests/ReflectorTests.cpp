@@ -8,23 +8,23 @@ using namespace Miro::Json;
 
 struct Inner
 {
-    int x = 0;
-
     void reflect(Miro::Reflector& ref) { ref["x"](x); }
+
+    int x = 0;
 };
 
 struct Outer
 {
-    int a = 0;
-    Inner nested;
-    std::string label;
-
     void reflect(Miro::Reflector& ref)
     {
         ref["a"](a);
         ref["nested"](nested);
         ref["label"](label);
     }
+
+    int a = 0;
+    Inner nested;
+    std::string label;
 };
 
 // --- Save tests ---
@@ -69,9 +69,9 @@ auto saveDouble = test("Save double") = []
 {
     struct S
     {
-        double ratio = 3.14;
-
         void reflect(Miro::Reflector& ref) { ref["ratio"](ratio); }
+
+        double ratio = 3.14;
     };
 
     auto json = Value {Object {}};
@@ -87,9 +87,9 @@ auto saveString = test("Save string") = []
 {
     struct S
     {
-        std::string name = "hello";
-
         void reflect(Miro::Reflector& ref) { ref["name"](name); }
+
+        std::string name = "hello";
     };
 
     auto json = Value {Object {}};
@@ -107,9 +107,9 @@ auto loadBool = test("Load bool") = []
 {
     struct S
     {
-        bool active = false;
-
         void reflect(Miro::Reflector& ref) { ref["active"](active); }
+
+        bool active = false;
     };
 
     auto json = parse(R"({"active": true})");
@@ -124,9 +124,9 @@ auto loadInt = test("Load int") = []
 {
     struct S
     {
-        int count = 0;
-
         void reflect(Miro::Reflector& ref) { ref["count"](count); }
+
+        int count = 0;
     };
 
     auto json = parse(R"({"count": 7})");
@@ -141,9 +141,9 @@ auto loadDouble = test("Load double") = []
 {
     struct S
     {
-        double ratio = 0.0;
-
         void reflect(Miro::Reflector& ref) { ref["ratio"](ratio); }
+
+        double ratio = 0.0;
     };
 
     auto json = parse(R"({"ratio": 2.72})");
@@ -158,9 +158,9 @@ auto loadString = test("Load string") = []
 {
     struct S
     {
-        std::string name;
-
         void reflect(Miro::Reflector& ref) { ref["name"](name); }
+
+        std::string name;
     };
 
     auto json = parse(R"({"name": "world"})");
@@ -226,9 +226,9 @@ auto saveVectorOfInts = test("Save vector of ints") = []
 {
     struct S
     {
-        std::vector<int> nums = {1, 2, 3};
-
         void reflect(Miro::Reflector& ref) { ref["nums"](nums); }
+
+        std::vector<int> nums = {1, 2, 3};
     };
 
     auto json = Value {Object {}};
@@ -248,9 +248,9 @@ auto loadVectorOfInts = test("Load vector of ints") = []
 {
     struct S
     {
-        std::vector<int> nums;
-
         void reflect(Miro::Reflector& ref) { ref["nums"](nums); }
+
+        std::vector<int> nums;
     };
 
     auto json = parse(R"({"nums": [10, 20, 30]})");
@@ -268,9 +268,9 @@ auto saveVectorOfObjects = test("Save vector of objects") = []
 {
     struct S
     {
-        std::vector<Inner> items = {{1}, {2}, {3}};
-
         void reflect(Miro::Reflector& ref) { ref["items"](items); }
+
+        std::vector<Inner> items = {{1}, {2}, {3}};
     };
 
     auto json = Value {Object {}};
@@ -290,9 +290,9 @@ auto loadVectorOfObjects = test("Load vector of objects") = []
 {
     struct S
     {
-        std::vector<Inner> items;
-
         void reflect(Miro::Reflector& ref) { ref["items"](items); }
+
+        std::vector<Inner> items;
     };
 
     auto json = parse(R"({"items": [{"x": 5}, {"x": 10}]})");
@@ -309,9 +309,9 @@ auto vectorRoundtrip = test("Vector roundtrip") = []
 {
     struct S
     {
-        std::vector<std::string> tags = {"a", "b", "c"};
-
         void reflect(Miro::Reflector& ref) { ref["tags"](tags); }
+
+        std::vector<std::string> tags = {"a", "b", "c"};
     };
 
     auto original = S {};
@@ -336,9 +336,9 @@ auto saveArrayOfDoubles = test("Save array of doubles") = []
 {
     struct S
     {
-        std::array<double, 3> vals = {1.0, 2.0, 3.0};
-
         void reflect(Miro::Reflector& ref) { ref["vals"](vals); }
+
+        std::array<double, 3> vals = {1.0, 2.0, 3.0};
     };
 
     auto json = Value {Object {}};
@@ -358,9 +358,9 @@ auto loadArrayOfDoubles = test("Load array of doubles") = []
 {
     struct S
     {
-        std::array<double, 3> vals = {};
-
         void reflect(Miro::Reflector& ref) { ref["vals"](vals); }
+
+        std::array<double, 3> vals = {};
     };
 
     auto json = parse(R"({"vals": [4.0, 5.0, 6.0]})");
@@ -377,9 +377,9 @@ auto saveArrayOfObjects = test("Save array of objects") = []
 {
     struct S
     {
-        std::array<Inner, 2> items = {Inner {7}, Inner {8}};
-
         void reflect(Miro::Reflector& ref) { ref["items"](items); }
+
+        std::array<Inner, 2> items = {Inner {7}, Inner {8}};
     };
 
     auto json = Value {Object {}};
@@ -398,9 +398,9 @@ auto loadArrayOfObjects = test("Load array of objects") = []
 {
     struct S
     {
-        std::array<Inner, 2> items = {};
-
         void reflect(Miro::Reflector& ref) { ref["items"](items); }
+
+        std::array<Inner, 2> items = {};
     };
 
     auto json = parse(R"({"items": [{"x": 11}, {"x": 22}]})");
