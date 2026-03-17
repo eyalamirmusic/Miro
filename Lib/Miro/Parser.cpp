@@ -2,9 +2,20 @@
 
 #include <array>
 #include <charconv>
+#include <cstdlib>
 
 namespace Miro::Json
 {
+
+// When Apple's minimum deployment target supports std::from_chars
+// for floating-point types, this can be replaced with std::from_chars.
+double fromChars(const char* start, const char* end, const char*& parsed)
+{
+    char* numEnd = nullptr;
+    auto value = std::strtod(start, &numEnd);
+    parsed = numEnd;
+    return value;
+}
 
 class Parser
 {
@@ -115,9 +126,9 @@ private:
             skipDigits();
         }
 
-        auto value = double {};
-        auto [ptr, ec] = std::from_chars(start, pos, value);
-        if (ec != std::errc {})
+        const char* parsed = nullptr;
+        auto value = fromChars(start, pos, parsed);
+        if (parsed != pos)
             error("failed to parse number");
 
         return {value};
