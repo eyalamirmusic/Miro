@@ -330,6 +330,88 @@ auto vectorRoundtrip = test("Vector roundtrip") = []
     check(loaded.tags[2] == "c");
 };
 
+// --- std::array tests ---
+
+auto saveArrayOfDoubles = test("Save array of doubles") = []
+{
+    struct S
+    {
+        std::array<double, 3> vals = {1.0, 2.0, 3.0};
+
+        void reflect(Miro::Reflector& ref) { ref["vals"](vals); }
+    };
+
+    auto json = Value {Object {}};
+    auto ref = Miro::Reflector {json, true};
+    auto val = S {};
+    val.reflect(ref);
+
+    check(json["vals"].isArray());
+    auto& arr = json["vals"].asArray();
+    check(arr.size() == 3);
+    check(arr[0].asNumber() == 1.0);
+    check(arr[1].asNumber() == 2.0);
+    check(arr[2].asNumber() == 3.0);
+};
+
+auto loadArrayOfDoubles = test("Load array of doubles") = []
+{
+    struct S
+    {
+        std::array<double, 3> vals = {};
+
+        void reflect(Miro::Reflector& ref) { ref["vals"](vals); }
+    };
+
+    auto json = parse(R"({"vals": [4.0, 5.0, 6.0]})");
+    auto ref = Miro::Reflector {json, false};
+    auto val = S {};
+    val.reflect(ref);
+
+    check(val.vals[0] == 4.0);
+    check(val.vals[1] == 5.0);
+    check(val.vals[2] == 6.0);
+};
+
+auto saveArrayOfObjects = test("Save array of objects") = []
+{
+    struct S
+    {
+        std::array<Inner, 2> items = {Inner {7}, Inner {8}};
+
+        void reflect(Miro::Reflector& ref) { ref["items"](items); }
+    };
+
+    auto json = Value {Object {}};
+    auto ref = Miro::Reflector {json, true};
+    auto val = S {};
+    val.reflect(ref);
+
+    check(json["items"].isArray());
+    auto& arr = json["items"].asArray();
+    check(arr.size() == 2);
+    check(arr[0]["x"].asNumber() == 7.0);
+    check(arr[1]["x"].asNumber() == 8.0);
+};
+
+auto loadArrayOfObjects = test("Load array of objects") = []
+{
+    struct S
+    {
+        std::array<Inner, 2> items = {};
+
+        void reflect(Miro::Reflector& ref) { ref["items"](items); }
+    };
+
+    auto json = parse(R"({"items": [{"x": 11}, {"x": 22}]})");
+    auto ref = Miro::Reflector {json, false};
+    auto val = S {};
+    val.reflect(ref);
+
+    check(val.items[0].x == 11);
+    check(val.items[1].x == 22);
+};
+
 // --- Roundtrip test ---
 
 auto roundtrip = test("Save then load roundtrip") = []

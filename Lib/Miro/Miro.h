@@ -4,6 +4,7 @@
 
 #include <string>
 #include <string_view>
+#include <array>
 #include <vector>
 
 namespace Miro
@@ -80,6 +81,33 @@ void reflect(Reflector& ref, std::vector<T>& value)
         value.resize(arr.size());
 
         for (std::size_t i = 0; i < arr.size(); ++i)
+        {
+            auto child = Reflector {arr[i], false};
+            reflect(child, value[i]);
+        }
+    }
+}
+
+template <typename T, std::size_t N>
+void reflect(Reflector& ref, std::array<T, N>& value)
+{
+    if (ref.isSaving())
+    {
+        auto& arr = ref.json.data.emplace<Json::Array>();
+
+        for (auto& element: value)
+        {
+            auto& node = arr.emplace_back();
+            auto child = Reflector {node, true};
+            reflect(child, element);
+        }
+    }
+    else
+    {
+        auto& arr = std::get<Json::Array>(ref.json.data);
+        auto count = std::min(N, arr.size());
+
+        for (std::size_t i = 0; i < count; ++i)
         {
             auto child = Reflector {arr[i], false};
             reflect(child, value[i]);
