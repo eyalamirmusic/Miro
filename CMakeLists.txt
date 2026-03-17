@@ -17,3 +17,4 @@ enable_testing()
 
 add_subdirectory(Lib)
 add_subdirectory(Tests)
+add_subdirectory(Benchmark)
