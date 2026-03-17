@@ -1,1 +1,1 @@
-nano_add_executable(MiroTests SOURCES JsonTests.cpp TARGETS Miro)
+nano_add_executable(MiroTests SOURCES JsonTests.cpp ReflectorTests.cpp TARGETS Miro)

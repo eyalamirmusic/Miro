@@ -58,6 +58,26 @@ class ParseError : public std::runtime_error
     using std::runtime_error::runtime_error;
 };
 
+inline Value* find(Object& object, std::string_view& key)
+{
+    auto it = object.find(std::string(key));
+
+    if (it != object.end())
+        return &it->second;
+
+    return nullptr;
+}
+
+inline const Value* find(const Object& object, std::string_view key)
+{
+    auto it = object.find(std::string(key));
+
+    if (it != object.end())
+        return &it->second;
+
+    return nullptr;
+}
+
 Value parse(std::string_view inputToUse);
 std::string print(const Value& valueToUse);
 

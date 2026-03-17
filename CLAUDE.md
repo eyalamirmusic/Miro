@@ -36,3 +36,6 @@ Tests use the [NanoTest](https://github.com/eyalamirmusic/NanoTest) framework, f
 - use explicit return types (not auto) for functions
 - Allman brace style, 4-space indentation, 85-column limit, left-aligned pointers
 - Enforced via `.clang-format` and `.clang-tidy` in repo root
+- Use clang-format after every change in a source file or header file
+- struct/class members go on last, below methods
+- do not use m_ or _ prefixes. Instead use xToUse for input variables
