@@ -2,7 +2,6 @@
 #include <NanoTest/NanoTest.h>
 
 using namespace nano;
-using namespace Miro::Json;
 
 // --- Test types ---
 
@@ -38,10 +37,8 @@ auto saveBool = test("Save bool") = []
         bool active = true;
     };
 
-    auto json = Value {Object {}};
-    auto ref = Miro::Reflector {json, true};
     auto val = S {};
-    val.reflect(ref);
+    auto json = Miro::toJSON(val);
 
     check(json["active"].isBool());
     check(json["active"].asBool() == true);
@@ -56,10 +53,8 @@ auto saveInt = test("Save int") = []
         int count = 42;
     };
 
-    auto json = Value {Object {}};
-    auto ref = Miro::Reflector {json, true};
     auto val = S {};
-    val.reflect(ref);
+    auto json = Miro::toJSON(val);
 
     check(json["count"].isNumber());
     check(json["count"].asNumber() == 42.0);
@@ -74,10 +69,8 @@ auto saveDouble = test("Save double") = []
         double ratio = 3.14;
     };
 
-    auto json = Value {Object {}};
-    auto ref = Miro::Reflector {json, true};
     auto val = S {};
-    val.reflect(ref);
+    auto json = Miro::toJSON(val);
 
     check(json["ratio"].isNumber());
     check(json["ratio"].asNumber() == 3.14);
@@ -92,10 +85,8 @@ auto saveString = test("Save string") = []
         std::string name = "hello";
     };
 
-    auto json = Value {Object {}};
-    auto ref = Miro::Reflector {json, true};
     auto val = S {};
-    val.reflect(ref);
+    auto json = Miro::toJSON(val);
 
     check(json["name"].isString());
     check(json["name"].asString() == "hello");
@@ -112,10 +103,7 @@ auto loadBool = test("Load bool") = []
         bool active = false;
     };
 
-    auto json = parse(R"({"active": true})");
-    auto ref = Miro::Reflector {json, false};
-    auto val = S {};
-    val.reflect(ref);
+    auto val = Miro::createFromJSONString<S>(R"({"active": true})");
 
     check(val.active == true);
 };
@@ -129,10 +117,7 @@ auto loadInt = test("Load int") = []
         int count = 0;
     };
 
-    auto json = parse(R"({"count": 7})");
-    auto ref = Miro::Reflector {json, false};
-    auto val = S {};
-    val.reflect(ref);
+    auto val = Miro::createFromJSONString<S>(R"({"count": 7})");
 
     check(val.count == 7);
 };
@@ -146,10 +131,7 @@ auto loadDouble = test("Load double") = []
         double ratio = 0.0;
     };
 
-    auto json = parse(R"({"ratio": 2.72})");
-    auto ref = Miro::Reflector {json, false};
-    auto val = S {};
-    val.reflect(ref);
+    auto val = Miro::createFromJSONString<S>(R"({"ratio": 2.72})");
 
     check(val.ratio == 2.72);
 };
@@ -163,10 +145,7 @@ auto loadString = test("Load string") = []
         std::string name;
     };
 
-    auto json = parse(R"({"name": "world"})");
-    auto ref = Miro::Reflector {json, false};
-    auto val = S {};
-    val.reflect(ref);
+    auto val = Miro::createFromJSONString<S>(R"({"name": "world"})");
 
     check(val.name == "world");
 };
@@ -175,10 +154,8 @@ auto loadString = test("Load string") = []
 
 auto saveObject = test("Save object") = []
 {
-    auto json = Value {Object {}};
-    auto ref = Miro::Reflector {json, true};
     auto val = Inner {5};
-    val.reflect(ref);
+    auto json = Miro::toJSON(val);
 
     check(json["x"].isNumber());
     check(json["x"].asNumber() == 5.0);
@@ -186,10 +163,7 @@ auto saveObject = test("Save object") = []
 
 auto loadObject = test("Load object") = []
 {
-    auto json = parse(R"({"x": 99})");
-    auto ref = Miro::Reflector {json, false};
-    auto val = Inner {};
-    val.reflect(ref);
+    auto val = Miro::createFromJSONString<Inner>(R"({"x": 99})");
 
     check(val.x == 99);
 };
@@ -198,10 +172,8 @@ auto loadObject = test("Load object") = []
 
 auto saveNested = test("Save nested objects") = []
 {
-    auto json = Value {Object {}};
-    auto ref = Miro::Reflector {json, true};
     auto val = Outer {10, {20}, "test"};
-    val.reflect(ref);
+    auto json = Miro::toJSON(val);
 
     check(json["a"].asNumber() == 10.0);
     check(json["nested"]["x"].asNumber() == 20.0);
@@ -210,10 +182,8 @@ auto saveNested = test("Save nested objects") = []
 
 auto loadNested = test("Load nested objects") = []
 {
-    auto json = parse(R"({"a": 77, "nested": {"x": 88}, "label": "loaded"})");
-    auto ref = Miro::Reflector {json, false};
-    auto val = Outer {};
-    val.reflect(ref);
+    auto val = Miro::createFromJSONString<Outer>(
+        R"({"a": 77, "nested": {"x": 88}, "label": "loaded"})");
 
     check(val.a == 77);
     check(val.nested.x == 88);
@@ -231,10 +201,8 @@ auto saveVectorOfInts = test("Save vector of ints") = []
         std::vector<int> nums = {1, 2, 3};
     };
 
-    auto json = Value {Object {}};
-    auto ref = Miro::Reflector {json, true};
     auto val = S {};
-    val.reflect(ref);
+    auto json = Miro::toJSON(val);
 
     check(json["nums"].isArray());
     auto& arr = json["nums"].asArray();
@@ -253,10 +221,7 @@ auto loadVectorOfInts = test("Load vector of ints") = []
         std::vector<int> nums;
     };
 
-    auto json = parse(R"({"nums": [10, 20, 30]})");
-    auto ref = Miro::Reflector {json, false};
-    auto val = S {};
-    val.reflect(ref);
+    auto val = Miro::createFromJSONString<S>(R"({"nums": [10, 20, 30]})");
 
     check(val.nums.size() == 3);
     check(val.nums[0] == 10);
@@ -273,10 +238,8 @@ auto saveVectorOfObjects = test("Save vector of objects") = []
         std::vector<Inner> items = {{1}, {2}, {3}};
     };
 
-    auto json = Value {Object {}};
-    auto ref = Miro::Reflector {json, true};
     auto val = S {};
-    val.reflect(ref);
+    auto json = Miro::toJSON(val);
 
     check(json["items"].isArray());
     auto& arr = json["items"].asArray();
@@ -295,10 +258,7 @@ auto loadVectorOfObjects = test("Load vector of objects") = []
         std::vector<Inner> items;
     };
 
-    auto json = parse(R"({"items": [{"x": 5}, {"x": 10}]})");
-    auto ref = Miro::Reflector {json, false};
-    auto val = S {};
-    val.reflect(ref);
+    auto val = Miro::createFromJSONString<S>(R"({"items": [{"x": 5}, {"x": 10}]})");
 
     check(val.items.size() == 2);
     check(val.items[0].x == 5);
@@ -315,14 +275,8 @@ auto vectorRoundtrip = test("Vector roundtrip") = []
     };
 
     auto original = S {};
-
-    auto json = Value {Object {}};
-    auto saver = Miro::Reflector {json, true};
-    original.reflect(saver);
-
-    auto loaded = S {{}};
-    auto loader = Miro::Reflector {json, false};
-    loaded.reflect(loader);
+    auto json = Miro::toJSON(original);
+    auto loaded = Miro::createFromJSON<S>(json);
 
     check(loaded.tags.size() == 3);
     check(loaded.tags[0] == "a");
@@ -341,10 +295,8 @@ auto saveArrayOfDoubles = test("Save array of doubles") = []
         std::array<double, 3> vals = {1.0, 2.0, 3.0};
     };
 
-    auto json = Value {Object {}};
-    auto ref = Miro::Reflector {json, true};
     auto val = S {};
-    val.reflect(ref);
+    auto json = Miro::toJSON(val);
 
     check(json["vals"].isArray());
     auto& arr = json["vals"].asArray();
@@ -363,10 +315,7 @@ auto loadArrayOfDoubles = test("Load array of doubles") = []
         std::array<double, 3> vals = {};
     };
 
-    auto json = parse(R"({"vals": [4.0, 5.0, 6.0]})");
-    auto ref = Miro::Reflector {json, false};
-    auto val = S {};
-    val.reflect(ref);
+    auto val = Miro::createFromJSONString<S>(R"({"vals": [4.0, 5.0, 6.0]})");
 
     check(val.vals[0] == 4.0);
     check(val.vals[1] == 5.0);
@@ -382,10 +331,8 @@ auto saveArrayOfObjects = test("Save array of objects") = []
         std::array<Inner, 2> items = {Inner {7}, Inner {8}};
     };
 
-    auto json = Value {Object {}};
-    auto ref = Miro::Reflector {json, true};
     auto val = S {};
-    val.reflect(ref);
+    auto json = Miro::toJSON(val);
 
     check(json["items"].isArray());
     auto& arr = json["items"].asArray();
@@ -403,10 +350,7 @@ auto loadArrayOfObjects = test("Load array of objects") = []
         std::array<Inner, 2> items = {};
     };
 
-    auto json = parse(R"({"items": [{"x": 11}, {"x": 22}]})");
-    auto ref = Miro::Reflector {json, false};
-    auto val = S {};
-    val.reflect(ref);
+    auto val = Miro::createFromJSONString<S>(R"({"items": [{"x": 11}, {"x": 22}]})");
 
     check(val.items[0].x == 11);
     check(val.items[1].x == 22);
@@ -417,16 +361,48 @@ auto loadArrayOfObjects = test("Load array of objects") = []
 auto roundtrip = test("Save then load roundtrip") = []
 {
     auto original = Outer {10, {20}, "hello"};
-
-    auto json = Value {Object {}};
-    auto saver = Miro::Reflector {json, true};
-    original.reflect(saver);
-
-    auto loaded = Outer {};
-    auto loader = Miro::Reflector {json, false};
-    loaded.reflect(loader);
+    auto json = Miro::toJSON(original);
+    auto loaded = Miro::createFromJSON<Outer>(json);
 
     check(loaded.a == original.a);
     check(loaded.nested.x == original.nested.x);
     check(loaded.label == original.label);
+};
+
+// --- fromJSON test ---
+
+auto fromJSONTest = test("fromJSON into existing object") = []
+{
+    auto val = Inner {99};
+    Miro::fromJSONString(val, R"({"x": 42})");
+
+    check(val.x == 42);
+};
+
+// --- JSON string tests ---
+
+auto toJSONStringTest = test("toJSONString") = []
+{
+    auto val = Inner {5};
+    auto loaded = Miro::createFromJSONString<Inner>(Miro::toJSONString(val));
+
+    check(loaded.x == 5);
+};
+
+auto fromJSONStringTest = test("fromJSONString") = []
+{
+    auto val = Inner {};
+    Miro::fromJSONString(val, R"({"x": 77})");
+
+    check(val.x == 77);
+};
+
+auto createFromJSONStringTest = test("createFromJSONString") = []
+{
+    auto val = Miro::createFromJSONString<Outer>(
+        R"({"a": 1, "nested": {"x": 2}, "label": "hi"})");
+
+    check(val.a == 1);
+    check(val.nested.x == 2);
+    check(val.label == "hi");
 };
