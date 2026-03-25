@@ -195,9 +195,9 @@ T createFromJSON(const JSON& json)
 }
 
 template <typename T>
-std::string toJSONString(T& value)
+std::string toJSONString(T& value, int indent = 0)
 {
-    return Json::print(toJSON(value));
+    return Json::print(toJSON(value), indent);
 }
 
 template <typename T>
