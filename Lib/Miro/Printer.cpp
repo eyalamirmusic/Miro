@@ -7,7 +7,7 @@
 namespace Miro::Json
 {
 
-void printTo(std::string& output, const Value& value);
+void printTo(std::string& output, const Value& value, int indent, int depth);
 
 void printString(std::string& output, const std::string& str)
 {
@@ -76,24 +76,48 @@ void printNumber(std::string& output, double number)
     }
 }
 
-void printArray(std::string& output, const Array& array)
+void writeIndent(std::string& output, int indent, int depth)
+{
+    output += '\n';
+    output.append(static_cast<std::size_t>(indent * depth), ' ');
+}
+
+void printArray(std::string& output, const Array& array, int indent, int depth)
 {
     output += '[';
+
+    if (array.empty())
+    {
+        output += ']';
+        return;
+    }
 
     for (auto i = std::size_t {0}; i < array.size(); ++i)
     {
         if (i > 0)
             output += ',';
 
-        printTo(output, array[i]);
+        if (indent > 0)
+            writeIndent(output, indent, depth + 1);
+
+        printTo(output, array[i], indent, depth + 1);
     }
+
+    if (indent > 0)
+        writeIndent(output, indent, depth);
 
     output += ']';
 }
 
-void printObject(std::string& output, const Object& object)
+void printObject(std::string& output, const Object& object, int indent, int depth)
 {
     output += '{';
+
+    if (object.empty())
+    {
+        output += '}';
+        return;
+    }
 
     auto first = true;
 
@@ -103,15 +127,26 @@ void printObject(std::string& output, const Object& object)
             output += ',';
 
         first = false;
+
+        if (indent > 0)
+            writeIndent(output, indent, depth + 1);
+
         printString(output, key);
         output += ':';
-        printTo(output, value);
+
+        if (indent > 0)
+            output += ' ';
+
+        printTo(output, value, indent, depth + 1);
     }
+
+    if (indent > 0)
+        writeIndent(output, indent, depth);
 
     output += '}';
 }
 
-void printTo(std::string& output, const Value& value)
+void printTo(std::string& output, const Value& value, int indent, int depth)
 {
     if (value.isNull())
     {
@@ -131,18 +166,18 @@ void printTo(std::string& output, const Value& value)
     }
     else if (value.isArray())
     {
-        printArray(output, value.asArray());
+        printArray(output, value.asArray(), indent, depth);
     }
     else if (value.isObject())
     {
-        printObject(output, value.asObject());
+        printObject(output, value.asObject(), indent, depth);
     }
 }
 
-std::string print(const Value& valueToUse)
+std::string print(const Value& valueToUse, int indentToUse)
 {
     auto result = std::string {};
-    printTo(result, valueToUse);
+    printTo(result, valueToUse, indentToUse, 0);
     return result;
 }
 

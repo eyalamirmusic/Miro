@@ -90,11 +90,11 @@ inline const Value* find(const Object& object, std::string_view key)
 }
 
 Value parse(std::string_view inputToUse);
-std::string print(const Value& valueToUse);
+std::string print(const Value& valueToUse, int indentToUse = 0);
 
 } // namespace Miro::Json
 
 namespace Miro
 {
-using JSON = Miro::Json::Value;
+using JSON = Json::Value;
 } // namespace Miro

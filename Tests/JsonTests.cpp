@@ -174,3 +174,55 @@ auto printRoundtrip = test("Print roundtrip") = []
     auto input = R"({"active":true,"items":[1,"two",null],"name":"Miro"})";
     check(print(parse(input)) == input);
 };
+
+// --- Indented print tests ---
+
+auto printIndentedObject = test("Print indented object") = []
+{
+    auto value = parse(R"({"a":1,"b":"two"})");
+    auto expected = std::string {"{\n"
+                                 "    \"a\": 1,\n"
+                                 "    \"b\": \"two\"\n"
+                                 "}"};
+    check(print(value, 4) == expected);
+};
+
+auto printIndentedArray = test("Print indented array") = []
+{
+    auto value = parse("[1,2,3]");
+    auto expected = std::string {"[\n"
+                                 "    1,\n"
+                                 "    2,\n"
+                                 "    3\n"
+                                 "]"};
+    check(print(value, 4) == expected);
+};
+
+auto printIndentedNested = test("Print indented nested") = []
+{
+    auto value = parse(R"({"a":{"b":1},"c":[2,3]})");
+    auto expected = std::string {"{\n"
+                                 "    \"a\": {\n"
+                                 "        \"b\": 1\n"
+                                 "    },\n"
+                                 "    \"c\": [\n"
+                                 "        2,\n"
+                                 "        3\n"
+                                 "    ]\n"
+                                 "}"};
+    check(print(value, 4) == expected);
+};
+
+auto printIndentedEmpty = test("Print indented empty") = []
+{
+    check(print(parse("[]"), 4) == "[]");
+    check(print(parse("{}"), 4) == "{}");
+};
+
+auto printIndentedScalar = test("Print indented scalar") = []
+{
+    check(print(parse("42"), 4) == "42");
+    check(print(parse("\"hello\""), 4) == "\"hello\"");
+    check(print(parse("true"), 4) == "true");
+    check(print(parse("null"), 4) == "null");
+};
