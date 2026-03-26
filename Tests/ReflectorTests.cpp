@@ -321,3 +321,15 @@ auto createFromJSONStringTest = test("createFromJSONString") = []
     check(val.nested.x == 2);
     check(val.label == "hi");
 };
+
+// --- Missing property tests ---
+
+auto missingPropertyKeepsDefault = test("Missing property keeps existing value") = []
+{
+    auto val = Outer {10, {20}, "original"};
+    Miro::fromJSONString(val, R"({"a": 99})");
+
+    check(val.a == 99);
+    check(val.nested.x == 20);
+    check(val.label == "original");
+};
