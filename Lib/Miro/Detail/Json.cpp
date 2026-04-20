@@ -162,4 +162,24 @@ const Value& Value::operator[](int indexToUse) const
     return operator[]((size_t) indexToUse);
 }
 
+Value* find(Object& object, std::string_view key)
+{
+    auto it = object.find(std::string(key));
+
+    if (it != object.end())
+        return &it->second;
+
+    return nullptr;
+}
+
+const Value* find(const Object& object, std::string_view key)
+{
+    auto it = object.find(std::string(key));
+
+    if (it != object.end())
+        return &it->second;
+
+    return nullptr;
+}
+
 } // namespace Miro::Json
