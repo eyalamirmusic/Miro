@@ -106,3 +106,27 @@ struct ClassWithObjectMap
 
     std::map<std::string, Inner> items;
 };
+
+struct MacroInner
+{
+    MIRO_REFLECT(x)
+
+    int x = 0;
+};
+
+struct MacroReflected
+{
+    MIRO_REFLECT(name, count, ratio, active, tags, nested)
+
+    std::string name = "macro";
+    int count = 7;
+    double ratio = 1.5;
+    bool active = true;
+    std::vector<int> tags = {4, 5, 6};
+    MacroInner nested = {42};
+};
+
+struct MacroEmpty
+{
+    MIRO_REFLECT()
+};

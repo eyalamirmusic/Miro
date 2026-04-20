@@ -333,3 +333,62 @@ auto missingPropertyKeepsDefault = test("Missing property keeps existing value")
     check(val.nested.x == 20);
     check(val.label == "original");
 };
+
+// --- MIRO_REFLECT macro tests ---
+
+auto saveMacroReflected = test("Save MIRO_REFLECT struct") = []
+{
+    auto val = MacroReflected {};
+    auto json = Miro::toJSON(val);
+
+    check(json["name"].asString() == "macro");
+    check(json["count"].asNumber() == 7.0);
+    check(json["ratio"].asNumber() == 1.5);
+    check(json["active"].asBool() == true);
+    check(json["tags"].isArray());
+    check(json["tags"][0].asNumber() == 4.0);
+    check(json["nested"]["x"].asNumber() == 42.0);
+};
+
+auto loadMacroReflected = test("Load MIRO_REFLECT struct") = []
+{
+    auto val = Miro::createFromJSONString<MacroReflected>(
+        R"({
+            "name": "loaded",
+            "count": 99,
+            "ratio": 2.5,
+            "active": false,
+            "tags": [1, 2],
+            "nested": {"x": 11}
+        })");
+
+    check(val.name == "loaded");
+    check(val.count == 99);
+    check(val.ratio == 2.5);
+    check(val.active == false);
+    check(val.tags.size() == 2);
+    check(val.tags[0] == 1);
+    check(val.nested.x == 11);
+};
+
+auto macroReflectedRoundtrip = test("MIRO_REFLECT roundtrip") = []
+{
+    auto original = MacroReflected {"rt", 3, 0.25, false, {7, 8}, {55}};
+    auto loaded = Miro::createFromJSON<MacroReflected>(Miro::toJSON(original));
+
+    check(loaded.name == original.name);
+    check(loaded.count == original.count);
+    check(loaded.ratio == original.ratio);
+    check(loaded.active == original.active);
+    check(loaded.tags == original.tags);
+    check(loaded.nested.x == original.nested.x);
+};
+
+auto macroEmpty = test("MIRO_REFLECT with no fields") = []
+{
+    auto val = MacroEmpty {};
+    auto json = Miro::toJSON(val);
+
+    check(json.isObject());
+    check(json.asObject().empty());
+};
