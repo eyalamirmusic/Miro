@@ -36,7 +36,7 @@
 #define MIRO_REFLECT_FIELD(field) ref[#field](field);
 
 #define MIRO_REFLECT(...)                                                           \
-    void reflect(Miro::Reflector& ref)                                              \
+    void reflect([[maybe_unused]] Miro::Reflector& ref)                             \
     {                                                                               \
         MIRO_FOR_EACH(MIRO_REFLECT_FIELD, __VA_ARGS__)                              \
     }

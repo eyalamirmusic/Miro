@@ -121,11 +121,11 @@ To avoid writing the `reflect()` body by hand, list the fields with `MIRO_REFLEC
 ```cpp
 struct Settings
 {
-    MIRO_REFLECT(name, count, tags)
-
     std::string name;
     int count = 0;
     std::vector<std::string> tags;
+    
+    MIRO_REFLECT(name, count, tags)
 };
 ```
 
