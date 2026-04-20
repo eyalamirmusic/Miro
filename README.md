@@ -1,0 +1,117 @@
+# Miro
+
+A lightweight C++20 JSON library with a reflection-based (de)serialization layer.
+
+Miro provides two layers you can use independently:
+
+- **`Miro::Json`** — a `std::variant`-based `Value` type, plus `parse()` and `print()`.
+- **`Miro`** — a reflection layer (`toJSON` / `fromJSON`) that serializes your own structs via an intrusive `reflect()` method.
+
+## Requirements
+
+- C++20
+- CMake 3.21+
+
+## Building
+
+```bash
+cmake -B build
+cmake --build build --config Release
+```
+
+## Running the tests
+
+Tests are built when Miro is the top-level project (or when `MIRO_BUILD_TESTS=ON`). The test target is `MiroTests` and uses the [NanoTest](https://github.com/eyalamirmusic/NanoTest) framework, fetched automatically.
+
+```bash
+ctest --test-dir build --config Release --output-on-failure
+
+# Run a single test by name regex
+ctest --test-dir build --config Release -R "Parse object"
+```
+
+A benchmark target compares Miro against nlohmann/json and lives in `Benchmark/`.
+
+## Using Miro in your project
+
+With CMake FetchContent:
+
+```cmake
+include(FetchContent)
+FetchContent_Declare(Miro GIT_REPOSITORY <url> GIT_TAG main)
+FetchContent_MakeAvailable(Miro)
+
+target_link_libraries(YourTarget PRIVATE Miro)
+```
+
+## The `Json` layer
+
+The core type is `Miro::Json::Value`, a variant over `Null`, `bool`, `double`, `std::string`, `Array` (`std::vector<Value>`), and `Object` (`std::map<std::string, Value>`).
+
+```cpp
+#include <Miro/Json.h>
+
+using namespace Miro::Json;
+
+auto value = parse(R"({
+    "name": "Miro",
+    "version": 1.0,
+    "features": ["json", "reflection"],
+    "active": true
+})");
+
+auto name = value["name"].asString();       // "Miro"
+auto first = value["features"][0].asString(); // "json"
+
+auto compact = print(value);       // minified
+auto pretty = print(value, 4);     // indented with 4 spaces
+```
+
+Accessors (`asBool`, `asNumber`, `asString`, `asArray`, `asObject`) throw `std::bad_variant_access` on type mismatch. Use the `is*` predicates to check first, or use `find(object, key)` to look up an optional value by key.
+
+`ParseError` is thrown on malformed input.
+
+## The reflection layer
+
+Define a `reflect(Miro::Reflector&)` method on your type, binding each field to a key. The same function handles both saving and loading.
+
+```cpp
+#include <Miro/Miro.h>
+
+struct Settings
+{
+    void reflect(Miro::Reflector& ref)
+    {
+        ref["name"](name);
+        ref["count"](count);
+        ref["tags"](tags);
+    }
+
+    std::string name;
+    int count = 0;
+    std::vector<std::string> tags;
+};
+
+auto s = Settings {"hello", 3, {"a", "b"}};
+
+auto json = Miro::toJSONString(s, 4);
+auto loaded = Miro::createFromJSONString<Settings>(json);
+```
+
+Built-in reflection is provided for:
+
+- Primitives: `bool`, `int`, `double`, `std::string`
+- `std::vector<T>` and `std::array<T, N>`
+- `std::map<std::string, V>`
+- Any user type with a `reflect(Reflector&)` method (nested types compose)
+
+Convenience functions:
+
+- `Miro::toJSON(value)` / `Miro::fromJSON(value, json)`
+- `Miro::createFromJSON<T>(json)`
+- `Miro::toJSONString(value, indent = 0)` / `Miro::fromJSONString(value, str)`
+- `Miro::createFromJSONString<T>(str)`
+
+## License
+
+See `LICENSE.txt`.

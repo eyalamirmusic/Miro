@@ -4,7 +4,10 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project
 
-Miro is a lightweight C++20 JSON parser and printer library. It uses a `std::variant`-based `Value` type supporting null, bool, double, string, Array (`std::vector<Value>`), and Object (`std::vector<std::pair<std::string, Value>>`).
+Miro is a lightweight C++20 JSON library. It provides two layers:
+
+- `Miro::Json` — a `std::variant`-based `Value` type supporting null, bool, double, string, Array (`std::vector<Value>`), and Object (`std::map<std::string, Value>`), plus `parse()` and `print()` (with optional indent).
+- `Miro` — a reflection layer (`Reflector`, `toJSON` / `fromJSON`, `toJSONString` / `fromJSONString`, `createFromJSON[String]`) that serializes user types via an intrusive `reflect(Miro::Reflector&)` method. Built-in support for primitives (`bool`, `int`, `double`, `std::string`), `std::vector<T>`, `std::array<T, N>`, and `std::map<std::string, V>`.
 
 ## Build Commands
 
@@ -22,10 +25,14 @@ ctest --test-dir build --config Release -R "TestName"
 
 ## Architecture
 
-The library lives in `Lib/Miro/` with a single public header `Json.h` exposing the `Miro::Json` namespace:
-- `Json.h` / `Json.cpp` — `Value` type and accessors
-- `Parser.cpp` — JSON parser (internal, exposed via `Miro::Json::parse()`)
-- `Printer.cpp` — JSON serializer (internal, exposed via `Miro::Json::print()`)
+The library lives in `Lib/Miro/`. Public headers:
+- `Json.h` — `Miro::Json::Value` type, accessors, `parse()`, `print()`. Also aliases `Miro::JSON = Miro::Json::Value`.
+- `Miro.h` — reflection layer built on top of `Json.h` (`Reflector`, `Property`, `reflect()` overloads, `toJSON` / `fromJSON` helpers).
+
+Implementation files:
+- `Json.cpp` — `Value` constructors and accessors
+- `Parser.cpp` — JSON parser (exposed via `Miro::Json::parse()`)
+- `Printer.cpp` — JSON serializer (exposed via `Miro::Json::print()`)
 
 Tests use the [NanoTest](https://github.com/eyalamirmusic/NanoTest) framework, fetched automatically via CMake FetchContent. Test target is `MiroTests`. Benchmarks compare against nlohmann/json.
 
