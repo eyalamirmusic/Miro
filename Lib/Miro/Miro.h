@@ -1,6 +1,6 @@
 #pragma once
 
-#include "ReflectContainers.h"
-#include "ReflectMacro.h"
-#include "Reflector.h"
-#include "Serialize.h"
+#include "Detail/ReflectContainers.h"
+#include "Detail/ReflectMacro.h"
+#include "Detail/Reflector.h"
+#include "Detail/Serialize.h"

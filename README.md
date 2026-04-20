@@ -30,7 +30,7 @@ ctest --test-dir build --config Release --output-on-failure
 ctest --test-dir build --config Release -R "Parse object"
 ```
 
-A benchmark target compares Miro against nlohmann/json and lives in `Benchmark/`.
+A benchmark target compares Miro against nlohmann/json and lives in `Tests/Benchmark/`.
 
 ## Using Miro in your project
 
@@ -44,12 +44,14 @@ FetchContent_MakeAvailable(Miro)
 target_link_libraries(YourTarget PRIVATE Miro)
 ```
 
+All functionality is exposed through a single public header: `#include <Miro/Miro.h>`. The library is built as a unity TU (one `.cpp` file) — implementation details live under `Lib/Miro/Detail/` and should not be included directly.
+
 ## The `Json` layer
 
 The core type is `Miro::Json::Value`, a variant over `Null`, `bool`, `double`, `std::string`, `Array` (`std::vector<Value>`), and `Object` (`std::map<std::string, Value>`).
 
 ```cpp
-#include <Miro/Json.h>
+#include <Miro/Miro.h>
 
 using namespace Miro::Json;
 
@@ -111,6 +113,23 @@ Convenience functions:
 - `Miro::createFromJSON<T>(json)`
 - `Miro::toJSONString(value, indent = 0)` / `Miro::fromJSONString(value, str)`
 - `Miro::createFromJSONString<T>(str)`
+
+### `MIRO_REFLECT` macro
+
+To avoid writing the `reflect()` body by hand, list the fields with `MIRO_REFLECT` — the field name becomes the JSON key:
+
+```cpp
+struct Settings
+{
+    MIRO_REFLECT(name, count, tags)
+
+    std::string name;
+    int count = 0;
+    std::vector<std::string> tags;
+};
+```
+
+Equivalent to the hand-written `reflect()` method above.
 
 ## License
 

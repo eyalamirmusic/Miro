@@ -1,4 +1,4 @@
-#include <Miro/Json.h>
+#include <Miro/Miro.h>
 #include <NanoTest/NanoTest.h>
 
 using namespace nano;

@@ -25,16 +25,24 @@ ctest --test-dir build --config Release -R "TestName"
 
 ## Architecture
 
-The library lives in `Lib/Miro/`. Public headers:
-- `Json.h` — `Miro::Json::Value` type, accessors, `parse()`, `print()`. Also aliases `Miro::JSON = Miro::Json::Value`.
-- `Miro.h` — reflection layer built on top of `Json.h` (`Reflector`, `Property`, `reflect()` overloads, `toJSON` / `fromJSON` helpers).
+The library is a **unity build**: `Lib/Miro/Miro.cpp` is the only translation unit that compiles — it `#include`s the implementation `.cpp` files from `Detail/`.
 
-Implementation files:
-- `Json.cpp` — `Value` constructors and accessors
-- `Parser.cpp` — JSON parser (exposed via `Miro::Json::parse()`)
-- `Printer.cpp` — JSON serializer (exposed via `Miro::Json::print()`)
+Public surface:
+- `Lib/Miro/Miro.h` — the sole public header. Umbrella that pulls in the Detail headers. User code always includes `<Miro/Miro.h>`.
+- `Lib/Miro/Miro.cpp` — unity TU.
 
-Tests use the [NanoTest](https://github.com/eyalamirmusic/NanoTest) framework, fetched automatically via CMake FetchContent. Test target is `MiroTests`. Benchmarks compare against nlohmann/json.
+Implementation (in `Lib/Miro/Detail/`, treat as private):
+- `Json.h` / `Json.cpp` — `Miro::Json::Value` type, accessors, `parse()`, `print()`. Also aliases `Miro::JSON = Miro::Json::Value`.
+- `Parser.cpp` — JSON parser (exposed via `Miro::Json::parse()`).
+- `Printer.cpp` — JSON serializer (exposed via `Miro::Json::print()`).
+- `Reflector.h` / `Reflector.cpp` — `Reflector`, `Property`, core `reflect(Reflector&, T&)` dispatch, primitive + keyed overloads.
+- `ReflectContainers.h` — `reflect` overloads for `std::vector`, `std::array`, `std::map`.
+- `Serialize.h` — `toJSON` / `fromJSON` / `toJSONString` / etc. user-facing helpers.
+- `ReflectMacro.h` — `MIRO_REFLECT(field1, field2, ...)` macro that generates a `reflect()` method from a field list.
+
+CMake target is `Miro` (static library). Build commands only compile `Miro/Miro.cpp` — to add new sources, `#include` them from `Miro.cpp`, don't add them to `add_library`.
+
+Tests use the [NanoTest](https://github.com/eyalamirmusic/NanoTest) framework, fetched automatically via CMake FetchContent. Test target is `MiroTests`. Benchmarks live in `Tests/Benchmark/` and compare against nlohmann/json. Both NanoTest and nlohmann/json are fetched in `Tests/CMakeLists.txt` (and `Tests/Benchmark/CMakeLists.txt` respectively); the root `CMakeLists.txt` only does `enable_testing()` + `add_subdirectory(Tests)` when the project is top-level or `MIRO_BUILD_TESTS=ON`.
 
 ## Code Style
 
