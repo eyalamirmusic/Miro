@@ -392,3 +392,190 @@ auto macroEmpty = test("MIRO_REFLECT with no fields") = []
     check(json.isObject());
     check(json.asObject().empty());
 };
+
+// --- toJSON with const T& ---
+
+auto toJSONAcceptsConstRef = test("toJSON accepts const T&") = []
+{
+    const auto val = Inner {5};
+    auto json = Miro::toJSON(val);
+
+    check(json["x"].asNumber() == 5.0);
+};
+
+auto toJSONAcceptsRvalue = test("toJSON accepts rvalue") = []
+{
+    auto json = Miro::toJSON(Inner {9});
+
+    check(json["x"].asNumber() == 9.0);
+};
+
+auto toJSONStringAcceptsConstRef = test("toJSONString accepts const T&") = []
+{
+    const auto val = Inner {3};
+    auto loaded = Miro::createFromJSONString<Inner>(Miro::toJSONString(val));
+
+    check(loaded.x == 3);
+};
+
+// --- Miro::Json::Any ---
+
+auto anyDefaultConstructs = test("Any default constructs to null") = []
+{
+    auto any = Miro::Json::Any {};
+
+    check(any.isNull());
+};
+
+auto anyFromBool = test("Any from bool uses inherited ctor") = []
+{
+    auto any = Miro::Json::Any {true};
+
+    check(any.isBool());
+    check(any.asBool() == true);
+};
+
+auto anyFromInt = test("Any from int uses inherited ctor") = []
+{
+    auto any = Miro::Json::Any {42};
+
+    check(any.isNumber());
+    check(any.asNumber() == 42.0);
+};
+
+auto anyFromDouble = test("Any from double uses inherited ctor") = []
+{
+    auto any = Miro::Json::Any {3.14};
+
+    check(any.isNumber());
+    check(any.asNumber() == 3.14);
+};
+
+auto anyFromString = test("Any from string uses inherited ctor") = []
+{
+    auto any = Miro::Json::Any {std::string {"hi"}};
+
+    check(any.isString());
+    check(any.asString() == "hi");
+};
+
+auto anyFromCString = test("Any from C string literal") = []
+{
+    auto any = Miro::Json::Any {"hello"};
+
+    check(any.isString());
+    check(any.asString() == "hello");
+};
+
+auto anyFromArray = test("Any from Json::Array") = []
+{
+    auto any = Miro::Json::Any {Miro::Json::Array {1.0, 2.0, 3.0}};
+
+    check(any.isArray());
+    check(any.asArray().size() == 3);
+};
+
+auto anyFromObject = test("Any from Json::Object") = []
+{
+    auto obj = Miro::Json::Object {};
+    obj["k"] = 7;
+    auto any = Miro::Json::Any {obj};
+
+    check(any.isObject());
+    check(any["k"].asNumber() == 7.0);
+};
+
+auto anyFromReflectable = test("Any from reflectable struct") = []
+{
+    auto any = Miro::Json::Any {Inner {5}};
+
+    check(any.isObject());
+    check(any["x"].asNumber() == 5.0);
+};
+
+auto anyFromNestedReflectable = test("Any from nested reflectable struct") = []
+{
+    auto any = Miro::Json::Any {Outer {1, Inner {2}, "three"}};
+
+    check(any["a"].asNumber() == 1.0);
+    check(any["nested"]["x"].asNumber() == 2.0);
+    check(any["label"].asString() == "three");
+};
+
+auto anyFromMacroReflectable = test("Any from MIRO_REFLECT struct") = []
+{
+    auto any = Miro::Json::Any {MacroInner {17}};
+
+    check(any["x"].asNumber() == 17.0);
+};
+
+auto anyFromVectorReflectable = test("Any from std::vector") = []
+{
+    auto any = Miro::Json::Any {std::vector<int> {10, 20, 30}};
+
+    check(any.isArray());
+    check(any.asArray().size() == 3);
+    check(any[0].asNumber() == 10.0);
+    check(any[2].asNumber() == 30.0);
+};
+
+auto anyFromMapReflectable = test("Any from std::map") = []
+{
+    auto any = Miro::Json::Any {std::map<std::string, int> {{"a", 1}, {"b", 2}}};
+
+    check(any.isObject());
+    check(any["a"].asNumber() == 1.0);
+    check(any["b"].asNumber() == 2.0);
+};
+
+auto anyFromValue = test("Any from Json::Value copies") = []
+{
+    auto value = Miro::JSON {42};
+    auto any = Miro::Json::Any {value};
+
+    check(any.asNumber() == 42.0);
+};
+
+auto anyUsableAsJsonValue = test("Any is usable where JSON is expected") = []
+{
+    auto any = Miro::Json::Any {Inner {8}};
+    const Miro::JSON& asBase = any;
+
+    check(asBase["x"].asNumber() == 8.0);
+};
+
+auto anyAsReturnType = test("Any as return type converts implicitly") = []
+{
+    auto makeJson = [](int tagToUse) -> Miro::Json::Any
+    {
+        if (tagToUse == 0)
+            return Inner {1};
+        return MacroReflected {};
+    };
+
+    auto first = makeJson(0);
+    check(first["x"].asNumber() == 1.0);
+
+    auto second = makeJson(1);
+    check(second["name"].asString() == "macro");
+};
+
+auto anyPrintsRoundTrip = test("Any round-trips through print/parse") = []
+{
+    auto any = Miro::Json::Any {Outer {11, Inner {22}, "rt"}};
+    auto printed = Miro::Json::print(any);
+    auto parsed = Miro::Json::parse(printed);
+
+    check(parsed["a"].asNumber() == 11.0);
+    check(parsed["nested"]["x"].asNumber() == 22.0);
+    check(parsed["label"].asString() == "rt");
+};
+
+auto anyCopyConstructs = test("Any copy constructs from Any") = []
+{
+    auto original = Miro::Json::Any {Inner {4}};
+    auto copy = original;
+
+    check(copy["x"].asNumber() == 4.0);
+    check(original["x"].asNumber() == 4.0);
+};

@@ -10,11 +10,11 @@ namespace Miro
 {
 
 template <typename T>
-JSON toJSON(T& value)
+JSON toJSON(const T& value)
 {
     auto json = JSON(Json::Object {});
     auto ref = Reflector {json, true};
-    reflect(ref, value);
+    reflect(ref, const_cast<T&>(value));
     return json;
 }
 
@@ -35,7 +35,7 @@ T createFromJSON(const JSON& json)
 }
 
 template <typename T>
-std::string toJSONString(T& value, int indent = 0)
+std::string toJSONString(const T& value, int indent = 0)
 {
     return Json::print(toJSON(value), indent);
 }
