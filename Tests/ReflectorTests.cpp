@@ -489,6 +489,106 @@ auto externalVectorOfExternal =
     check(loaded[1].y == 4);
 };
 
+// --- MIRO_REFLECT_MEMBERS macro tests ---
+
+auto saveNamedMembers = test("Save MIRO_REFLECT_MEMBERS struct") = []
+{
+    auto val = NamedMembers {};
+    auto json = Miro::toJSON(val);
+
+    check(json["Full Name"].asString() == "named");
+    check(json["Item Count"].asNumber() == 3.0);
+    check(json["price-ratio"].asNumber() == 0.5);
+    check(!json.asObject().contains("name"));
+    check(!json.asObject().contains("count"));
+    check(!json.asObject().contains("ratio"));
+};
+
+auto loadNamedMembers = test("Load MIRO_REFLECT_MEMBERS struct") = []
+{
+    auto val = Miro::createFromJSONString<NamedMembers>(
+        R"({"Full Name": "loaded", "Item Count": 42, "price-ratio": 2.5})");
+
+    check(val.name == "loaded");
+    check(val.count == 42);
+    check(val.ratio == 2.5);
+};
+
+auto namedMembersRoundtrip = test("MIRO_REFLECT_MEMBERS roundtrip") = []
+{
+    auto original = NamedMembers {"rt", 11, 0.125};
+    auto loaded = Miro::createFromJSON<NamedMembers>(Miro::toJSON(original));
+
+    check(loaded.name == original.name);
+    check(loaded.count == original.count);
+    check(loaded.ratio == original.ratio);
+};
+
+auto namedMembersIgnoresBareName =
+    test("MIRO_REFLECT_MEMBERS ignores bare field name") = []
+{
+    auto val = Miro::createFromJSONString<NamedMembers>(
+        R"({"name": "wrong", "Full Name": "right"})");
+
+    check(val.name == "right");
+};
+
+auto namedMembersEmpty = test("MIRO_REFLECT_MEMBERS with no pairs") = []
+{
+    auto val = NamedMembersEmpty {};
+    auto json = Miro::toJSON(val);
+
+    check(json.isObject());
+    check(json.asObject().empty());
+};
+
+// --- MIRO_REFLECT_EXTERNAL_MEMBERS macro tests ---
+
+auto saveExternalNamed = test("Save MIRO_REFLECT_EXTERNAL_MEMBERS struct") = []
+{
+    auto val = ExternalNamed {};
+    auto json = Miro::toJSON(val);
+
+    check(json["Unit Price"].asNumber() == 9.99);
+    check(json["In Stock"].asBool() == true);
+    check(!json.asObject().contains("price"));
+    check(!json.asObject().contains("inStock"));
+};
+
+auto loadExternalNamed = test("Load MIRO_REFLECT_EXTERNAL_MEMBERS struct") = []
+{
+    auto val = Miro::createFromJSONString<ExternalNamed>(
+        R"({"Unit Price": 12.5, "In Stock": false})");
+
+    check(val.price == 12.5);
+    check(val.inStock == false);
+};
+
+auto externalNamedRoundtrip = test("MIRO_REFLECT_EXTERNAL_MEMBERS roundtrip") = []
+{
+    auto original = ExternalNamed {2.25, false};
+    auto loaded = Miro::createFromJSON<ExternalNamed>(Miro::toJSON(original));
+
+    check(loaded.price == original.price);
+    check(loaded.inStock == original.inStock);
+};
+
+auto externalNamedInVector =
+    test("std::vector of MIRO_REFLECT_EXTERNAL_MEMBERS type") = []
+{
+    auto original = std::vector<ExternalNamed> {{1.0, true}, {2.0, false}};
+    auto json = Miro::toJSON(original);
+
+    check(json.isArray());
+    check(json[0]["Unit Price"].asNumber() == 1.0);
+    check(json[1]["In Stock"].asBool() == false);
+
+    auto loaded = Miro::createFromJSON<std::vector<ExternalNamed>>(json);
+    check(loaded.size() == 2);
+    check(loaded[0].price == 1.0);
+    check(loaded[1].inStock == false);
+};
+
 // --- toJSON with const T& ---
 
 auto toJSONAcceptsConstRef = test("toJSON accepts const T&") = []

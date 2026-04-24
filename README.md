@@ -114,9 +114,18 @@ Convenience functions:
 - `Miro::toJSONString(value, indent = 0)` / `Miro::fromJSONString(value, str)`
 - `Miro::createFromJSONString<T>(str)`
 
-### `MIRO_REFLECT` macro
+### Reflection macros
 
-To avoid writing the `reflect()` body by hand, list the fields with `MIRO_REFLECT` — the field name becomes the JSON key:
+Four macros cover the common cases. Pick based on two axes: does your type support adding a member function (intrusive vs. non-intrusive), and do you want the JSON key to match the C++ identifier or to be an arbitrary string?
+
+| | JSON key = field name | JSON key is an explicit string |
+| --- | --- | --- |
+| **Intrusive** (inside your struct) | `MIRO_REFLECT` | `MIRO_REFLECT_MEMBERS` |
+| **Non-intrusive** (for types you don't own) | `MIRO_REFLECT_EXTERNAL` | `MIRO_REFLECT_EXTERNAL_MEMBERS` |
+
+#### `MIRO_REFLECT` — intrusive, field name as key
+
+List the fields inside the struct; each becomes `ref["field"](field)`:
 
 ```cpp
 struct Settings
@@ -124,12 +133,46 @@ struct Settings
     std::string name;
     int count = 0;
     std::vector<std::string> tags;
-    
+
     MIRO_REFLECT(name, count, tags)
 };
 ```
 
 Equivalent to the hand-written `reflect()` method above.
+
+#### `MIRO_REFLECT_MEMBERS` — intrusive, explicit JSON keys
+
+Takes `(field, "key")` pairs when the JSON key needs to differ from the C++ identifier (for example, keys with spaces or hyphens, or keys that are C++ reserved words):
+
+```cpp
+struct Product
+{
+    std::string name;
+    double unitPrice = 0.0;
+
+    MIRO_REFLECT_MEMBERS(name, "Full Name", unitPrice, "Unit Price")
+};
+```
+
+#### `MIRO_REFLECT_EXTERNAL` — non-intrusive, field name as key
+
+For third-party types you can't modify. Place at **file / global scope**, after the type is fully declared, with the fully-qualified type name:
+
+```cpp
+namespace ThirdParty { struct Point { int x; int y; }; }
+
+MIRO_REFLECT_EXTERNAL(ThirdParty::Point, x, y)
+```
+
+This defines a free-function `reflect` overload in namespace `Miro`, so the type composes with the rest of the reflection layer (nesting, `std::vector`, `std::map`, etc.).
+
+#### `MIRO_REFLECT_EXTERNAL_MEMBERS` — non-intrusive, explicit JSON keys
+
+The external-type variant with custom key strings:
+
+```cpp
+MIRO_REFLECT_EXTERNAL_MEMBERS(ThirdParty::Point, x, "X Coord", y, "Y Coord")
+```
 
 ## License
 

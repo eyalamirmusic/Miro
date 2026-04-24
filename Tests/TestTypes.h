@@ -160,3 +160,27 @@ MIRO_REFLECT_EXTERNAL(ExternalPoint, x, y)
 MIRO_REFLECT_EXTERNAL(ExternalPerson, name, age, location)
 MIRO_REFLECT_EXTERNAL(ExternalEmpty)
 MIRO_REFLECT_EXTERNAL(ExternalWithContainers, ids, points)
+
+struct NamedMembers
+{
+    MIRO_REFLECT_MEMBERS(
+        name, "Full Name", count, "Item Count", ratio, "price-ratio")
+
+    std::string name = "named";
+    int count = 3;
+    double ratio = 0.5;
+};
+
+struct NamedMembersEmpty
+{
+    MIRO_REFLECT_MEMBERS()
+};
+
+struct ExternalNamed
+{
+    double price = 9.99;
+    bool inStock = true;
+};
+
+MIRO_REFLECT_EXTERNAL_MEMBERS(
+    ExternalNamed, price, "Unit Price", inStock, "In Stock")
