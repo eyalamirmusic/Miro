@@ -5,6 +5,7 @@
 #include <array>
 #include <cstddef>
 #include <map>
+#include <optional>
 #include <string>
 #include <vector>
 
@@ -88,6 +89,28 @@ void reflect(Reflector& ref, std::map<std::string, V>& value)
             auto child = Reflector {node, false};
             reflect(child, value[key]);
         }
+    }
+}
+
+template <typename T>
+void reflect(Reflector& ref, std::optional<T>& value)
+{
+    if (ref.isSaving())
+    {
+        if (value)
+            reflect(ref, *value);
+        else
+            ref.json = JSON(nullptr);
+    }
+    else if (ref.json.isNull())
+    {
+        value.reset();
+    }
+    else
+    {
+        auto inner = T {};
+        reflect(ref, inner);
+        value = std::move(inner);
     }
 }
 

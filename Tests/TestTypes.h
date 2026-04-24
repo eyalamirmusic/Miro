@@ -2,6 +2,8 @@
 
 #include <Miro/Miro.h>
 
+#include <optional>
+
 struct Inner
 {
     void reflect(Miro::Reflector& ref) { ref["x"](x); }
@@ -184,3 +186,31 @@ struct ExternalNamed
 
 MIRO_REFLECT_EXTERNAL_MEMBERS(
     ExternalNamed, price, "Unit Price", inStock, "In Stock")
+
+struct ClassWithIntegrals
+{
+    void reflect(Miro::Reflector& ref)
+    {
+        ref["u"](u);
+        ref["s"](s);
+        ref["ll"](ll);
+        ref["c"](c);
+    }
+
+    unsigned int u = 5;
+    short s = -3;
+    long long ll = 1234567890123LL;
+    char c = 'A';
+};
+
+struct ClassWithOptional
+{
+    void reflect(Miro::Reflector& ref)
+    {
+        ref["maybeInt"](maybeInt);
+        ref["maybeInner"](maybeInner);
+    }
+
+    std::optional<int> maybeInt;
+    std::optional<Inner> maybeInner;
+};

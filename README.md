@@ -103,8 +103,10 @@ auto loaded = Miro::createFromJSONString<Settings>(json);
 Built-in reflection is provided for:
 
 - Primitives: `bool`, `int`, `double`, `std::string`
+- All other integral types (`unsigned`, `short`, `long`, `long long`, `char`, ...) — serialized as JSON numbers
 - `std::vector<T>` and `std::array<T, N>`
 - `std::map<std::string, V>`
+- `std::optional<T>` — empty optionals serialize as JSON `null`; on load, `null` clears the optional and a missing key leaves it untouched
 - Any user type with a `reflect(Reflector&)` method (nested types compose)
 
 Convenience functions:

@@ -57,6 +57,17 @@ void reflect(Reflector& ref, T& value)
 }
 
 template <typename T>
+    requires std::is_integral_v<T> && (!std::is_same_v<T, bool>)
+             && (!std::is_same_v<T, int>)
+void reflect(Reflector& ref, T& value)
+{
+    if (ref.isSaving())
+        ref.json = JSON(static_cast<double>(value));
+    else if (ref.json.isNumber())
+        value = static_cast<T>(ref.json.asNumber());
+}
+
+template <typename T>
 void reflect(Reflector& ref, std::string_view key, T& value)
 {
     auto& obj = ref.json.toObject();

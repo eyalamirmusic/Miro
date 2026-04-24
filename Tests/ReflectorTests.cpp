@@ -775,3 +775,105 @@ auto anyCopyConstructs = test("Any copy constructs from Any") = []
     check(copy["x"].asNumber() == 4.0);
     check(original["x"].asNumber() == 4.0);
 };
+
+// --- Integral overloads (non-int, non-bool) ---
+
+auto saveIntegrals = test("Save non-int integral types as numbers") = []
+{
+    auto val = ClassWithIntegrals {};
+    auto json = Miro::toJSON(val);
+
+    check(json["u"].isNumber());
+    check(json["u"].asNumber() == 5.0);
+    check(json["s"].asNumber() == -3.0);
+    check(json["ll"].asNumber() == 1234567890123.0);
+    check(json["c"].asNumber() == double('A'));
+};
+
+auto loadIntegrals = test("Load non-int integral types from numbers") = []
+{
+    auto val = Miro::createFromJSONString<ClassWithIntegrals>(
+        R"({"u": 17, "s": -42, "ll": 9999999999, "c": 66})");
+
+    check(val.u == 17u);
+    check(val.s == -42);
+    check(val.ll == 9999999999LL);
+    check(val.c == 'B');
+};
+
+auto integralsRoundtrip = test("Integral types roundtrip") = []
+{
+    auto original = ClassWithIntegrals {123u, -7, 5000000000LL, 'Z'};
+    auto loaded = Miro::createFromJSON<ClassWithIntegrals>(Miro::toJSON(original));
+
+    check(loaded.u == original.u);
+    check(loaded.s == original.s);
+    check(loaded.ll == original.ll);
+    check(loaded.c == original.c);
+};
+
+// --- std::optional ---
+
+auto saveOptionalEmpty = test("Save empty std::optional as null") = []
+{
+    auto val = ClassWithOptional {};
+    auto json = Miro::toJSON(val);
+
+    check(json["maybeInt"].isNull());
+    check(json["maybeInner"].isNull());
+};
+
+auto saveOptionalEngaged = test("Save engaged std::optional inlines value") = []
+{
+    auto val = ClassWithOptional {};
+    val.maybeInt = 42;
+    val.maybeInner = Inner {7};
+    auto json = Miro::toJSON(val);
+
+    check(json["maybeInt"].asNumber() == 42.0);
+    check(json["maybeInner"]["x"].asNumber() == 7.0);
+};
+
+auto loadOptionalNull = test("Load null into std::optional clears it") = []
+{
+    auto val = ClassWithOptional {};
+    val.maybeInt = 99;
+    Miro::fromJSONString(val, R"({"maybeInt": null, "maybeInner": null})");
+
+    check(!val.maybeInt.has_value());
+    check(!val.maybeInner.has_value());
+};
+
+auto loadOptionalValue = test("Load value into std::optional") = []
+{
+    auto val = Miro::createFromJSONString<ClassWithOptional>(
+        R"({"maybeInt": 11, "maybeInner": {"x": 22}})");
+
+    check(val.maybeInt.has_value());
+    check(*val.maybeInt == 11);
+    check(val.maybeInner.has_value());
+    check(val.maybeInner->x == 22);
+};
+
+auto loadOptionalMissingKeyKeepsValue =
+    test("Missing optional key keeps existing value") = []
+{
+    auto val = ClassWithOptional {};
+    val.maybeInt = 7;
+    Miro::fromJSONString(val, R"({})");
+
+    check(val.maybeInt.has_value());
+    check(*val.maybeInt == 7);
+};
+
+auto optionalRoundtrip = test("std::optional roundtrip") = []
+{
+    auto original = ClassWithOptional {};
+    original.maybeInt = 3;
+    auto loaded =
+        Miro::createFromJSON<ClassWithOptional>(Miro::toJSON(original));
+
+    check(loaded.maybeInt.has_value());
+    check(*loaded.maybeInt == 3);
+    check(!loaded.maybeInner.has_value());
+};
