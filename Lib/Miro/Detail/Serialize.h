@@ -41,7 +41,7 @@ std::string toJSONString(const T& value, int indent = 0)
 }
 
 template <typename T>
-void logJSON(const T& value, int indent = 0)
+void logJSON(const T& value, int indent = 4)
 {
     Json::log(toJSON(value), indent);
 }
