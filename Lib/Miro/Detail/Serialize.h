@@ -41,6 +41,12 @@ std::string toJSONString(const T& value, int indent = 0)
 }
 
 template <typename T>
+void logJSON(const T& value, int indent = 0)
+{
+    Json::log(toJSON(value), indent);
+}
+
+template <typename T>
 void fromJSONString(T& value, std::string_view jsonString)
 {
     fromJSON(value, Json::parse(jsonString));

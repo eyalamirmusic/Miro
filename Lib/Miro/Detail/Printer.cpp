@@ -3,6 +3,7 @@
 #include <array>
 #include <cmath>
 #include <sstream>
+#include <iostream>
 
 namespace Miro::Json
 {
@@ -179,6 +180,11 @@ std::string print(const Value& valueToUse, int indentToUse)
     auto result = std::string {};
     printTo(result, valueToUse, indentToUse, 0);
     return result;
+}
+
+void log(const Value& valueToUse, int indentToUse)
+{
+    std::cout << print(valueToUse, indentToUse) << std::endl;
 }
 
 } // namespace Miro::Json
