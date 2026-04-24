@@ -130,3 +130,33 @@ struct MacroEmpty
 {
     MIRO_REFLECT()
 };
+
+// Types intentionally without any reflect() method — to be reflected via
+// MIRO_REFLECT_EXTERNAL below, simulating a third-party type.
+struct ExternalPoint
+{
+    int x = 3;
+    int y = 4;
+};
+
+struct ExternalPerson
+{
+    std::string name = "ext";
+    int age = 21;
+    ExternalPoint location;
+};
+
+struct ExternalEmpty
+{
+};
+
+struct ExternalWithContainers
+{
+    std::vector<int> ids = {1, 2, 3};
+    std::map<std::string, ExternalPoint> points = {{"a", {1, 2}}, {"b", {3, 4}}};
+};
+
+MIRO_REFLECT_EXTERNAL(ExternalPoint, x, y)
+MIRO_REFLECT_EXTERNAL(ExternalPerson, name, age, location)
+MIRO_REFLECT_EXTERNAL(ExternalEmpty)
+MIRO_REFLECT_EXTERNAL(ExternalWithContainers, ids, points)

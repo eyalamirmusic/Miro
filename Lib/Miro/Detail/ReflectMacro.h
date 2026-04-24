@@ -4,13 +4,17 @@
 
 // Macro-based reflect() generator.
 //
-// Usage:
+// Usage (intrusive, for types you own):
 //   struct Foo
 //   {
 //       int x = 0;
 //       std::string name;
 //       MIRO_REFLECT(x, name)
 //   };
+//
+// Usage (non-intrusive, for types you don't own):
+//   // at global scope, after Foo is fully declared
+//   MIRO_REFLECT_EXTERNAL(Foo, x, name)
 //
 // Each listed member becomes ref["member"](member). The field name is used
 // as the JSON key. Supports up to ~256 fields.
@@ -39,4 +43,16 @@
     void reflect([[maybe_unused]] Miro::Reflector& ref)                             \
     {                                                                               \
         MIRO_FOR_EACH(MIRO_REFLECT_FIELD, __VA_ARGS__)                              \
+    }
+
+#define MIRO_REFLECT_EXTERNAL_FIELD(field) ref[#field](valueToUse.field);
+
+#define MIRO_REFLECT_EXTERNAL(Type, ...)                                            \
+    namespace Miro                                                                  \
+    {                                                                               \
+    inline void reflect([[maybe_unused]] Miro::Reflector& ref,                      \
+                        [[maybe_unused]] Type& valueToUse)                          \
+    {                                                                               \
+        MIRO_FOR_EACH(MIRO_REFLECT_EXTERNAL_FIELD, __VA_ARGS__)                     \
+    }                                                                               \
     }

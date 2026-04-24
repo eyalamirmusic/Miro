@@ -393,6 +393,102 @@ auto macroEmpty = test("MIRO_REFLECT with no fields") = []
     check(json.asObject().empty());
 };
 
+// --- MIRO_REFLECT_EXTERNAL macro tests ---
+
+auto saveExternalReflected = test("Save MIRO_REFLECT_EXTERNAL struct") = []
+{
+    auto val = ExternalPoint {};
+    auto json = Miro::toJSON(val);
+
+    check(json["x"].asNumber() == 3.0);
+    check(json["y"].asNumber() == 4.0);
+};
+
+auto loadExternalReflected = test("Load MIRO_REFLECT_EXTERNAL struct") = []
+{
+    auto val = Miro::createFromJSONString<ExternalPoint>(R"({"x": 50, "y": 60})");
+
+    check(val.x == 50);
+    check(val.y == 60);
+};
+
+auto saveExternalNested =
+    test("Save MIRO_REFLECT_EXTERNAL with nested external") = []
+{
+    auto val = ExternalPerson {"Ada", 36, {7, 8}};
+    auto json = Miro::toJSON(val);
+
+    check(json["name"].asString() == "Ada");
+    check(json["age"].asNumber() == 36.0);
+    check(json["location"]["x"].asNumber() == 7.0);
+    check(json["location"]["y"].asNumber() == 8.0);
+};
+
+auto loadExternalNested =
+    test("Load MIRO_REFLECT_EXTERNAL with nested external") = []
+{
+    auto val = Miro::createFromJSONString<ExternalPerson>(
+        R"({"name": "Grace", "age": 85, "location": {"x": 11, "y": 22}})");
+
+    check(val.name == "Grace");
+    check(val.age == 85);
+    check(val.location.x == 11);
+    check(val.location.y == 22);
+};
+
+auto externalReflectedRoundtrip = test("MIRO_REFLECT_EXTERNAL roundtrip") = []
+{
+    auto original = ExternalPerson {"rt", 99, {-1, -2}};
+    auto loaded = Miro::createFromJSON<ExternalPerson>(Miro::toJSON(original));
+
+    check(loaded.name == original.name);
+    check(loaded.age == original.age);
+    check(loaded.location.x == original.location.x);
+    check(loaded.location.y == original.location.y);
+};
+
+auto externalEmpty = test("MIRO_REFLECT_EXTERNAL with no fields") = []
+{
+    auto val = ExternalEmpty {};
+    auto json = Miro::toJSON(val);
+
+    check(json.isObject());
+    check(json.asObject().empty());
+};
+
+auto externalWithContainers =
+    test("MIRO_REFLECT_EXTERNAL composes with containers") = []
+{
+    auto original = ExternalWithContainers {};
+    auto json = Miro::toJSON(original);
+
+    check(json["ids"].isArray());
+    check(json["ids"].asArray().size() == 3);
+    check(json["points"]["a"]["x"].asNumber() == 1.0);
+    check(json["points"]["b"]["y"].asNumber() == 4.0);
+
+    auto loaded = Miro::createFromJSON<ExternalWithContainers>(json);
+    check(loaded.ids == original.ids);
+    check(loaded.points["a"].x == 1);
+    check(loaded.points["b"].y == 4);
+};
+
+auto externalVectorOfExternal =
+    test("std::vector of MIRO_REFLECT_EXTERNAL type") = []
+{
+    auto original = std::vector<ExternalPoint> {{1, 2}, {3, 4}, {5, 6}};
+    auto json = Miro::toJSON(original);
+
+    check(json.isArray());
+    check(json.asArray().size() == 3);
+    check(json[2]["x"].asNumber() == 5.0);
+
+    auto loaded = Miro::createFromJSON<std::vector<ExternalPoint>>(json);
+    check(loaded.size() == 3);
+    check(loaded[1].x == 3);
+    check(loaded[1].y == 4);
+};
+
 // --- toJSON with const T& ---
 
 auto toJSONAcceptsConstRef = test("toJSON accepts const T&") = []
