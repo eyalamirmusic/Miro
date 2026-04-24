@@ -23,13 +23,14 @@ ctest --test-dir build --config Release --output-on-failure
 ctest --test-dir build --config Release -R "TestName"
 ```
 
+**Always configure with `-DMIRO_UNITY_BUILD=OFF`** so `compile_commands.json` has a per-file entry for each source and the LSP can resolve symbols. `MIRO_UNITY_BUILD` is ON by default (CMake's `UNITY_BUILD` on the `Miro` target) for faster CI/release builds, but it collapses per-file compile commands and breaks LSP navigation.
+
 ## Architecture
 
-The library is a **unity build**: `Lib/Miro/Miro.cpp` is the only translation unit that compiles — it `#include`s the implementation `.cpp` files from `Detail/`.
+Each implementation `.cpp` file in `Lib/Miro/Detail/` is a separate translation unit, listed explicitly in `Lib/CMakeLists.txt`.
 
 Public surface:
 - `Lib/Miro/Miro.h` — the sole public header. Umbrella that pulls in the Detail headers. User code always includes `<Miro/Miro.h>`.
-- `Lib/Miro/Miro.cpp` — unity TU.
 
 Implementation (in `Lib/Miro/Detail/`, treat as private):
 - `Json.h` / `Json.cpp` — `Miro::Json::Value` type, accessors, `parse()`, `print()`. Also aliases `Miro::JSON = Miro::Json::Value`.
@@ -40,7 +41,7 @@ Implementation (in `Lib/Miro/Detail/`, treat as private):
 - `Serialize.h` — `toJSON` / `fromJSON` / `toJSONString` / etc. user-facing helpers.
 - `ReflectMacro.h` — `MIRO_REFLECT(field1, field2, ...)` macro that generates a `reflect()` method from a field list.
 
-CMake target is `Miro` (static library). Build commands only compile `Miro/Miro.cpp` — to add new sources, `#include` them from `Miro.cpp`, don't add them to `add_library`.
+CMake target is `Miro` (static library). To add a new source file, add it to the `add_library(Miro ...)` list in `Lib/CMakeLists.txt`. When `MIRO_UNITY_BUILD=ON` (the default), CMake batches those sources into a unity TU via the `UNITY_BUILD` target property.
 
 Tests use the [NanoTest](https://github.com/eyalamirmusic/NanoTest) framework, fetched automatically via CMake FetchContent. Test target is `MiroTests`. Benchmarks live in `Tests/Benchmark/` and compare against nlohmann/json. Both NanoTest and nlohmann/json are fetched in `Tests/CMakeLists.txt` (and `Tests/Benchmark/CMakeLists.txt` respectively); the root `CMakeLists.txt` only does `enable_testing()` + `add_subdirectory(Tests)` when the project is top-level or `MIRO_BUILD_TESTS=ON`.
 

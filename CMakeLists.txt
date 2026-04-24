@@ -12,6 +12,8 @@ if (PROJECT_IS_TOP_LEVEL)
     endif ()
 endif ()
 
+option(MIRO_UNITY_BUILD "Enable CMake unity build for the Miro library" ON)
+
 add_subdirectory(Lib)
 
 option(MIRO_BUILD_TESTS "Build Miro internal tests" OFF)
