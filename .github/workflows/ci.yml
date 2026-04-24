@@ -38,7 +38,7 @@ jobs:
             cmake_configure_args: -DCMAKE_C_COMPILER=gcc -DCMAKE_CXX_COMPILER=g++
 
           - name: iOS
-            os: macos-latest
+            os: macos-26
             generator: Xcode
             cmake_configure_args: >
               -DCMAKE_SYSTEM_NAME=iOS
