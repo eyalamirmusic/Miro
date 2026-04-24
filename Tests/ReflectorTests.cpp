@@ -870,10 +870,115 @@ auto optionalRoundtrip = test("std::optional roundtrip") = []
 {
     auto original = ClassWithOptional {};
     original.maybeInt = 3;
-    auto loaded =
-        Miro::createFromJSON<ClassWithOptional>(Miro::toJSON(original));
+    auto loaded = Miro::createFromJSON<ClassWithOptional>(Miro::toJSON(original));
 
     check(loaded.maybeInt.has_value());
     check(*loaded.maybeInt == 3);
     check(!loaded.maybeInner.has_value());
+};
+
+// --- Enum reflection ---
+
+auto enumToStringWorks = test("enumToString returns enumerator name") = []
+{
+    check(Miro::enumToString(Color::Red) == "Red");
+    check(Miro::enumToString(Color::Green) == "Green");
+    check(Miro::enumToString(Color::Blue) == "Blue");
+};
+
+auto enumToStringUnknown = test("enumToString returns empty for unknown") = []
+{
+    auto unknown = static_cast<Color>(99);
+    check(Miro::enumToString(unknown).empty());
+};
+
+auto enumFromStringWorks = test("enumFromString parses enumerator name") = []
+{
+    auto parsed = Miro::enumFromString<Color>("Green");
+    check(parsed.has_value());
+    check(*parsed == Color::Green);
+};
+
+auto enumFromStringUnknown = test("enumFromString returns nullopt for unknown") = []
+{
+    auto parsed = Miro::enumFromString<Color>("Purple");
+    check(!parsed.has_value());
+};
+
+auto enumFromStringUnscoped = test("enumFromString works for unscoped enums") = []
+{
+    auto parsed = Miro::enumFromString<UnscopedMode>("ModeOn");
+    check(parsed.has_value());
+    check(*parsed == ModeOn);
+};
+
+auto saveEnumAsString = test("Save enum as JSON string") = []
+{
+    auto val = ClassWithEnum {};
+    auto json = Miro::toJSON(val);
+
+    check(json["color"].isString());
+    check(json["color"].asString() == "Green");
+    check(json["signal"].asString() == "Go");
+    check(json["mode"].asString() == "ModeAuto");
+};
+
+auto loadEnumFromString = test("Load enum from JSON string") = []
+{
+    auto val = Miro::createFromJSONString<ClassWithEnum>(
+        R"({"color": "Blue", "signal": "Stop", "mode": "ModeOn"})");
+
+    check(val.color == Color::Blue);
+    check(val.signal == Signal::Stop);
+    check(val.mode == ModeOn);
+};
+
+auto enumRoundtrip = test("Enum roundtrip") = []
+{
+    auto original = ClassWithEnum {Color::Red, Signal::Wait, ModeOff};
+    auto loaded = Miro::createFromJSON<ClassWithEnum>(Miro::toJSON(original));
+
+    check(loaded.color == original.color);
+    check(loaded.signal == original.signal);
+    check(loaded.mode == original.mode);
+};
+
+auto loadEnumFromNumber = test("Load enum from JSON number") = []
+{
+    auto val = Miro::createFromJSONString<ClassWithEnum>(
+        R"({"color": 2, "signal": -1, "mode": 1})");
+
+    check(val.color == Color::Blue);
+    check(val.signal == Signal::Stop);
+    check(val.mode == ModeOn);
+};
+
+auto loadUnknownEnumKeepsValue =
+    test("Load unknown enum string keeps existing value") = []
+{
+    auto val = ClassWithEnum {};
+    Miro::fromJSONString(val, R"({"color": "Magenta"})");
+
+    check(val.color == Color::Green);
+};
+
+auto saveOutOfRangeEnumAsNumber =
+    test("Save out-of-range enum value falls back to number") = []
+{
+    auto val = ClassWithEnum {};
+    val.color = static_cast<Color>(99);
+    auto json = Miro::toJSON(val);
+
+    check(json["color"].isNumber());
+    check(json["color"].asNumber() == 99.0);
+};
+
+auto outOfRangeEnumRoundtrip =
+    test("Out-of-range enum roundtrips through number") = []
+{
+    auto original = ClassWithEnum {};
+    original.color = static_cast<Color>(77);
+    auto loaded = Miro::createFromJSON<ClassWithEnum>(Miro::toJSON(original));
+
+    check(static_cast<int>(loaded.color) == 77);
 };

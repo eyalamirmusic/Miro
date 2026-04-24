@@ -214,3 +214,33 @@ struct ClassWithOptional
     std::optional<int> maybeInt;
     std::optional<Inner> maybeInner;
 };
+
+enum class Color
+{
+    Red,
+    Green,
+    Blue
+};
+
+enum class Signal : int
+{
+    Stop = -1,
+    Go = 1,
+    Wait = 2
+};
+
+enum UnscopedMode : int
+{
+    ModeOff = 0,
+    ModeOn = 1,
+    ModeAuto = 2
+};
+
+struct ClassWithEnum
+{
+    MIRO_REFLECT(color, signal, mode)
+
+    Color color = Color::Green;
+    Signal signal = Signal::Go;
+    UnscopedMode mode = ModeAuto;
+};
