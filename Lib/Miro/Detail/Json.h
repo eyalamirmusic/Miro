@@ -46,13 +46,16 @@ struct Value
     const Object& asObject() const;
     Object& asObject();
 
-    explicit operator bool() const;
-    explicit operator int() const;
-    explicit operator double() const;
-    explicit operator std::string() const;
+    operator bool() const;
+    operator int() const;
+    operator double() const;
+    operator float() const;
+    operator std::string() const;
 
     Value& operator[](const std::string& keyToUse);
     const Value& operator[](const std::string& keyToUse) const;
+    Value& operator[](const char* keyToUse);
+    const Value& operator[](const char* keyToUse) const;
     Value& operator[](std::size_t indexToUse);
     const Value& operator[](std::size_t indexToUse) const;
 

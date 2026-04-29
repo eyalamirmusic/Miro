@@ -128,6 +128,10 @@ Value::operator double() const
 {
     return asNumber();
 }
+Value::operator float() const
+{
+    return static_cast<float>(asNumber());
+}
 Value::operator std::string() const
 {
     return asString();
@@ -141,6 +145,16 @@ Value& Value::operator[](const std::string& keyToUse)
 const Value& Value::operator[](const std::string& keyToUse) const
 {
     return std::get<Object>(data).at(keyToUse);
+}
+
+Value& Value::operator[](const char* keyToUse)
+{
+    return operator[](std::string(keyToUse));
+}
+
+const Value& Value::operator[](const char* keyToUse) const
+{
+    return operator[](std::string(keyToUse));
 }
 
 Value& Value::operator[](std::size_t indexToUse)

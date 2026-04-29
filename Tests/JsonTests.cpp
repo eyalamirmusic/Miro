@@ -123,6 +123,87 @@ auto valueEquality = test("Value equality") = []
     check(parse("null") == parse("null"));
 };
 
+// --- Implicit conversion tests ---
+
+auto implicitConvertToBool = test("Implicit convert to bool") = []
+{
+    Value value = true;
+    bool result = value;
+    check(result == true);
+
+    Value falseValue = false;
+    bool falseResult = falseValue;
+    check(falseResult == false);
+};
+
+auto implicitConvertToInt = test("Implicit convert to int") = []
+{
+    Value value = 42;
+    int result = value;
+    check(result == 42);
+
+    Value negative = -7;
+    int negativeResult = negative;
+    check(negativeResult == -7);
+};
+
+auto implicitConvertToDouble = test("Implicit convert to double") = []
+{
+    Value value = 3.14;
+    double result = value;
+    check(result == 3.14);
+};
+
+auto implicitConvertToFloat = test("Implicit convert to float") = []
+{
+    Value value = 1.5;
+    float result = value;
+    check(result == 1.5f);
+};
+
+auto implicitConvertToString = test("Implicit convert to string") = []
+{
+    Value value = std::string("hello");
+    std::string result = value;
+    check(result == "hello");
+};
+
+auto implicitConvertFromParsedObject =
+    test("Implicit convert from parsed object") = []
+{
+    auto value = parse(R"({
+        "active": true,
+        "count": 42,
+        "ratio": 2.5,
+        "name": "Miro"
+    })");
+
+    bool active = value["active"];
+    int count = value["count"];
+    double ratio = value["ratio"];
+    float ratioFloat = value["ratio"];
+    std::string name = value["name"];
+
+    check(active == true);
+    check(count == 42);
+    check(ratio == 2.5);
+    check(ratioFloat == 2.5f);
+    check(name == "Miro");
+};
+
+auto implicitConvertInExpression = test("Implicit convert in expression") = []
+{
+    Value value = 10;
+    int doubled = static_cast<int>(value) * 2;
+    check(doubled == 20);
+
+    Value flag = true;
+    if (flag)
+        check(true);
+    else
+        check(false);
+};
+
 // --- Print tests ---
 
 auto printNull = test("Print null") = [] { check(print(parse("null")) == "null"); };
