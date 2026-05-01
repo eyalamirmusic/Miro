@@ -1,5 +1,6 @@
 add_library(Miro STATIC
     Miro/Detail/Any.cpp
+    Miro/Detail/CommandTable.cpp
     Miro/Detail/Json.cpp
     Miro/Detail/Parser.cpp
     Miro/Detail/Printer.cpp
