@@ -28,29 +28,48 @@ ValueKind kindOf(const Json::Value& value)
 
 } // namespace
 
-JsonReflector::JsonReflector(Json::Value& slotToUse, Mode modeToUse)
-    : slot(slotToUse)
-    , mode(modeToUse)
+JsonReflector::JsonReflector(Json::Value& slotToUse, Options optsToUse)
+    : JsonReflector(slotToUse, optsToUse, false)
 {
 }
 
-bool JsonReflector::isSaving() const
+JsonReflector::JsonReflector(Json::Value& slotToUse,
+                             Options optsToUse,
+                             bool absentToUse)
+    : Reflector(optsToUse)
+    , slot(slotToUse)
+    , absent(absentToUse)
 {
-    return mode == Mode::Save;
+    if (isSaving() && !absent)
+        commitShape();
 }
 
-bool JsonReflector::isLoading() const
-{
-    return mode == Mode::Load;
-}
+JsonReflector::~JsonReflector() = default;
 
-bool JsonReflector::isSchema() const
+void JsonReflector::commitShape()
 {
-    return false;
+    switch (opts.shape)
+    {
+        case Shape::Primitive:
+            // visit() will write the value directly into the slot.
+            break;
+        case Shape::Object:
+        case Shape::Map:
+            if (!slot.isObject())
+                slot = Json::Value {Json::Object {}};
+            break;
+        case Shape::Array:
+            if (!slot.isArray())
+                slot.data.emplace<Json::Array>();
+            break;
+    }
 }
 
 ValueKind JsonReflector::kind() const
 {
+    if (absent)
+        return ValueKind::Absent;
+
     return kindOf(slot);
 }
 
@@ -100,52 +119,42 @@ void JsonReflector::visit(PrimitiveRef ref)
         ref.data);
 }
 
-void JsonReflector::asObject(ScopeBody body)
+Reflector& JsonReflector::spawnChild(Json::Value& targetSlot,
+                                     Options childOpts,
+                                     bool absentToUse)
 {
-    if (isSaving() && !slot.isObject())
-        slot = Json::Value {Json::Object {}};
-
-    body(*this);
+    // Destroy the previous child *before* constructing the new one so
+    // any subclass with destructor side effects (e.g. emitting close
+    // brackets) sees a strict open-then-close ordering.
+    currentChild.reset();
+    currentChild = std::unique_ptr<JsonReflector>(
+        new JsonReflector(targetSlot, childOpts, absentToUse));
+    return *currentChild;
 }
 
-void JsonReflector::asArray(ScopeBody body)
-{
-    if (isSaving())
-        slot.data.emplace<Json::Array>();
-
-    body(*this);
-}
-
-void JsonReflector::asMap(ScopeBody body)
-{
-    asObject(std::move(body));
-}
-
-void JsonReflector::atKey(std::string_view key, ScopeBody body)
+Reflector& JsonReflector::atKey(std::string_view key, Options childOpts)
 {
     if (isSaving())
     {
         if (!slot.isObject())
             slot = Json::Value {Json::Object {}};
-        auto& childSlot = slot.asObject()[std::string {key}];
-        auto child = JsonReflector {childSlot, mode};
-        body(child);
-        return;
+        return spawnChild(slot.asObject()[std::string {key}], childOpts, false);
     }
 
+    missingSlot = Json::Value {nullptr};
+
     if (!slot.isObject())
-        return;
+        return spawnChild(missingSlot, childOpts, true);
 
     auto& obj = slot.asObject();
     auto it = obj.find(std::string {key});
     if (it == obj.end())
-        return;
+        return spawnChild(missingSlot, childOpts, true);
 
-    auto child = JsonReflector {it->second, mode};
-    body(child);
+    return spawnChild(it->second, childOpts, false);
 }
 
-void JsonReflector::atIndex(std::size_t index, ScopeBody body)
+Reflector& JsonReflector::atIndex(std::size_t index, Options childOpts)
 {
     if (isSaving())
     {
@@ -154,20 +163,19 @@ void JsonReflector::atIndex(std::size_t index, ScopeBody body)
         auto& arr = std::get<Json::Array>(slot.data);
         if (arr.size() <= index)
             arr.resize(index + 1);
-        auto child = JsonReflector {arr[index], mode};
-        body(child);
-        return;
+        return spawnChild(arr[index], childOpts, false);
     }
 
+    missingSlot = Json::Value {nullptr};
+
     if (!slot.isArray())
-        return;
+        return spawnChild(missingSlot, childOpts, true);
 
     auto& arr = std::get<Json::Array>(slot.data);
     if (index >= arr.size())
-        return;
+        return spawnChild(missingSlot, childOpts, true);
 
-    auto child = JsonReflector {arr[index], mode};
-    body(child);
+    return spawnChild(arr[index], childOpts, false);
 }
 
 std::size_t JsonReflector::arraySize() const

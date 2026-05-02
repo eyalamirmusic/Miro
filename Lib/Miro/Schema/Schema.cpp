@@ -7,30 +7,14 @@
 namespace Miro
 {
 
-SchemaReflector::SchemaReflector(Json::Value& nodeToUse)
-    : node(nodeToUse)
+SchemaReflector::SchemaReflector(Json::Value& nodeToUse, Options optsToUse)
+    : Reflector(optsToUse)
+    , node(nodeToUse)
 {
+    commitShape();
 }
 
-bool SchemaReflector::isSaving() const
-{
-    return true;
-}
-
-bool SchemaReflector::isLoading() const
-{
-    return false;
-}
-
-bool SchemaReflector::isSchema() const
-{
-    return true;
-}
-
-void SchemaReflector::markNullable()
-{
-    nextNullable = true;
-}
+SchemaReflector::~SchemaReflector() = default;
 
 ValueKind SchemaReflector::kind() const
 {
@@ -70,32 +54,38 @@ Json::Value SchemaReflector::mapSchema()
     return value;
 }
 
+void SchemaReflector::commitShape()
+{
+    switch (opts.shape)
+    {
+        case Shape::Primitive:
+            // visit() will write the {type:...} object once it knows
+            // the concrete primitive type.
+            break;
+        case Shape::Object:
+            node = objectSchema();
+            break;
+        case Shape::Array:
+            node = arraySchema();
+            break;
+        case Shape::Map:
+            node = mapSchema();
+            break;
+    }
+
+    if (opts.shape != Shape::Primitive)
+        applyNullable();
+}
+
 void SchemaReflector::applyNullable()
 {
-    if (!nextNullable)
+    if (!opts.nullable)
         return;
 
     if (!node.isObject())
         node = Json::Value {Json::Object {}};
 
     node.asObject()["nullable"] = Json::Value {true};
-    nextNullable = false;
-}
-
-void SchemaReflector::writePrimitive(std::string_view typeName)
-{
-    node = primitiveSchema(typeName);
-    applyNullable();
-}
-
-void SchemaReflector::enterScope(Json::Value initialiser,
-                                 Scope newScope,
-                                 const ScopeBody& body)
-{
-    node = std::move(initialiser);
-    applyNullable();
-    scope = newScope;
-    body(*this);
 }
 
 void SchemaReflector::visit(PrimitiveRef ref)
@@ -104,69 +94,45 @@ void SchemaReflector::visit(PrimitiveRef ref)
         [this](auto* ptr)
         {
             using T = std::remove_pointer_t<decltype(ptr)>;
+            auto typeName = std::string_view {};
             if constexpr (std::same_as<T, bool>)
-                writePrimitive("boolean");
+                typeName = "boolean";
             else if constexpr (std::same_as<T, std::string>)
-                writePrimitive("string");
+                typeName = "string";
             else if constexpr (std::same_as<T, double>)
-                writePrimitive("number");
+                typeName = "number";
             else
-                writePrimitive("integer");
+                typeName = "integer";
+
+            node = primitiveSchema(typeName);
+            applyNullable();
         },
         ref.data);
 }
 
-void SchemaReflector::asObject(ScopeBody body)
+Reflector& SchemaReflector::spawnChild(Json::Value& targetNode, Options childOpts)
 {
-    enterScope(objectSchema(), Scope::Object, body);
+    // Destroy previous child first; see JsonReflector::spawnChild.
+    currentChild.reset();
+    currentChild = std::make_unique<SchemaReflector>(targetNode, childOpts);
+    return *currentChild;
 }
 
-void SchemaReflector::asArray(ScopeBody body)
+Reflector& SchemaReflector::atKey(std::string_view key, Options childOpts)
 {
-    enterScope(arraySchema(), Scope::Array, body);
-}
-
-void SchemaReflector::asMap(ScopeBody body)
-{
-    enterScope(mapSchema(), Scope::Map, body);
-}
-
-void SchemaReflector::atKey(std::string_view key, ScopeBody body)
-{
-    if (scope == Scope::Map)
-    {
-        auto& childNode = node.asObject()["additionalProperties"];
-        auto child = SchemaReflector {childNode};
-        body(child);
-        return;
-    }
+    if (opts.shape == Shape::Map)
+        return spawnChild(node.asObject()["additionalProperties"], childOpts);
 
     auto& props = node.asObject()["properties"];
     if (!props.isObject())
         props = Json::Value {Json::Object {}};
 
-    auto& childNode = props.asObject()[std::string {key}];
-    auto child = SchemaReflector {childNode};
-    body(child);
+    return spawnChild(props.asObject()[std::string {key}], childOpts);
 }
 
-void SchemaReflector::atIndex(std::size_t, ScopeBody body)
+Reflector& SchemaReflector::atIndex(std::size_t, Options childOpts)
 {
-    auto& childNode = node.asObject()["items"];
-    auto child = SchemaReflector {childNode};
-    body(child);
-}
-
-std::size_t SchemaReflector::arraySize() const
-{
-    return 1;
-}
-
-void SchemaReflector::resizeArray(std::size_t) {}
-
-std::vector<std::string> SchemaReflector::mapKeys() const
-{
-    return {};
+    return spawnChild(node.asObject()["items"], childOpts);
 }
 
 } // namespace Miro

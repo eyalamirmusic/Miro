@@ -5,8 +5,9 @@
 //      syntax, no templates, no virtuals visible.
 //   2. A new reflector kind is implemented as a small Reflector subclass.
 //      Each reflector instance represents one slot; recursion happens by
-//      constructing stack-allocated child reflectors. No internal stack,
-//      no cursor — the position is implicit in which instance you have.
+//      asking the reflector for a child via atKey/atIndex. No internal
+//      stack, no cursor — the position is implicit in which instance
+//      you have.
 
 #include <Miro/Miro.h>
 #include <NanoTest/NanoTest.h>
@@ -129,8 +130,10 @@ auto optionalNullRoundtrip = test("Virtual API: optional null round-trip") = []
 //
 // TracingReflector records every reflection step as text. Each instance
 // carries a label (its position in the tree) and a shared output stream.
-// atKey/atIndex create a stack-allocated child with a label derived from
-// the position. No cursor, no scope stack — the position IS the instance.
+// The shape (committed via Options at construction) decides the open
+// bracket and the matching closer; the closer is emitted in the
+// destructor, with currentChild destroyed first so closes nest
+// correctly.
 
 namespace
 {
@@ -139,16 +142,37 @@ struct TracingReflector : Miro::Reflector
 {
     std::ostringstream& out;
     std::string label;
+    std::string closer;
+    std::unique_ptr<TracingReflector> currentChild;
 
-    TracingReflector(std::ostringstream& outToUse, std::string labelToUse = {})
-        : out(outToUse)
+    TracingReflector(std::ostringstream& outToUse,
+                     Miro::Options optsToUse,
+                     std::string labelToUse = {})
+        : Miro::Reflector(optsToUse)
+        , out(outToUse)
         , label(std::move(labelToUse))
     {
+        switch (optsToUse.shape)
+        {
+            case Miro::Shape::Primitive:
+                break;
+            case Miro::Shape::Object:
+            case Miro::Shape::Map:
+                out << label << "={";
+                closer = "}";
+                break;
+            case Miro::Shape::Array:
+                out << label << "=[";
+                closer = "]";
+                break;
+        }
     }
 
-    bool isSaving() const override { return true; }
-    bool isLoading() const override { return false; }
-    bool isSchema() const override { return false; }
+    ~TracingReflector() override
+    {
+        currentChild.reset();
+        out << closer;
+    }
 
     void visit(Miro::PrimitiveRef ref) override
     {
@@ -171,42 +195,21 @@ struct TracingReflector : Miro::Reflector
     void writeNull() override { out << label << "=null;"; }
     Miro::ValueKind kind() const override { return Miro::ValueKind::Absent; }
 
-    void asObject(ScopeBody body) override
+    Reflector& atKey(std::string_view key, Miro::Options childOpts) override
     {
-        out << label << "={";
-        body(*this);
-        out << "}";
+        currentChild.reset();
+        currentChild =
+            std::make_unique<TracingReflector>(out, childOpts, std::string {key});
+        return *currentChild;
     }
 
-    void asArray(ScopeBody body) override
+    Reflector& atIndex(std::size_t index, Miro::Options childOpts) override
     {
-        out << label << "=[";
-        body(*this);
-        out << "]";
+        currentChild.reset();
+        currentChild = std::make_unique<TracingReflector>(
+            out, childOpts, "[" + std::to_string(index) + "]");
+        return *currentChild;
     }
-
-    void asMap(ScopeBody body) override
-    {
-        out << label << "={";
-        body(*this);
-        out << "}";
-    }
-
-    void atKey(std::string_view key, ScopeBody body) override
-    {
-        auto child = TracingReflector {out, std::string {key}};
-        body(child);
-    }
-
-    void atIndex(std::size_t index, ScopeBody body) override
-    {
-        auto child = TracingReflector {out, "[" + std::to_string(index) + "]"};
-        body(child);
-    }
-
-    std::size_t arraySize() const override { return 0; }
-    void resizeArray(std::size_t) override {}
-    std::vector<std::string> mapKeys() const override { return {}; }
 };
 
 } // namespace
@@ -215,7 +218,7 @@ auto customReflectorOnStruct =
     test("Custom reflector: traces struct reflection") = []
 {
     auto trace = std::ostringstream {};
-    auto reflector = TracingReflector {trace};
+    auto reflector = TracingReflector {trace, {.shape = Miro::Shape::Primitive}};
     auto value = Point {3.0, 4.0};
 
     value.reflect(reflector);
@@ -227,10 +230,11 @@ auto customReflectorOnNested =
     test("Custom reflector: traces nested + array structure") = []
 {
     auto trace = std::ostringstream {};
-    auto reflector = TracingReflector {trace};
-    auto poly = Polygon {"L", {{1, 0}, {0, 1}}};
-
-    poly.reflect(reflector);
+    {
+        auto reflector = TracingReflector {trace, {.shape = Miro::Shape::Primitive}};
+        auto poly = Polygon {"L", {{1, 0}, {0, 1}}};
+        poly.reflect(reflector);
+    }
 
     check(trace.str() == "name=\"L\";vertices=[[0]={x=1;y=0;}[1]={x=0;y=1;}]");
 };
@@ -239,10 +243,13 @@ auto customReflectorTopLevelVector =
     test("Custom reflector: traces top-level vector") = []
 {
     auto trace = std::ostringstream {};
-    auto reflector = TracingReflector {trace};
-    auto vec = std::vector<int> {10, 20, 30};
-
-    Miro::Detail::reflectValue(reflector, vec);
+    {
+        auto reflector = TracingReflector {
+            trace,
+            Miro::Detail::topLevelOptions<std::vector<int>>(Miro::Mode::Save)};
+        auto vec = std::vector<int> {10, 20, 30};
+        Miro::Detail::reflectValue(reflector, vec);
+    }
 
     check(trace.str() == "=[[0]=10;[1]=20;[2]=30;]");
 };

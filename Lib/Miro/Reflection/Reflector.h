@@ -4,7 +4,6 @@
 
 #include <cstddef>
 #include <cstdint>
-#include <functional>
 #include <string>
 #include <string_view>
 #include <variant>
@@ -32,6 +31,20 @@ struct Element
     std::size_t index;
 };
 
+enum class Mode
+{
+    Save,
+    Load
+};
+
+enum class Shape
+{
+    Primitive,
+    Object,
+    Array,
+    Map
+};
+
 enum class ValueKind
 {
     Absent,
@@ -41,6 +54,20 @@ enum class ValueKind
     String,
     Array,
     Object
+};
+
+// Spawn-time configuration for a Reflector. Carried as a value member
+// of the base, so most queries (mode, shape, schema, nullable) are
+// non-virtual reads. When a parent spawns a child via atKey/atIndex,
+// the dispatcher constructs the child's Options from the parent's —
+// mode and schema propagate; shape and nullable are set per-child
+// based on the value type being reflected.
+struct Options
+{
+    Mode mode = Mode::Save;
+    Shape shape = Shape::Primitive;
+    bool nullable = false;
+    bool schema = false;
 };
 
 // First-class primitive handle. Constructs implicitly from any built-in
@@ -75,48 +102,54 @@ struct PrimitiveRef
     Variant data;
 };
 
-// A Reflector represents exactly one slot in a tree. It carries no path
-// state and no scope stack. Recursion is expressed by the parent
-// constructing a stack-allocated child reflector positioned at a child
-// slot via atKey() / atIndex().
+// A Reflector represents exactly one slot in a tree. Configuration
+// (mode, shape, schema, nullable) is committed at construction time
+// via Options and stored in the base — most queries are non-virtual.
+// Recursion happens via atKey/atIndex, which return a child reflector
+// owned by this one.
 class Reflector
 {
 public:
+    explicit Reflector(Options optsToUse)
+        : opts(optsToUse)
+    {
+    }
+
     virtual ~Reflector() = default;
 
     Property operator[](std::string_view key);
     Element operator[](std::size_t index);
 
-    virtual bool isSaving() const = 0;
-    virtual bool isLoading() const = 0;
-    virtual bool isSchema() const = 0;
+    const Options& options() const { return opts; }
+    Mode mode() const { return opts.mode; }
+    Shape shape() const { return opts.shape; }
+    bool isSaving() const { return opts.mode == Mode::Save; }
+    bool isLoading() const { return opts.mode == Mode::Load; }
+    bool isSchema() const { return opts.schema; }
+    bool isNullable() const { return opts.nullable; }
 
-    // Decorator hint — no-op default. SchemaReflector overrides to mark
-    // the next reflected slot as nullable.
-    virtual void markNullable() {}
-
-    // Operate on this slot directly.
+    // Per-slot operations that depend on the concrete reflector kind.
     virtual void visit(PrimitiveRef ref) = 0;
     virtual void writeNull() = 0;
     virtual ValueKind kind() const = 0;
 
-    // Commit this slot's shape and run body. body's reflector argument is
-    // *this — now in the matching mode.
-    using ScopeBody = std::function<void(Reflector&)>;
-    virtual void asObject(ScopeBody body) = 0;
-    virtual void asArray(ScopeBody body) = 0;
-    virtual void asMap(ScopeBody body) = 0;
+    // Spawn a child reflector for a sub-slot. The returned reference is
+    // owned by this reflector and remains valid only until the next
+    // atKey/atIndex call on this reflector (or until this reflector is
+    // destroyed). The child commits its own shape from childOpts at
+    // construction.
+    virtual Reflector& atKey(std::string_view key, Options childOpts) = 0;
+    virtual Reflector& atIndex(std::size_t index, Options childOpts) = 0;
 
-    // Spawn a child reflector for a slot inside this one. The child is
-    // stack-allocated by the implementation and lives only during body's
-    // execution. Valid inside an as*() body of the matching shape.
-    virtual void atKey(std::string_view key, ScopeBody body) = 0;
-    virtual void atIndex(std::size_t index, ScopeBody body) = 0;
+    // Iteration helpers — only meaningful inside an Array / Map slot.
+    // Default to "empty" so reflectors with nothing useful to report
+    // (e.g. SchemaReflector) need not override.
+    virtual std::size_t arraySize() const { return 0; }
+    virtual void resizeArray(std::size_t /*newSize*/) {}
+    virtual std::vector<std::string> mapKeys() const { return {}; }
 
-    // Iteration helpers — only meaningful inside an asArray / asMap body.
-    virtual std::size_t arraySize() const = 0;
-    virtual void resizeArray(std::size_t newSize) = 0;
-    virtual std::vector<std::string> mapKeys() const = 0;
+protected:
+    Options opts;
 };
 
 } // namespace Miro

@@ -2,37 +2,29 @@
 
 #include "Reflector.h"
 
+#include <memory>
+
 namespace Miro
 {
 
-// A JsonReflector represents a single Json::Value slot. Recursing into a
-// nested object/array constructs a child JsonReflector pointing at the
-// child slot — no shared stack between parent and child.
+// A JsonReflector represents a single Json::Value slot. The shape
+// (object/array/map/primitive) is fixed at construction via Options
+// and committed eagerly when saving — atKey/atIndex spawn children
+// that commit their own shape the same way. The child is owned by
+// the parent and lives until the next atKey/atIndex call (or until
+// the parent is destroyed).
 class JsonReflector final : public Reflector
 {
 public:
-    enum class Mode
-    {
-        Save,
-        Load
-    };
-
-    JsonReflector(Json::Value& slotToUse, Mode modeToUse);
-
-    bool isSaving() const override;
-    bool isLoading() const override;
-    bool isSchema() const override;
+    JsonReflector(Json::Value& slotToUse, Options optsToUse);
+    ~JsonReflector() override;
 
     void visit(PrimitiveRef ref) override;
     void writeNull() override;
     ValueKind kind() const override;
 
-    void asObject(ScopeBody body) override;
-    void asArray(ScopeBody body) override;
-    void asMap(ScopeBody body) override;
-
-    void atKey(std::string_view key, ScopeBody body) override;
-    void atIndex(std::size_t index, ScopeBody body) override;
+    Reflector& atKey(std::string_view key, Options childOpts) override;
+    Reflector& atIndex(std::size_t index, Options childOpts) override;
 
     std::size_t arraySize() const override;
     void resizeArray(std::size_t newSize) override;
@@ -40,7 +32,20 @@ public:
 
 private:
     Json::Value& slot;
-    Mode mode;
+    bool absent = false;
+
+    // Sentinel used as the target slot when loading and the requested
+    // key/index isn't present. Operations on a child pointing at it
+    // become no-ops, matching the prior "skip body" semantics.
+    Json::Value missingSlot;
+
+    std::unique_ptr<JsonReflector> currentChild;
+
+    JsonReflector(Json::Value& slotToUse, Options optsToUse, bool absentToUse);
+
+    void commitShape();
+    Reflector&
+        spawnChild(Json::Value& targetSlot, Options childOpts, bool absentToUse);
 };
 
 } // namespace Miro

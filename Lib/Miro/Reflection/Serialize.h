@@ -14,7 +14,7 @@ template <typename T>
 JSON toJSON(const T& value)
 {
     auto json = JSON {};
-    auto ref = JsonReflector {json, JsonReflector::Mode::Save};
+    auto ref = JsonReflector {json, Detail::topLevelOptions<T>(Mode::Save)};
     Detail::reflectValue(ref, const_cast<T&>(value));
     return json;
 }
@@ -23,7 +23,7 @@ template <typename T>
 void fromJSON(T& value, const JSON& json)
 {
     auto mutableJson = json;
-    auto ref = JsonReflector {mutableJson, JsonReflector::Mode::Load};
+    auto ref = JsonReflector {mutableJson, Detail::topLevelOptions<T>(Mode::Load)};
     Detail::reflectValue(ref, value);
 }
 
