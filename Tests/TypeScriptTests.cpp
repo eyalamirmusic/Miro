@@ -117,3 +117,71 @@ auto tsTopLevelVector =
     auto out = Miro::TypeScript::toZod<std::vector<int>>();
     check(contains(out, "export default z.array(z.number().int())"));
 };
+
+// ---------- Plain-TS exporter tests ----------
+
+auto tsTypesInterfaces = test("TypeScript types: emits interfaces") = []
+{
+    auto out = Miro::TypeScript::toTypes<User>();
+    check(contains(out, "export interface Address {"));
+    check(contains(out, "export interface User {"));
+};
+
+auto tsTypesDependencyOrder = test("TypeScript types: dep order preserved") = []
+{
+    auto out = Miro::TypeScript::toTypes<User>();
+    check(comesBefore(out, "export interface Address", "export interface User"));
+};
+
+auto tsTypesPrimitiveSpellings = test("TypeScript types: primitive spellings") = []
+{
+    auto out = Miro::TypeScript::toTypes<User>();
+    check(contains(out, "name: string;"));
+    check(contains(out, "age: number;"));
+    check(contains(out, "active: boolean;"));
+};
+
+auto tsTypesArrayField = test("TypeScript types: vector becomes T[]") = []
+{
+    auto out = Miro::TypeScript::toTypes<User>();
+    check(contains(out, "tags: string[];"));
+};
+
+auto tsTypesMapField = test("TypeScript types: map becomes Record<string, V>") = []
+{
+    auto out = Miro::TypeScript::toTypes<User>();
+    check(contains(out, "counters: Record<string, number>;"));
+};
+
+auto tsTypesOptionalPrimitive = test("TypeScript types: optional uses field?:") = []
+{
+    auto out = Miro::TypeScript::toTypes<User>();
+    check(contains(out, "note?: string;"));
+};
+
+auto tsTypesOptionalNamed =
+    test("TypeScript types: optional named struct uses field?:") = []
+{
+    auto out = Miro::TypeScript::toTypes<User>();
+    check(contains(out, "shipping?: Address;"));
+};
+
+auto tsTypesNamedReference =
+    test("TypeScript types: nested named struct emitted by name") = []
+{
+    auto out = Miro::TypeScript::toTypes<User>();
+    check(contains(out, "address: Address;"));
+};
+
+auto tsTypesNoZodImport = test("TypeScript types: does not import zod") = []
+{
+    auto out = Miro::TypeScript::toTypes<User>();
+    check(!contains(out, "from \"zod\""));
+};
+
+auto tsTypesTopLevelVector =
+    test("TypeScript types: top-level vector becomes Root alias") = []
+{
+    auto out = Miro::TypeScript::toTypes<std::vector<int>>();
+    check(contains(out, "export type Root = number[];"));
+};

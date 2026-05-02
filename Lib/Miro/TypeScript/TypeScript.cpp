@@ -125,27 +125,23 @@ void collectNamed(const TsNode& node,
     }
 }
 
-// Renders `node` as a Zod expression. Named object nodes always render
-// as a bare identifier (the short name); the caller is responsible for
-// having emitted that name's declaration earlier.
-std::string render(const TsNode& node);
+// ---------- Zod renderer ----------
 
-std::string renderObjectInline(const TsNode& node, std::string_view indent)
+std::string renderZod(const TsNode& node);
+
+std::string renderZodObjectInline(const TsNode& node)
 {
     auto out = std::ostringstream {};
     out << "z.object({\n";
 
     for (auto& field: node.fields)
-    {
-        out << indent << "    " << field.name << ": " << render(*field.type)
-            << ",\n";
-    }
+        out << "    " << field.name << ": " << renderZod(*field.type) << ",\n";
 
-    out << indent << "})";
+    out << "})";
     return out.str();
 }
 
-std::string render(const TsNode& node)
+std::string renderZod(const TsNode& node)
 {
     auto base = std::string {};
 
@@ -156,13 +152,13 @@ std::string render(const TsNode& node)
             break;
         case TsNode::Shape::Object:
             base =
-                node.typeName.empty() ? renderObjectInline(node, "") : node.typeName;
+                node.typeName.empty() ? renderZodObjectInline(node) : node.typeName;
             break;
         case TsNode::Shape::Array:
-            base = "z.array(" + render(*node.inner) + ")";
+            base = "z.array(" + renderZod(*node.inner) + ")";
             break;
         case TsNode::Shape::Map:
-            base = "z.record(z.string(), " + render(*node.inner) + ")";
+            base = "z.record(z.string(), " + renderZod(*node.inner) + ")";
             break;
     }
 
@@ -172,19 +168,87 @@ std::string render(const TsNode& node)
     return base;
 }
 
-std::string declareNamed(const TsNode& node)
+std::string declareZodNamed(const TsNode& node)
 {
     auto out = std::ostringstream {};
-    out << "export const " << node.typeName << " = " << renderObjectInline(node, "")
+    out << "export const " << node.typeName << " = " << renderZodObjectInline(node)
         << ";\n";
     out << "export type " << node.typeName << " = z.infer<typeof " << node.typeName
         << ">;\n";
     return out.str();
 }
 
+// ---------- Plain TypeScript renderer ----------
+
+// Renders a node as a TypeScript type expression (no `?` — optionality
+// at field-level is handled by the field separator). For non-field
+// optional contexts we wrap with ` | undefined`.
+std::string renderType(const TsNode& node, bool fieldContext);
+
+std::string renderTypeObjectInline(const TsNode& node)
+{
+    auto out = std::ostringstream {};
+    out << "{\n";
+
+    for (auto& field: node.fields)
+    {
+        auto separator = field.type->optional ? "?: " : ": ";
+        out << "    " << field.name << separator
+            << renderType(*field.type, /*fieldContext=*/true) << ";\n";
+    }
+
+    out << "}";
+    return out.str();
+}
+
+std::string renderType(const TsNode& node, bool fieldContext)
+{
+    auto base = std::string {};
+
+    switch (node.shape)
+    {
+        case TsNode::Shape::Primitive:
+            // The primitive slot stores the Zod expression; map to the
+            // matching TS scalar.
+            if (node.primitive == "z.boolean()")
+                base = "boolean";
+            else if (node.primitive == "z.string()")
+                base = "string";
+            else
+                base = "number";
+            break;
+        case TsNode::Shape::Object:
+            base =
+                node.typeName.empty() ? renderTypeObjectInline(node) : node.typeName;
+            break;
+        case TsNode::Shape::Array:
+            base = renderType(*node.inner, /*fieldContext=*/false) + "[]";
+            break;
+        case TsNode::Shape::Map:
+            base = "Record<string, " + renderType(*node.inner, false) + ">";
+            break;
+    }
+
+    // In field context, optionality is conveyed by `field?:`. Outside a
+    // field (e.g. the inner of an array), optional must be expressed as
+    // a union with undefined.
+    if (node.optional && !fieldContext)
+        base = "(" + base + " | undefined)";
+
+    return base;
+}
+
+std::string declareTypeNamed(const TsNode& node)
+{
+    auto out = std::ostringstream {};
+    out << "export interface " << node.typeName << " "
+        << renderTypeObjectInline(node) << "\n";
+    return out.str();
+}
+
 } // namespace
 
-std::string formatModule(const TsNode& root)
+std::string formatZodModule(const TsNode& root)
 {
     auto seen = std::set<std::string> {};
     auto ordered = std::vector<const TsNode*> {};
@@ -194,12 +258,30 @@ std::string formatModule(const TsNode& root)
     out << "import { z } from \"zod\";\n\n";
 
     for (auto* node: ordered)
-        out << declareNamed(*node) << "\n";
+        out << declareZodNamed(*node) << "\n";
 
     // If the root is an anonymous shape (e.g. a top-level vector), emit
     // a default export for it so the module isn't pointless.
     if (root.shape != TsNode::Shape::Object || root.typeName.empty())
-        out << "export default " << render(root) << ";\n";
+        out << "export default " << renderZod(root) << ";\n";
+
+    return out.str();
+}
+
+std::string formatTypesModule(const TsNode& root)
+{
+    auto seen = std::set<std::string> {};
+    auto ordered = std::vector<const TsNode*> {};
+    collectNamed(root, seen, ordered);
+
+    auto out = std::ostringstream {};
+
+    for (auto* node: ordered)
+        out << declareTypeNamed(*node) << "\n";
+
+    if (root.shape != TsNode::Shape::Object || root.typeName.empty())
+        out << "export type Root = " << renderType(root, /*fieldContext=*/false)
+            << ";\n";
 
     return out.str();
 }

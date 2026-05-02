@@ -76,21 +76,34 @@ private:
     Reflector& spawnChild(Detail::TsNode& targetNode, Options childOpts);
 };
 
-// Public entry point: produce a Zod-style TypeScript module for T.
+// Walks a default-constructed value of T through the reflection
+// machinery and returns the resulting TsNode tree. Shared root for the
+// Zod and plain-TS emitters.
 template <typename T>
-std::string toZod();
-
-std::string formatModule(const Detail::TsNode& root);
-
-template <typename T>
-std::string toZod()
+Detail::TsNode buildTree()
 {
     auto root = Detail::TsNode {};
     auto opts = Miro::Detail::topLevelOptions<T>(Mode::Save, /*schema=*/true);
     auto reflector = TypeScriptReflector {root, opts};
     auto value = T {};
     Miro::Detail::reflectValue(reflector, value);
-    return formatModule(root);
+    return root;
+}
+
+std::string formatZodModule(const Detail::TsNode& root);
+std::string formatTypesModule(const Detail::TsNode& root);
+
+// Public entry points.
+template <typename T>
+std::string toZod()
+{
+    return formatZodModule(buildTree<T>());
+}
+
+template <typename T>
+std::string toTypes()
+{
+    return formatTypesModule(buildTree<T>());
 }
 
 } // namespace Miro::TypeScript

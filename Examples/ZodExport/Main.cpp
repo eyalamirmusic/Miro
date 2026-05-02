@@ -34,6 +34,9 @@ struct User
 
 int main()
 {
+    std::cout << "// === Zod schema ===\n\n";
     std::cout << Miro::TypeScript::toZod<User>();
+    std::cout << "\n// === Plain TypeScript types ===\n\n";
+    std::cout << Miro::TypeScript::toTypes<User>();
     return 0;
 }
