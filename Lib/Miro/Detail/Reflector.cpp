@@ -3,20 +3,14 @@
 namespace Miro
 {
 
-Reflector::Reflector(JSON& jsonToUse, bool savingToUse)
-    : json(jsonToUse)
-    , saving(savingToUse)
-{
-}
-
 Property Reflector::operator[](std::string_view key)
 {
     return {*this, key};
 }
 
-bool Reflector::isSaving() const
+Element Reflector::operator[](std::size_t index)
 {
-    return saving;
+    return {*this, index};
 }
 
 } // namespace Miro

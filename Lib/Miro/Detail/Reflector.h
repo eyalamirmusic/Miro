@@ -2,13 +2,17 @@
 
 #include "Json.h"
 
+#include <cstddef>
+#include <cstdint>
+#include <functional>
 #include <string>
 #include <string_view>
-#include <type_traits>
+#include <variant>
+#include <vector>
 
 namespace Miro
 {
-struct Reflector;
+class Reflector;
 
 struct Property
 {
@@ -19,80 +23,100 @@ struct Property
     std::string_view key;
 };
 
-struct Reflector
+struct Element
 {
-    Reflector(JSON& jsonToUse, bool savingToUse);
+    template <typename T>
+    void operator()(T& value);
 
-    Property operator[](std::string_view key);
-
-    bool isSaving() const;
-
-    JSON& json;
-    bool saving;
+    Reflector& reflector;
+    std::size_t index;
 };
 
-template <typename T>
-constexpr bool isPrimitive()
+enum class ValueKind
 {
-    return std::is_same_v<T, bool> || std::is_same_v<T, int>
-           || std::is_same_v<T, double> || std::is_same_v<T, std::string>;
-}
+    Absent,
+    Null,
+    Bool,
+    Number,
+    String,
+    Array,
+    Object
+};
 
-template <typename T>
-void reflectPrimitive(Reflector& ref, T& value)
+// First-class primitive handle. Constructs implicitly from any built-in
+// primitive — `ref.visit(myInt)` Just Works. To support a new primitive
+// type, add another constructor + variant alternative below (or provide
+// a free `makePrimitiveRef(T&)` overload and a templated constructor).
+struct PrimitiveRef
 {
-    if (ref.isSaving())
-        ref.json = JSON(value);
-    else
-        value = static_cast<T>(ref.json);
-}
+    using Variant = std::variant<bool*, int*, double*, std::string*, std::int64_t*>;
 
-template <typename T>
-void reflect(Reflector& ref, T& value)
-{
-    if constexpr (isPrimitive<T>())
-        reflectPrimitive(ref, value);
-    else
-        value.reflect(ref);
-}
-
-template <typename T>
-    requires std::is_integral_v<T> && (!std::is_same_v<T, bool>)
-             && (!std::is_same_v<T, int>)
-void reflect(Reflector& ref, T& value)
-{
-    if (ref.isSaving())
-        ref.json = JSON(static_cast<double>(value));
-    else if (ref.json.isNumber())
-        value = static_cast<T>(ref.json.asNumber());
-}
-
-template <typename T>
-void reflect(Reflector& ref, std::string_view key, T& value)
-{
-    auto& obj = ref.json.toObject();
-
-    if (ref.isSaving())
+    PrimitiveRef(bool& value)
+        : data(&value)
     {
-        auto child = Reflector {obj[std::string(key)], true};
-        reflect(child, value);
     }
-    else
+    PrimitiveRef(int& value)
+        : data(&value)
     {
-        auto it = obj.find(std::string(key));
-
-        if (it != obj.end())
-        {
-            auto child = Reflector {it->second, false};
-            reflect(child, value);
-        }
     }
-}
+    PrimitiveRef(double& value)
+        : data(&value)
+    {
+    }
+    PrimitiveRef(std::string& value)
+        : data(&value)
+    {
+    }
+    PrimitiveRef(std::int64_t& value)
+        : data(&value)
+    {
+    }
 
-template <typename T>
-void Property::operator()(T& value)
+    Variant data;
+};
+
+// A Reflector represents exactly one slot in a tree. It carries no path
+// state and no scope stack. Recursion is expressed by the parent
+// constructing a stack-allocated child reflector positioned at a child
+// slot via atKey() / atIndex().
+class Reflector
 {
-    Miro::reflect(reflector, key, value);
-}
+public:
+    virtual ~Reflector() = default;
+
+    Property operator[](std::string_view key);
+    Element operator[](std::size_t index);
+
+    virtual bool isSaving() const = 0;
+    virtual bool isLoading() const = 0;
+    virtual bool isSchema() const = 0;
+
+    // Decorator hint — no-op default. SchemaReflector overrides to mark
+    // the next reflected slot as nullable.
+    virtual void markNullable() {}
+
+    // Operate on this slot directly.
+    virtual void visit(PrimitiveRef ref) = 0;
+    virtual void writeNull() = 0;
+    virtual ValueKind kind() const = 0;
+
+    // Commit this slot's shape and run body. body's reflector argument is
+    // *this — now in the matching mode.
+    using ScopeBody = std::function<void(Reflector&)>;
+    virtual void asObject(ScopeBody body) = 0;
+    virtual void asArray(ScopeBody body) = 0;
+    virtual void asMap(ScopeBody body) = 0;
+
+    // Spawn a child reflector for a slot inside this one. The child is
+    // stack-allocated by the implementation and lives only during body's
+    // execution. Valid inside an as*() body of the matching shape.
+    virtual void atKey(std::string_view key, ScopeBody body) = 0;
+    virtual void atIndex(std::size_t index, ScopeBody body) = 0;
+
+    // Iteration helpers — only meaningful inside an asArray / asMap body.
+    virtual std::size_t arraySize() const = 0;
+    virtual void resizeArray(std::size_t newSize) = 0;
+    virtual std::vector<std::string> mapKeys() const = 0;
+};
 
 } // namespace Miro

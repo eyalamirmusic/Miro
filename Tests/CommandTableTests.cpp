@@ -32,7 +32,10 @@ struct PingResponse
     MIRO_REFLECT(pong)
 };
 
-PingResponse handlePing(const Miro::EmptyValue&) { return PingResponse {.pong = true}; }
+PingResponse handlePing(const Miro::EmptyValue&)
+{
+    return PingResponse {.pong = true};
+}
 } // namespace
 
 auto dispatchTyped = test("CommandTable dispatches typed handler") = []
@@ -78,7 +81,7 @@ auto dispatchUnknown = test("CommandTable throws on unknown command") = []
 auto dispatchHas = test("CommandTable::has reflects registration") = []
 {
     auto table = Miro::CommandTable {};
-    check(! table.has("echo"));
+    check(!table.has("echo"));
 
     table.on("echo", handleEcho);
     check(table.has("echo"));

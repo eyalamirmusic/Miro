@@ -102,30 +102,52 @@ constexpr std::optional<E> enumFromString(std::string_view str)
     return std::nullopt;
 }
 
-template <typename E>
-    requires std::is_enum_v<E>
-void reflect(Reflector& ref, E& value)
+namespace Detail
 {
-    using Underlying = std::underlying_type_t<E>;
+
+template <typename T>
+    requires std::is_enum_v<T>
+void reflectValue(Reflector& ref, T& value)
+{
+    using Underlying = std::underlying_type_t<T>;
 
     if (ref.isSaving())
     {
-        auto name = enumToString(value);
-
-        if (!name.empty())
-            ref.json = JSON(std::string(name));
+        if (ref.isSchema())
+        {
+            auto placeholder = std::string {"enum"};
+            ref.visit(placeholder);
+        }
+        else if (auto name = std::string {enumToString(value)}; !name.empty())
+        {
+            ref.visit(name);
+        }
         else
-            ref.json = JSON(static_cast<double>(static_cast<Underlying>(value)));
+        {
+            auto numeric = static_cast<std::int64_t>(static_cast<Underlying>(value));
+            ref.visit(numeric);
+        }
     }
-    else if (ref.json.isString())
+    else
     {
-        if (auto parsed = enumFromString<E>(ref.json.asString()))
-            value = *parsed;
-    }
-    else if (ref.json.isNumber())
-    {
-        value = static_cast<E>(static_cast<Underlying>(ref.json.asNumber()));
+        auto kind = ref.kind();
+
+        if (kind == ValueKind::String)
+        {
+            auto name = std::string {};
+            ref.visit(name);
+
+            if (auto parsed = enumFromString<T>(name))
+                value = *parsed;
+        }
+        else if (kind == ValueKind::Number)
+        {
+            auto numeric = std::int64_t {};
+            ref.visit(numeric);
+            value = static_cast<T>(static_cast<Underlying>(numeric));
+        }
     }
 }
 
+} // namespace Detail
 } // namespace Miro

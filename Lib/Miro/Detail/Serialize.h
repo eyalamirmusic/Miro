@@ -1,7 +1,8 @@
 #pragma once
 
+#include "JsonReflector.h"
 #include "ReflectContainers.h"
-#include "Reflector.h"
+#include "ReflectDispatch.h"
 
 #include <string>
 #include <string_view>
@@ -12,18 +13,18 @@ namespace Miro
 template <typename T>
 JSON toJSON(const T& value)
 {
-    auto json = JSON(Json::Object {});
-    auto ref = Reflector {json, true};
-    reflect(ref, const_cast<T&>(value));
+    auto json = JSON {};
+    auto ref = JsonReflector {json, JsonReflector::Mode::Save};
+    Detail::reflectValue(ref, const_cast<T&>(value));
     return json;
 }
 
 template <typename T>
 void fromJSON(T& value, const JSON& json)
 {
-    auto mutable_json = json;
-    auto ref = Reflector {mutable_json, false};
-    reflect(ref, value);
+    auto mutableJson = json;
+    auto ref = JsonReflector {mutableJson, JsonReflector::Mode::Load};
+    Detail::reflectValue(ref, value);
 }
 
 template <typename T>
