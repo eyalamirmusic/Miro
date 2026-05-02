@@ -1,7 +1,7 @@
 #pragma once
 
-#include "ReflectDispatch.h"
-#include "Reflector.h"
+#include "../Reflection/ReflectDispatch.h"
+#include "../Reflection/Reflector.h"
 
 #include <string>
 #include <string_view>

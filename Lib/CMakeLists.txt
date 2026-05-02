@@ -1,12 +1,12 @@
 add_library(Miro STATIC
-    Miro/Detail/Any.cpp
-    Miro/Detail/CommandTable.cpp
-    Miro/Detail/Json.cpp
-    Miro/Detail/JsonReflector.cpp
-    Miro/Detail/Parser.cpp
-    Miro/Detail/Printer.cpp
-    Miro/Detail/Reflector.cpp
-    Miro/Detail/Schema.cpp)
+    Miro/JSON/Json.cpp
+    Miro/JSON/Parser.cpp
+    Miro/JSON/Printer.cpp
+    Miro/Reflection/Any.cpp
+    Miro/Reflection/CommandTable.cpp
+    Miro/Reflection/JsonReflector.cpp
+    Miro/Reflection/Reflector.cpp
+    Miro/Schema/Schema.cpp)
 target_include_directories(Miro PUBLIC ${CMAKE_CURRENT_LIST_DIR})
 target_compile_options(Miro PUBLIC $<$<CXX_COMPILER_ID:MSVC>:/Zc:preprocessor>)
 
