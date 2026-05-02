@@ -133,6 +133,12 @@ public:
     virtual void writeNull() = 0;
     virtual ValueKind kind() const = 0;
 
+    // Called by the dispatch right before invoking a reflectable type's
+    // own reflect() body, with the unqualified C++ type name. Reflectors
+    // that care about identity (TypeScript exporter, future schema $defs)
+    // override this; the JSON and current schema reflectors ignore it.
+    virtual void beginNamedType(std::string_view /*typeName*/) {}
+
     // Spawn a child reflector for a sub-slot. The returned reference is
     // owned by this reflector and remains valid only until the next
     // atKey/atIndex call on this reflector (or until this reflector is

@@ -1,6 +1,7 @@
 #pragma once
 
 #include "Reflector.h"
+#include "TypeName.h"
 
 #include <array>
 #include <concepts>
@@ -193,6 +194,9 @@ template <typename T>
     requires Reflectable<T> && (!std::is_arithmetic_v<T>) && (!std::is_enum_v<T>)
 void reflectValue(Reflector& ref, T& value)
 {
+    if constexpr (isNamedUserType<T>())
+        ref.beginNamedType(typeNameOf<T>());
+
     if constexpr (HasReflectMember<T>)
         value.reflect(ref);
     else

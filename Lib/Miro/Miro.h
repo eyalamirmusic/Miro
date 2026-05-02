@@ -9,4 +9,6 @@
 #include "Reflection/ReflectMacro.h"
 #include "Reflection/Reflector.h"
 #include "Reflection/Serialize.h"
+#include "Reflection/TypeName.h"
 #include "Schema/Schema.h"
+#include "TypeScript/TypeScript.h"

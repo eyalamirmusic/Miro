@@ -22,3 +22,9 @@ if (PROJECT_IS_TOP_LEVEL OR MIRO_BUILD_TESTS)
     enable_testing()
     add_subdirectory(Tests)
 endif ()
+
+option(MIRO_BUILD_EXAMPLES "Build Miro examples" OFF)
+
+if (PROJECT_IS_TOP_LEVEL OR MIRO_BUILD_EXAMPLES)
+    add_subdirectory(Examples)
+endif ()
