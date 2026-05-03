@@ -26,6 +26,14 @@
 #   - One bundled file per format is written to OUTPUT_DIR, named
 #     ${OUTPUT_NAME}.<extension> (e.g. schema.zod.ts, schema.ts).
 function(miro_add_type_export)
+    # The exporter is a build-time tool that runs as a POST_BUILD step on
+    # the host. When cross-compiling there's no way to run a foreign-arch
+    # executable on the build machine, so skip target creation entirely
+    # and let the same CMakeLists.txt work for both host and cross builds.
+    if (CMAKE_CROSSCOMPILING)
+        return()
+    endif ()
+
     set(options "")
     set(oneValueArgs NAME OUTPUT_DIR OUTPUT_NAME)
     set(multiValueArgs FORMATS LIBRARIES SOURCES)
@@ -67,6 +75,12 @@ function(miro_add_type_export)
                 "$<LINK_LIBRARY:WHOLE_ARCHIVE,${lib}>")
         endif ()
     endforeach ()
+
+    # Match MiroTypeExportMain's deployment-target override so the link
+    # step doesn't downgrade and warn about std::filesystem references.
+    if (APPLE)
+        target_link_options(${MTE_NAME} PRIVATE -mmacosx-version-min=10.15)
+    endif ()
 
     set(formatArgs "")
     foreach (fmt IN LISTS MTE_FORMATS)
