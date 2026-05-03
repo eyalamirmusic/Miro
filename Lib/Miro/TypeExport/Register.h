@@ -77,11 +77,15 @@ struct MultiRegistrar
 // WHOLE_ARCHIVE so these static initializers survive.
 //
 // Usage: MIRO_EXPORT_TYPES(User, Address, Role)
+//
+// Uniqueness of the generated variable name comes from __LINE__, which
+// is fully standard (unlike __COUNTER__). The only collision case is
+// two MIRO_EXPORT_TYPES on the same source line, which is unrealistic.
 #define MIRO_EXPORT_TYPES(...)                                                      \
     namespace                                                                       \
     {                                                                               \
     [[maybe_unused]] const ::Miro::TypeExport::Detail::MultiRegistrar<__VA_ARGS__>  \
-        MIRO_EXPORT_TYPES_CAT(miroTypeExportMultiRegistrar_, __COUNTER__) {};       \
+        MIRO_EXPORT_TYPES_CAT(miroTypeExportMultiRegistrar_, __LINE__) {};          \
     }
 
 // Single-type alias retained for clarity at call sites. Forwards to the
