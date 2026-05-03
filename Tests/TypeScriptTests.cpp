@@ -20,6 +20,20 @@ struct Address
     MIRO_REFLECT(street, zip)
 };
 
+enum class Color
+{
+    Red,
+    Green,
+    Blue
+};
+
+enum class Priority : int
+{
+    Low = -1,
+    Medium = 0,
+    High = 1
+};
+
 struct User
 {
     std::string name;
@@ -30,8 +44,21 @@ struct User
     std::map<std::string, int> counters;
     std::optional<std::string> note;
     std::optional<Address> shipping;
+    Color color = Color::Red;
+    Priority priority = Priority::Medium;
+    std::optional<Color> accent;
 
-    MIRO_REFLECT(name, age, active, address, tags, counters, note, shipping)
+    MIRO_REFLECT(name,
+                 age,
+                 active,
+                 address,
+                 tags,
+                 counters,
+                 note,
+                 shipping,
+                 color,
+                 priority,
+                 accent)
 };
 
 bool contains(const std::string& haystack, std::string_view needle)
@@ -184,4 +211,74 @@ auto tsTypesTopLevelVector =
 {
     auto out = Miro::TypeScript::toTypes<std::vector<int>>();
     check(contains(out, "export type Root = number[];"));
+};
+
+// ---------- Enum exporter tests ----------
+
+auto tsEnumDeclaresZodEnum =
+    test("TypeScript: enum becomes top-level z.enum declaration") = []
+{
+    auto out = Miro::TypeScript::toZod<User>();
+    check(contains(out,
+                   "export const Color = z.enum([\"Red\", \"Green\", \"Blue\"]);"));
+    check(contains(out, "export type Color = z.infer<typeof Color>;"));
+};
+
+auto tsEnumWithExplicitBase =
+    test("TypeScript: enum with explicit underlying type emits all enumerators") = []
+{
+    auto out = Miro::TypeScript::toZod<User>();
+    check(contains(
+        out, "export const Priority = z.enum([\"Low\", \"Medium\", \"High\"]);"));
+};
+
+auto tsEnumFieldRefersByName =
+    test("TypeScript: enum field references the named enum") = []
+{
+    auto out = Miro::TypeScript::toZod<User>();
+    check(contains(out, "color: Color,"));
+    check(contains(out, "priority: Priority,"));
+};
+
+auto tsEnumOptional = test("TypeScript: optional enum uses .optional()") = []
+{
+    auto out = Miro::TypeScript::toZod<User>();
+    check(contains(out, "accent: Color.optional()"));
+};
+
+auto tsEnumDependencyOrder =
+    test("TypeScript: enum declared before struct that uses it") = []
+{
+    auto out = Miro::TypeScript::toZod<User>();
+    check(comesBefore(out, "export const Color", "export const User"));
+    check(comesBefore(out, "export const Priority", "export const User"));
+};
+
+auto tsTypesEnumIsLiteralUnion =
+    test("TypeScript types: enum becomes string-literal union alias") = []
+{
+    auto out = Miro::TypeScript::toTypes<User>();
+    check(contains(out, "export type Color = \"Red\" | \"Green\" | \"Blue\";"));
+    check(contains(out, "export type Priority = \"Low\" | \"Medium\" | \"High\";"));
+};
+
+auto tsTypesEnumFieldRefersByName =
+    test("TypeScript types: enum field references the named enum") = []
+{
+    auto out = Miro::TypeScript::toTypes<User>();
+    check(contains(out, "color: Color;"));
+    check(contains(out, "priority: Priority;"));
+};
+
+auto tsTypesEnumOptional = test("TypeScript types: optional enum uses field?:") = []
+{
+    auto out = Miro::TypeScript::toTypes<User>();
+    check(contains(out, "accent?: Color;"));
+};
+
+auto tsTypesEnumDependencyOrder =
+    test("TypeScript types: enum declared before struct that uses it") = []
+{
+    auto out = Miro::TypeScript::toTypes<User>();
+    check(comesBefore(out, "export type Color", "export interface User"));
 };

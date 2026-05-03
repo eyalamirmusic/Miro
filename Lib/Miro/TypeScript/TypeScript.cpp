@@ -50,6 +50,18 @@ void TypeScriptReflector::beginNamedType(std::string_view typeName)
     node.typeName = std::string {typeName};
 }
 
+void TypeScriptReflector::visitEnum(std::string_view typeName,
+                                    const std::vector<std::string_view>& names)
+{
+    node.shape = TsNode::Shape::Enum;
+    node.typeName = std::string {typeName};
+    node.enumValues.clear();
+    node.enumValues.reserve(names.size());
+
+    for (auto& name: names)
+        node.enumValues.emplace_back(name);
+}
+
 void TypeScriptReflector::visit(PrimitiveRef ref)
 {
     std::visit(
@@ -93,9 +105,9 @@ Reflector& TypeScriptReflector::atIndex(std::size_t, Options childOpts)
 namespace
 {
 
-// Collects every named object node reachable from root in post-order
-// (deepest first). Duplicates of the same name keep the first node we
-// saw — re-encounters become refs.
+// Collects every named object/enum node reachable from root in
+// post-order (deepest first). Duplicates of the same name keep the
+// first node we saw — re-encounters become refs.
 void collectNamed(const TsNode& node,
                   std::set<std::string>& seen,
                   std::vector<const TsNode*>& outOrdered)
@@ -110,6 +122,16 @@ void collectNamed(const TsNode& node,
         for (auto& field: node.fields)
             collectNamed(*field.type, seen, outOrdered);
 
+        outOrdered.push_back(&node);
+        return;
+    }
+
+    if (node.shape == TsNode::Shape::Enum && !node.typeName.empty())
+    {
+        if (seen.contains(node.typeName))
+            return;
+
+        seen.insert(node.typeName);
         outOrdered.push_back(&node);
         return;
     }
@@ -141,6 +163,24 @@ std::string renderZodObjectInline(const TsNode& node)
     return out.str();
 }
 
+std::string renderZodEnumInline(const TsNode& node)
+{
+    auto out = std::ostringstream {};
+    out << "z.enum([";
+
+    auto first = true;
+    for (auto& value: node.enumValues)
+    {
+        if (!first)
+            out << ", ";
+        first = false;
+        out << "\"" << value << "\"";
+    }
+
+    out << "])";
+    return out.str();
+}
+
 std::string renderZod(const TsNode& node)
 {
     auto base = std::string {};
@@ -160,6 +200,9 @@ std::string renderZod(const TsNode& node)
         case TsNode::Shape::Map:
             base = "z.record(z.string(), " + renderZod(*node.inner) + ")";
             break;
+        case TsNode::Shape::Enum:
+            base = node.typeName.empty() ? renderZodEnumInline(node) : node.typeName;
+            break;
     }
 
     if (node.optional)
@@ -172,6 +215,16 @@ std::string declareZodNamed(const TsNode& node)
 {
     auto out = std::ostringstream {};
     out << "export const " << node.typeName << " = " << renderZodObjectInline(node)
+        << ";\n";
+    out << "export type " << node.typeName << " = z.infer<typeof " << node.typeName
+        << ">;\n";
+    return out.str();
+}
+
+std::string declareZodEnum(const TsNode& node)
+{
+    auto out = std::ostringstream {};
+    out << "export const " << node.typeName << " = " << renderZodEnumInline(node)
         << ";\n";
     out << "export type " << node.typeName << " = z.infer<typeof " << node.typeName
         << ">;\n";
@@ -201,6 +254,24 @@ std::string renderTypeObjectInline(const TsNode& node)
     return out.str();
 }
 
+std::string renderTypeEnumInline(const TsNode& node)
+{
+    auto out = std::string {};
+    auto first = true;
+
+    for (auto& value: node.enumValues)
+    {
+        if (!first)
+            out += " | ";
+        first = false;
+        out += "\"";
+        out += value;
+        out += "\"";
+    }
+
+    return out;
+}
+
 std::string renderType(const TsNode& node, bool fieldContext)
 {
     auto base = std::string {};
@@ -227,6 +298,10 @@ std::string renderType(const TsNode& node, bool fieldContext)
         case TsNode::Shape::Map:
             base = "Record<string, " + renderType(*node.inner, false) + ">";
             break;
+        case TsNode::Shape::Enum:
+            base =
+                node.typeName.empty() ? renderTypeEnumInline(node) : node.typeName;
+            break;
     }
 
     // In field context, optionality is conveyed by `field?:`. Outside a
@@ -246,6 +321,25 @@ std::string declareTypeNamed(const TsNode& node)
     return out.str();
 }
 
+std::string declareTypeEnum(const TsNode& node)
+{
+    auto out = std::ostringstream {};
+    out << "export type " << node.typeName << " = " << renderTypeEnumInline(node)
+        << ";\n";
+    return out.str();
+}
+
+// True if the root node was emitted as its own top-level declaration by
+// collectNamed — in that case we skip the default-export / Root-alias
+// fallback to avoid a redundant second name for the same shape.
+bool rootIsHoisted(const TsNode& root)
+{
+    if (root.typeName.empty())
+        return false;
+
+    return root.shape == TsNode::Shape::Object || root.shape == TsNode::Shape::Enum;
+}
+
 } // namespace
 
 std::string formatZodModule(const TsNode& root)
@@ -258,11 +352,16 @@ std::string formatZodModule(const TsNode& root)
     out << "import { z } from \"zod\";\n\n";
 
     for (auto* node: ordered)
-        out << declareZodNamed(*node) << "\n";
+    {
+        if (node->shape == TsNode::Shape::Enum)
+            out << declareZodEnum(*node) << "\n";
+        else
+            out << declareZodNamed(*node) << "\n";
+    }
 
-    // If the root is an anonymous shape (e.g. a top-level vector), emit
-    // a default export for it so the module isn't pointless.
-    if (root.shape != TsNode::Shape::Object || root.typeName.empty())
+    // If the root wasn't hoisted (e.g. a top-level vector), emit a
+    // default export for it so the module isn't pointless.
+    if (!rootIsHoisted(root))
         out << "export default " << renderZod(root) << ";\n";
 
     return out.str();
@@ -277,9 +376,14 @@ std::string formatTypesModule(const TsNode& root)
     auto out = std::ostringstream {};
 
     for (auto* node: ordered)
-        out << declareTypeNamed(*node) << "\n";
+    {
+        if (node->shape == TsNode::Shape::Enum)
+            out << declareTypeEnum(*node) << "\n";
+        else
+            out << declareTypeNamed(*node) << "\n";
+    }
 
-    if (root.shape != TsNode::Shape::Object || root.typeName.empty())
+    if (!rootIsHoisted(root))
         out << "export type Root = " << renderType(root, /*fieldContext=*/false)
             << ";\n";
 

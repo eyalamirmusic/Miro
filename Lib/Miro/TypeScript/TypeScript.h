@@ -26,6 +26,7 @@ struct TsNode
         Object,
         Array,
         Map,
+        Enum,
     };
 
     Shape shape = Shape::Primitive;
@@ -34,7 +35,9 @@ struct TsNode
     // Primitive only: the Zod expression (e.g. "z.string()").
     std::string primitive;
 
-    // Object only: the (unqualified) C++ type name. Empty if anonymous.
+    // Object / Enum only: the (unqualified) C++ type name. Empty if
+    // anonymous (only meaningful for objects — enums always come with a
+    // name from the dispatcher).
     std::string typeName;
 
     // Object only: ordered fields.
@@ -47,6 +50,9 @@ struct TsNode
 
     // Array / Map only: the inner element type.
     std::unique_ptr<TsNode> inner;
+
+    // Enum only: ordered enumerator names.
+    std::vector<std::string> enumValues;
 };
 
 } // namespace Detail
@@ -65,6 +71,8 @@ public:
     void writeNull() override;
     ValueKind kind() const override;
     void beginNamedType(std::string_view typeName) override;
+    void visitEnum(std::string_view typeName,
+                   const std::vector<std::string_view>& names) override;
 
     Reflector& atKey(std::string_view key, Options childOpts) override;
     Reflector& atIndex(std::size_t index, Options childOpts) override;

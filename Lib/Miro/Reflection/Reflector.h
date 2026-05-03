@@ -139,6 +139,18 @@ public:
     // override this; the JSON and current schema reflectors ignore it.
     virtual void beginNamedType(std::string_view /*typeName*/) {}
 
+    // Called by the enum dispatcher in schema mode with the enum's
+    // C++ type name and the ordered list of valid enumerator names.
+    // Reflectors that want first-class enum output (e.g. the TypeScript
+    // exporter) override this. The default falls back to a string slot,
+    // which is what the JSON-Schema reflector has historically emitted.
+    virtual void visitEnum(std::string_view /*typeName*/,
+                           const std::vector<std::string_view>& /*names*/)
+    {
+        auto placeholder = std::string {"enum"};
+        visit(placeholder);
+    }
+
     // Spawn a child reflector for a sub-slot. The returned reference is
     // owned by this reflector and remains valid only until the next
     // atKey/atIndex call on this reflector (or until this reflector is

@@ -1,6 +1,7 @@
 #pragma once
 
 #include "Reflector.h"
+#include "TypeName.h"
 
 #include <array>
 #include <cstddef>
@@ -9,6 +10,7 @@
 #include <string_view>
 #include <type_traits>
 #include <utility>
+#include <vector>
 
 namespace Miro
 {
@@ -53,10 +55,28 @@ constexpr std::string_view enumNameRaw()
 #endif
 
     auto name = sig.substr(start, end - start);
-    auto colon = name.rfind(':');
 
-    if (colon != std::string_view::npos)
-        name.remove_prefix(colon + 1);
+    // Find the rightmost "::" at paren-depth 0 — i.e. the separator
+    // between the qualifier and the enumerator. Counting depth lets us
+    // ignore the `::` inside an "(anonymous namespace)::Foo" qualifier,
+    // and lets us recognize "((anonymous namespace)::Foo)42" cast
+    // spellings (their inner `::` lives at depth 1, so it's skipped and
+    // the leading `(` survives the front-paren check below).
+    auto depth = 0;
+    auto lastColon = std::string_view::npos;
+
+    for (auto i = std::size_t {0}; i + 1 < name.size(); ++i)
+    {
+        if (name[i] == '(')
+            ++depth;
+        else if (name[i] == ')' && depth > 0)
+            --depth;
+        else if (depth == 0 && name[i] == ':' && name[i + 1] == ':')
+            lastColon = i;
+    }
+
+    if (lastColon != std::string_view::npos)
+        name.remove_prefix(lastColon + 2);
 
     if (!name.empty() && name.front() == '(')
         return {};
@@ -102,6 +122,19 @@ constexpr std::optional<E> enumFromString(std::string_view str)
     return std::nullopt;
 }
 
+template <typename E>
+    requires std::is_enum_v<E>
+std::vector<std::string_view> enumNames()
+{
+    auto names = std::vector<std::string_view> {};
+
+    for (auto& [_, name]: Detail::enumTable<E>)
+        if (!name.empty())
+            names.push_back(name);
+
+    return names;
+}
+
 namespace Detail
 {
 
@@ -115,8 +148,7 @@ void reflectValue(Reflector& ref, T& value)
     {
         if (ref.isSchema())
         {
-            auto placeholder = std::string {"enum"};
-            ref.visit(placeholder);
+            ref.visitEnum(typeNameOf<T>(), enumNames<T>());
         }
         else if (auto name = std::string {enumToString(value)}; !name.empty())
         {
