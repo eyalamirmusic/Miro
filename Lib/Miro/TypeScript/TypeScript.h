@@ -73,13 +73,15 @@ struct TsNode
 class TypeScriptReflector final : public Reflector
 {
 public:
-    TypeScriptReflector(Detail::TsNode& nodeToUse, Options optsToUse);
+    TypeScriptReflector(Detail::TsNode& nodeToUse,
+                        Options optsToUse,
+                        TypeScriptReflector* parentToUse = nullptr);
     ~TypeScriptReflector() override;
 
     void visit(PrimitiveRef ref) override;
     void writeNull() override;
     ValueKind kind() const override;
-    void beginNamedType(TypeId id) override;
+    bool beginNamedType(TypeId id) override;
     void visitEnum(TypeId id, const std::vector<std::string_view>& names) override;
 
     Reflector& atKey(std::string_view key, Options childOpts) override;
@@ -88,6 +90,15 @@ public:
 private:
     Detail::TsNode& node;
     std::unique_ptr<TypeScriptReflector> currentChild;
+
+    // Parent in the spawn chain, used by beginNamedType to detect a
+    // recursive descent into the same C++ type. nullptr at the root.
+    TypeScriptReflector* parent;
+
+    // Qualified name of the type currently being walked at this slot,
+    // set by beginNamedType when the body is going to run. Children walk
+    // up `parent` chain matching against this to detect cycles.
+    std::string activeQualifiedName;
 
     Reflector& spawnChild(Detail::TsNode& targetNode, Options childOpts);
 };

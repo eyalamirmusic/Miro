@@ -1,5 +1,10 @@
 // Tests for SchemaReflector — proves the same MIRO_REFLECT-annotated type
 // can describe its own structure as JSON Schema.
+//
+// The schema format hoists every named user-defined type into a
+// top-level "$defs" map; references everywhere become {"$ref": "..."}.
+// `defOf(schema, "Foo")` is a helper for navigating into the body of
+// a named type's definition; everything else hangs off the root.
 
 #include <Miro/Miro.h>
 #include <NanoTest/NanoTest.h>
@@ -68,64 +73,92 @@ struct WithEnum
     MIRO_REFLECT(color, accent)
 };
 
+struct WithShipping
+{
+    std::optional<Address> shipping;
+
+    MIRO_REFLECT(shipping)
+};
+
+const Miro::Json::Value& defOf(const Miro::Json::Value& schema, const char* name)
+{
+    return schema["$defs"][name];
+}
+
 } // namespace
+
+auto schemaRefAtRoot = test("Schema: a named root produces $ref + $defs entry") = []
+{
+    auto schema = Miro::schemaOf<Address>();
+
+    check(schema["$ref"].asString() == "#/$defs/Address");
+    check(schema["$defs"]["Address"]["type"].asString() == "object");
+};
 
 auto schemaForPrimitiveStruct = test("Schema: struct with primitive fields") = []
 {
     auto schema = Miro::schemaOf<Address>();
+    auto& body = defOf(schema, "Address");
 
-    check(schema["type"].asString() == "object");
-    check(schema["properties"]["street"]["type"].asString() == "string");
-    check(schema["properties"]["zip"]["type"].asString() == "string");
+    check(body["type"].asString() == "object");
+    check(body["properties"]["street"]["type"].asString() == "string");
+    check(body["properties"]["zip"]["type"].asString() == "string");
 };
 
-auto schemaForNestedStruct = test("Schema: nested struct field") = []
+auto schemaForNestedStruct =
+    test("Schema: nested struct field becomes $ref to its $defs entry") = []
 {
     auto schema = Miro::schemaOf<User>();
+    auto& userBody = defOf(schema, "User");
 
-    check(schema["properties"]["address"]["type"].asString() == "object");
-    check(schema["properties"]["address"]["properties"]["street"]["type"].asString()
+    check(userBody["properties"]["address"]["$ref"].asString() == "#/$defs/Address");
+    check(defOf(schema, "Address")["properties"]["street"]["type"].asString()
           == "string");
 };
 
 auto schemaForVector = test("Schema: vector field") = []
 {
     auto schema = Miro::schemaOf<User>();
+    auto& userBody = defOf(schema, "User");
 
-    check(schema["properties"]["tags"]["type"].asString() == "array");
-    check(schema["properties"]["tags"]["items"]["type"].asString() == "string");
+    check(userBody["properties"]["tags"]["type"].asString() == "array");
+    check(userBody["properties"]["tags"]["items"]["type"].asString() == "string");
 };
 
 auto schemaForMap = test("Schema: map field") = []
 {
     auto schema = Miro::schemaOf<User>();
+    auto& counters = defOf(schema, "User")["properties"]["counters"];
 
-    check(schema["properties"]["counters"]["type"].asString() == "object");
-    check(schema["properties"]["counters"]["additionalProperties"]["type"].asString()
-          == "integer");
+    check(counters["type"].asString() == "object");
+    check(counters["additionalProperties"]["type"].asString() == "integer");
 };
 
 auto schemaForOptional = test("Schema: optional field marked nullable") = []
 {
     auto schema = Miro::schemaOf<User>();
+    auto& note = defOf(schema, "User")["properties"]["note"];
 
-    check(schema["properties"]["note"]["type"].asString() == "string");
-    check(schema["properties"]["note"]["nullable"].asBool() == true);
+    check(note["type"].asString() == "string");
+    check(note["nullable"].asBool() == true);
 };
 
 auto schemaForPrimitiveTypes = test("Schema: primitive type spellings") = []
 {
     auto schema = Miro::schemaOf<User>();
+    auto& userBody = defOf(schema, "User");
 
-    check(schema["properties"]["name"]["type"].asString() == "string");
-    check(schema["properties"]["age"]["type"].asString() == "integer");
-    check(schema["properties"]["active"]["type"].asString() == "boolean");
+    check(userBody["properties"]["name"]["type"].asString() == "string");
+    check(userBody["properties"]["age"]["type"].asString() == "integer");
+    check(userBody["properties"]["active"]["type"].asString() == "boolean");
 };
 
 auto schemaForTopLevelVector = test("Schema: top-level vector") = []
 {
     auto schema = Miro::schemaOf<std::vector<int>>();
 
+    // No named types reachable, so $defs is omitted.
+    check(schema.asObject().find("$defs") == schema.asObject().end());
     check(schema["type"].asString() == "array");
     check(schema["items"]["type"].asString() == "integer");
 };
@@ -133,11 +166,11 @@ auto schemaForTopLevelVector = test("Schema: top-level vector") = []
 auto schemaForNestedVectors = test("Schema: vector of vector") = []
 {
     auto schema = Miro::schemaOf<NestedArrays>();
+    auto& grid = defOf(schema, "NestedArrays")["properties"]["grid"];
 
-    check(schema["properties"]["grid"]["type"].asString() == "array");
-    check(schema["properties"]["grid"]["items"]["type"].asString() == "array");
-    check(schema["properties"]["grid"]["items"]["items"]["type"].asString()
-          == "integer");
+    check(grid["type"].asString() == "array");
+    check(grid["items"]["type"].asString() == "array");
+    check(grid["items"]["items"]["type"].asString() == "integer");
 };
 
 auto schemaPrintRoundtrip = test("Schema: prints + reparses as valid JSON") = []
@@ -146,7 +179,8 @@ auto schemaPrintRoundtrip = test("Schema: prints + reparses as valid JSON") = []
     auto reparsed = Miro::Json::parse(text);
 
     check(reparsed.isObject());
-    check(reparsed["properties"]["name"]["type"].asString() == "string");
+    check(reparsed["$defs"]["User"]["properties"]["name"]["type"].asString()
+          == "string");
 };
 
 auto schemaPaintsSaveLoadStillWorks =
@@ -164,7 +198,7 @@ auto schemaPaintsSaveLoadStillWorks =
 auto schemaForEnumField = test("Schema: enum field gets type+enum keywords") = []
 {
     auto schema = Miro::schemaOf<WithEnum>();
-    auto& color = schema["properties"]["color"];
+    auto& color = defOf(schema, "WithEnum")["properties"]["color"];
 
     check(color["type"].asString() == "string");
     check(color["enum"].isArray());
@@ -180,7 +214,7 @@ auto schemaForOptionalEnum =
     test("Schema: optional enum keeps enum keyword and adds nullable") = []
 {
     auto schema = Miro::schemaOf<WithEnum>();
-    auto& accent = schema["properties"]["accent"];
+    auto& accent = defOf(schema, "WithEnum")["properties"]["accent"];
 
     check(accent["type"].asString() == "string");
     check(accent["enum"].isArray());
@@ -193,6 +227,8 @@ auto schemaForTopLevelEnum =
 {
     auto schema = Miro::schemaOf<Color>();
 
+    // Enums are not hoisted to $defs (no recursion possible there).
+    check(schema.asObject().find("$defs") == schema.asObject().end());
     check(schema["type"].asString() == "string");
     check(schema["enum"].isArray());
     check(schema["enum"].asArray().size() == 3);
@@ -202,7 +238,7 @@ auto schemaRequiredListsNonOptionalFields =
     test("Schema: 'required' lists every non-optional field") = []
 {
     auto schema = Miro::schemaOf<User>();
-    auto& required = schema["required"].asArray();
+    auto& required = defOf(schema, "User")["required"].asArray();
 
     auto names = std::vector<std::string> {};
     for (auto& v: required)
@@ -229,16 +265,16 @@ auto schemaRequiredOmittedWhenAllOptional =
     test("Schema: 'required' is omitted when every field is optional") = []
 {
     auto schema = Miro::schemaOf<AllOptional>();
-    auto& obj = schema.asObject();
+    auto& body = defOf(schema, "AllOptional").asObject();
 
-    check(obj.find("required") == obj.end());
+    check(body.find("required") == body.end());
 };
 
 auto schemaRequiredPropagatesToNestedStructs =
     test("Schema: nested struct gets its own 'required' array") = []
 {
     auto schema = Miro::schemaOf<User>();
-    auto& addressRequired = schema["properties"]["address"]["required"].asArray();
+    auto& addressRequired = defOf(schema, "Address")["required"].asArray();
 
     check(addressRequired.size() == 2);
     check(addressRequired[0].asString() == "street");
@@ -249,25 +285,21 @@ auto schemaRequiredInsideOptionalStruct =
     test("Schema: inner fields stay required even when the wrapping struct "
          "is optional") = []
 {
-    struct WithShipping
-    {
-        std::optional<Address> shipping;
-
-        MIRO_REFLECT(shipping)
-    };
-
     auto schema = Miro::schemaOf<WithShipping>();
-    auto& shipping = schema["properties"]["shipping"];
+    auto& shipping = defOf(schema, "WithShipping")["properties"]["shipping"];
 
+    // The reference slot carries the nullable bit; the referenced
+    // type's body still requires its inner fields.
+    check(shipping["$ref"].asString() == "#/$defs/Address");
     check(shipping["nullable"].asBool() == true);
-    check(shipping["required"].asArray().size() == 2);
+    check(defOf(schema, "Address")["required"].asArray().size() == 2);
 };
 
 auto schemaMapsHaveNoRequired =
     test("Schema: map slots do not get a 'required' entry") = []
 {
     auto schema = Miro::schemaOf<User>();
-    auto& counters = schema["properties"]["counters"].asObject();
+    auto& counters = defOf(schema, "User")["properties"]["counters"].asObject();
 
     check(counters.find("required") == counters.end());
 };
@@ -276,7 +308,7 @@ auto schemaArrayBoundsForFixedSize =
     test("Schema: std::array<T, N> sets minItems and maxItems to N") = []
 {
     auto schema = Miro::schemaOf<FixedAndDynamic>();
-    auto& fixed = schema["properties"]["fixed"];
+    auto& fixed = defOf(schema, "FixedAndDynamic")["properties"]["fixed"];
 
     check(fixed["type"].asString() == "array");
     check(fixed["minItems"].asNumber() == 3);
@@ -287,7 +319,8 @@ auto schemaArrayBoundsAbsentForVector =
     test("Schema: std::vector leaves minItems/maxItems unset") = []
 {
     auto schema = Miro::schemaOf<FixedAndDynamic>();
-    auto& dynamic = schema["properties"]["dynamic"].asObject();
+    auto& dynamic =
+        defOf(schema, "FixedAndDynamic")["properties"]["dynamic"].asObject();
 
     check(dynamic.find("minItems") == dynamic.end());
     check(dynamic.find("maxItems") == dynamic.end());
@@ -300,4 +333,26 @@ auto schemaArrayBoundsForTopLevelArray =
 
     check(schema["minItems"].asNumber() == 7);
     check(schema["maxItems"].asNumber() == 7);
+};
+
+auto schemaDedupsRepeatedStructs =
+    test("Schema: a struct used in multiple places appears once in $defs") = []
+{
+    struct Pair
+    {
+        Address first;
+        Address second;
+
+        MIRO_REFLECT(first, second)
+    };
+
+    auto schema = Miro::schemaOf<Pair>();
+    auto& defs = schema["$defs"].asObject();
+
+    // Address only appears once, both Pair fields reference it.
+    check(defs.contains("Address"));
+    check(defOf(schema, "Pair")["properties"]["first"]["$ref"].asString()
+          == "#/$defs/Address");
+    check(defOf(schema, "Pair")["properties"]["second"]["$ref"].asString()
+          == "#/$defs/Address");
 };

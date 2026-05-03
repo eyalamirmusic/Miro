@@ -148,9 +148,11 @@ public:
     // Called by the dispatch right before invoking a reflectable type's
     // own reflect() body. `id` carries both the short and qualified C++
     // names. Reflectors that care about type identity (TypeScript
-    // exporter, future schema $defs) override this; the JSON and current
-    // schema reflectors ignore it.
-    virtual void beginNamedType(TypeId /*id*/) {}
+    // exporter, schema's $defs) override this. Returning false tells the
+    // dispatcher to skip the body — used to break recursion when the
+    // same type is already being walked further up the chain, or when
+    // the reflector has emitted a name reference instead of inlining.
+    virtual bool beginNamedType(TypeId /*id*/) { return true; }
 
     // Called by the enum dispatcher in schema mode with the enum's
     // identity and the ordered list of valid enumerator names.

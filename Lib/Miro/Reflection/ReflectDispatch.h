@@ -195,7 +195,8 @@ template <typename T>
 void reflectValue(Reflector& ref, T& value)
 {
     if constexpr (isNamedUserType<T>())
-        ref.beginNamedType(TypeId {typeNameOf<T>(), rawTypeNameOf<T>()});
+        if (!ref.beginNamedType(TypeId {typeNameOf<T>(), rawTypeNameOf<T>()}))
+            return;
 
     if constexpr (HasReflectMember<T>)
         value.reflect(ref);

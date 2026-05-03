@@ -11,9 +11,12 @@ namespace Miro::TypeScript
 
 using Detail::TsNode;
 
-TypeScriptReflector::TypeScriptReflector(TsNode& nodeToUse, Options optsToUse)
+TypeScriptReflector::TypeScriptReflector(TsNode& nodeToUse,
+                                         Options optsToUse,
+                                         TypeScriptReflector* parentToUse)
     : Reflector(optsToUse)
     , node(nodeToUse)
+    , parent(parentToUse)
 {
     switch (opts.shape)
     {
@@ -45,10 +48,25 @@ ValueKind TypeScriptReflector::kind() const
 
 void TypeScriptReflector::writeNull() {}
 
-void TypeScriptReflector::beginNamedType(TypeId id)
+bool TypeScriptReflector::beginNamedType(TypeId id)
 {
+    // Set the names regardless: even when this is a recursive reference,
+    // the renderer needs them to print the type by name.
     node.typeName = std::string {id.shortName};
     node.qualifiedName = std::string {id.qualifiedName};
+
+    // Walk the parent chain — if any ancestor is currently inside a body
+    // for the same C++ type, this slot is a back-edge and we must not
+    // descend or we'll infinite-recurse. The slot becomes a name
+    // reference; collectNamed will dedupe against the outer walk.
+    for (auto* p = parent; p != nullptr; p = p->parent)
+    {
+        if (p->activeQualifiedName == id.qualifiedName)
+            return false;
+    }
+
+    activeQualifiedName = std::string {id.qualifiedName};
+    return true;
 }
 
 void TypeScriptReflector::visitEnum(TypeId id,
@@ -85,7 +103,8 @@ void TypeScriptReflector::visit(PrimitiveRef ref)
 Reflector& TypeScriptReflector::spawnChild(TsNode& targetNode, Options childOpts)
 {
     currentChild.reset();
-    currentChild = std::make_unique<TypeScriptReflector>(targetNode, childOpts);
+    currentChild =
+        std::make_unique<TypeScriptReflector>(targetNode, childOpts, this);
     return *currentChild;
 }
 
