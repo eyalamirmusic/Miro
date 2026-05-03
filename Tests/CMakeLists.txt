@@ -8,6 +8,16 @@ FetchContent_Declare(
 
 FetchContent_MakeAvailable(NanoTest)
 
-nano_add_executable(MiroTests SOURCES JsonTests.cpp ReflectorTests.cpp CommandTableTests.cpp VirtualReflectorTests.cpp SchemaReflectorTests.cpp TypeScriptTests.cpp TARGETS Miro)
+set(CMAKE_FOLDER Tests)
+
+nano_add_executable(MiroTests SOURCES
+        JsonTests.cpp
+        ReflectorTests.cpp
+        CommandTableTests.cpp
+        VirtualReflectorTests.cpp
+        SchemaReflectorTests.cpp
+        TypeScriptTests.cpp
+
+        TARGETS Miro)
 
 add_subdirectory(Benchmark)
