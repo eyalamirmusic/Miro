@@ -1,4 +1,5 @@
 add_library(Miro STATIC
+    Miro/Cpp/Cpp.cpp
     Miro/JSON/Json.cpp
     Miro/JSON/Parser.cpp
     Miro/JSON/Printer.cpp

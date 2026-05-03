@@ -17,6 +17,7 @@ nano_add_executable(MiroTests SOURCES
         VirtualReflectorTests.cpp
         SchemaReflectorTests.cpp
         TypeScriptTests.cpp
+        CppExportTests.cpp
 
         TARGETS Miro)
 
