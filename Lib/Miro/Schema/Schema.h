@@ -32,12 +32,15 @@ public:
     Reflector& atKey(std::string_view key, Options childOpts) override;
     Reflector& atIndex(std::size_t index, Options childOpts) override;
 
+    void setArrayBounds(std::size_t min, std::size_t max) override;
+
 private:
     Json::Value& node;
     std::unique_ptr<SchemaReflector> currentChild;
 
     void commitShape();
     void applyNullable();
+    void appendRequired(std::string_view key);
     Reflector& spawnChild(Json::Value& targetNode, Options childOpts);
 
     static Json::Value primitiveSchema(std::string_view typeName);

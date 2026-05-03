@@ -15,22 +15,6 @@ using namespace nano;
 namespace
 {
 
-struct Required
-{
-    std::string name;
-    int age = 0;
-    std::optional<std::string> note;
-
-    MIRO_REFLECT(name, age, note)
-};
-
-struct FixedArr
-{
-    std::array<int, 5> grid;
-
-    MIRO_REFLECT(grid)
-};
-
 namespace AlphaNs
 {
 struct Item
@@ -65,25 +49,6 @@ bool contains(const std::string& haystack, std::string_view needle)
 }
 
 } // namespace
-
-auto schemaRequiredArray = test(
-    "Schema BUG: object schema should list 'required' for non-optional fields") = []
-{
-    auto schema = Miro::schemaOf<Required>();
-    auto& obj = schema.asObject();
-
-    check(obj.contains("required"));
-};
-
-auto schemaArrayBounds =
-    test("Schema GAP: std::array<T, N> should set minItems and maxItems") = []
-{
-    auto schema = Miro::schemaOf<FixedArr>();
-    auto& grid = schema["properties"]["grid"].asObject();
-
-    check(grid.contains("minItems"));
-    check(grid.contains("maxItems"));
-};
 
 auto tsNamespaceCollision = test("TypeScript BUG: types with same unqualified name "
                                  "in different namespaces collapse silently") = []

@@ -49,6 +49,7 @@ void reflectValue(Reflector& ref, std::array<T, N>& value)
     {
         if (ref.isSchema())
         {
+            ref.setArrayBounds(N, N);
             auto inner = T {};
             reflectValue(ref.atIndex(0, childOpts), inner);
         }

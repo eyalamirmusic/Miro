@@ -153,12 +153,41 @@ Reflector& SchemaReflector::atKey(std::string_view key, Options childOpts)
     if (!props.isObject())
         props = Json::Value {Json::Object {}};
 
+    if (!childOpts.nullable)
+        appendRequired(key);
+
     return spawnChild(props.asObject()[std::string {key}], childOpts);
 }
 
 Reflector& SchemaReflector::atIndex(std::size_t, Options childOpts)
 {
     return spawnChild(node.asObject()["items"], childOpts);
+}
+
+void SchemaReflector::setArrayBounds(std::size_t min, std::size_t max)
+{
+    if (!node.isObject())
+        return;
+
+    auto& obj = node.asObject();
+    obj["minItems"] = Json::Value {static_cast<double>(min)};
+    obj["maxItems"] = Json::Value {static_cast<double>(max)};
+}
+
+void SchemaReflector::appendRequired(std::string_view key)
+{
+    auto& obj = node.asObject();
+    auto it = obj.find("required");
+
+    if (it == obj.end())
+    {
+        auto arr = Json::Array {};
+        arr.emplace_back(std::string {key});
+        obj["required"] = Json::Value {std::move(arr)};
+        return;
+    }
+
+    std::get<Json::Array>(it->second.data).emplace_back(std::string {key});
 }
 
 } // namespace Miro

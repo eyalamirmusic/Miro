@@ -37,6 +37,22 @@ struct NestedArrays
     MIRO_REFLECT(grid)
 };
 
+struct AllOptional
+{
+    std::optional<int> a;
+    std::optional<std::string> b;
+
+    MIRO_REFLECT(a, b)
+};
+
+struct FixedAndDynamic
+{
+    std::array<int, 3> fixed;
+    std::vector<int> dynamic;
+
+    MIRO_REFLECT(fixed, dynamic)
+};
+
 enum class Color
 {
     Red,
@@ -180,4 +196,108 @@ auto schemaForTopLevelEnum =
     check(schema["type"].asString() == "string");
     check(schema["enum"].isArray());
     check(schema["enum"].asArray().size() == 3);
+};
+
+auto schemaRequiredListsNonOptionalFields =
+    test("Schema: 'required' lists every non-optional field") = []
+{
+    auto schema = Miro::schemaOf<User>();
+    auto& required = schema["required"].asArray();
+
+    auto names = std::vector<std::string> {};
+    for (auto& v: required)
+        names.push_back(v.asString());
+
+    auto has = [&](std::string_view key)
+    {
+        for (auto& n: names)
+            if (n == key)
+                return true;
+        return false;
+    };
+
+    check(has("name"));
+    check(has("age"));
+    check(has("active"));
+    check(has("address"));
+    check(has("tags"));
+    check(has("counters"));
+    check(!has("note"));
+};
+
+auto schemaRequiredOmittedWhenAllOptional =
+    test("Schema: 'required' is omitted when every field is optional") = []
+{
+    auto schema = Miro::schemaOf<AllOptional>();
+    auto& obj = schema.asObject();
+
+    check(obj.find("required") == obj.end());
+};
+
+auto schemaRequiredPropagatesToNestedStructs =
+    test("Schema: nested struct gets its own 'required' array") = []
+{
+    auto schema = Miro::schemaOf<User>();
+    auto& addressRequired = schema["properties"]["address"]["required"].asArray();
+
+    check(addressRequired.size() == 2);
+    check(addressRequired[0].asString() == "street");
+    check(addressRequired[1].asString() == "zip");
+};
+
+auto schemaRequiredInsideOptionalStruct =
+    test("Schema: inner fields stay required even when the wrapping struct "
+         "is optional") = []
+{
+    struct WithShipping
+    {
+        std::optional<Address> shipping;
+
+        MIRO_REFLECT(shipping)
+    };
+
+    auto schema = Miro::schemaOf<WithShipping>();
+    auto& shipping = schema["properties"]["shipping"];
+
+    check(shipping["nullable"].asBool() == true);
+    check(shipping["required"].asArray().size() == 2);
+};
+
+auto schemaMapsHaveNoRequired =
+    test("Schema: map slots do not get a 'required' entry") = []
+{
+    auto schema = Miro::schemaOf<User>();
+    auto& counters = schema["properties"]["counters"].asObject();
+
+    check(counters.find("required") == counters.end());
+};
+
+auto schemaArrayBoundsForFixedSize =
+    test("Schema: std::array<T, N> sets minItems and maxItems to N") = []
+{
+    auto schema = Miro::schemaOf<FixedAndDynamic>();
+    auto& fixed = schema["properties"]["fixed"];
+
+    check(fixed["type"].asString() == "array");
+    check(fixed["minItems"].asNumber() == 3);
+    check(fixed["maxItems"].asNumber() == 3);
+};
+
+auto schemaArrayBoundsAbsentForVector =
+    test("Schema: std::vector leaves minItems/maxItems unset") = []
+{
+    auto schema = Miro::schemaOf<FixedAndDynamic>();
+    auto& dynamic = schema["properties"]["dynamic"].asObject();
+
+    check(dynamic.find("minItems") == dynamic.end());
+    check(dynamic.find("maxItems") == dynamic.end());
+};
+
+auto schemaArrayBoundsForTopLevelArray =
+    test("Schema: top-level std::array sets bounds on the root schema") = []
+{
+    auto schema = Miro::schemaOf<std::array<int, 7>>();
+
+    check(schema["minItems"].asNumber() == 7);
+    check(schema["maxItems"].asNumber() == 7);
 };

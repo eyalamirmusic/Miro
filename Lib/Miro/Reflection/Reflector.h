@@ -166,6 +166,12 @@ public:
     virtual void resizeArray(std::size_t /*newSize*/) {}
     virtual std::vector<std::string> mapKeys() const { return {}; }
 
+    // Schema hint for fixed-size arrays. Called from the std::array
+    // dispatcher with the compile-time N as both min and max. Reflectors
+    // that don't care (the JSON reflector) keep the no-op default; the
+    // schema reflector translates this into minItems/maxItems.
+    virtual void setArrayBounds(std::size_t /*min*/, std::size_t /*max*/) {}
+
 protected:
     Options opts;
 };
