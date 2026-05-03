@@ -282,3 +282,51 @@ auto tsTypesEnumDependencyOrder =
     auto out = Miro::TypeScript::toTypes<User>();
     check(comesBefore(out, "export type Color", "export interface User"));
 };
+
+// ---------- Custom-key (MIRO_REFLECT_MEMBERS) tests ----------
+
+namespace
+{
+
+struct CustomKeys
+{
+    int xCoord = 0;
+    std::string fullName;
+    bool active = false;
+
+    MIRO_REFLECT_MEMBERS(xCoord, "X Coord", fullName, "Full Name", active, "active")
+};
+
+} // namespace
+
+auto tsZodQuotesNonIdentifierKeys =
+    test("TypeScript: zod quotes keys that aren't valid JS identifiers") = []
+{
+    auto out = Miro::TypeScript::toZod<CustomKeys>();
+    check(contains(out, "\"X Coord\": z.number().int(),"));
+    check(contains(out, "\"Full Name\": z.string(),"));
+};
+
+auto tsZodLeavesIdentifierKeysBare =
+    test("TypeScript: zod leaves valid identifier keys unquoted") = []
+{
+    auto out = Miro::TypeScript::toZod<CustomKeys>();
+    check(contains(out, "active: z.boolean(),"));
+    check(!contains(out, "\"active\":"));
+};
+
+auto tsTypesQuotesNonIdentifierKeys = test(
+    "TypeScript types: interface quotes keys that aren't valid identifiers") = []
+{
+    auto out = Miro::TypeScript::toTypes<CustomKeys>();
+    check(contains(out, "\"X Coord\": number;"));
+    check(contains(out, "\"Full Name\": string;"));
+};
+
+auto tsTypesLeavesIdentifierKeysBare =
+    test("TypeScript types: interface leaves valid identifier keys unquoted") = []
+{
+    auto out = Miro::TypeScript::toTypes<CustomKeys>();
+    check(contains(out, "active: boolean;"));
+    check(!contains(out, "\"active\":"));
+};

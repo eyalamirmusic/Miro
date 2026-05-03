@@ -54,6 +54,25 @@ Json::Value SchemaReflector::mapSchema()
     return value;
 }
 
+Json::Value SchemaReflector::enumSchema(const std::vector<std::string_view>& names)
+{
+    auto value = Json::Value {Json::Object {}};
+    value.asObject()["type"] = Json::Value {std::string {"string"}};
+
+    if (!names.empty())
+    {
+        auto arr = Json::Array {};
+        arr.reserve(names.size());
+
+        for (auto& name: names)
+            arr.emplace_back(std::string {name});
+
+        value.asObject()["enum"] = Json::Value {std::move(arr)};
+    }
+
+    return value;
+}
+
 void SchemaReflector::commitShape()
 {
     switch (opts.shape)
@@ -108,6 +127,13 @@ void SchemaReflector::visit(PrimitiveRef ref)
             applyNullable();
         },
         ref.data);
+}
+
+void SchemaReflector::visitEnum(std::string_view,
+                                const std::vector<std::string_view>& names)
+{
+    node = enumSchema(names);
+    applyNullable();
 }
 
 Reflector& SchemaReflector::spawnChild(Json::Value& targetNode, Options childOpts)

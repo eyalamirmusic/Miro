@@ -105,6 +105,53 @@ Reflector& TypeScriptReflector::atIndex(std::size_t, Options childOpts)
 namespace
 {
 
+// True if `name` matches /^[A-Za-z_$][A-Za-z0-9_$]*$/ — the ASCII subset
+// of valid JavaScript identifiers, which is enough to decide whether an
+// object/interface key can be emitted bare or needs to be quoted.
+bool isJsIdentifier(std::string_view name)
+{
+    if (name.empty())
+        return false;
+
+    auto isStart = [](char c)
+    {
+        return (c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z') || c == '_'
+               || c == '$';
+    };
+
+    auto isPart = [&](char c) { return isStart(c) || (c >= '0' && c <= '9'); };
+
+    if (!isStart(name.front()))
+        return false;
+
+    for (auto c: name.substr(1))
+        if (!isPart(c))
+            return false;
+
+    return true;
+}
+
+// Returns `name` ready to drop into a JS object literal or TS interface
+// as a property key. Bare identifier when possible; otherwise a JSON-
+// quoted string with `\` and `"` escaped. `MIRO_REFLECT_MEMBERS` lets
+// users pick arbitrary keys, so we have to defend against spaces and
+// other non-identifier characters.
+std::string formatPropertyKey(std::string_view name)
+{
+    if (isJsIdentifier(name))
+        return std::string {name};
+
+    auto out = std::string {"\""};
+    for (auto c: name)
+    {
+        if (c == '\\' || c == '"')
+            out += '\\';
+        out += c;
+    }
+    out += '"';
+    return out;
+}
+
 // Collects every named object/enum node reachable from root in
 // post-order (deepest first). Duplicates of the same name keep the
 // first node we saw — re-encounters become refs.
@@ -157,7 +204,8 @@ std::string renderZodObjectInline(const TsNode& node)
     out << "z.object({\n";
 
     for (auto& field: node.fields)
-        out << "    " << field.name << ": " << renderZod(*field.type) << ",\n";
+        out << "    " << formatPropertyKey(field.name) << ": "
+            << renderZod(*field.type) << ",\n";
 
     out << "})";
     return out.str();
@@ -246,7 +294,7 @@ std::string renderTypeObjectInline(const TsNode& node)
     for (auto& field: node.fields)
     {
         auto separator = field.type->optional ? "?: " : ": ";
-        out << "    " << field.name << separator
+        out << "    " << formatPropertyKey(field.name) << separator
             << renderType(*field.type, /*fieldContext=*/true) << ";\n";
     }
 

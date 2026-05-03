@@ -37,6 +37,21 @@ struct NestedArrays
     MIRO_REFLECT(grid)
 };
 
+enum class Color
+{
+    Red,
+    Green,
+    Blue
+};
+
+struct WithEnum
+{
+    Color color = Color::Red;
+    std::optional<Color> accent;
+
+    MIRO_REFLECT(color, accent)
+};
+
 } // namespace
 
 auto schemaForPrimitiveStruct = test("Schema: struct with primitive fields") = []
@@ -128,4 +143,41 @@ auto schemaPaintsSaveLoadStillWorks =
     check(restored.name == "ada");
     check(restored.age == 36);
     check(restored.tags.size() == 1);
+};
+
+auto schemaForEnumField = test("Schema: enum field gets type+enum keywords") = []
+{
+    auto schema = Miro::schemaOf<WithEnum>();
+    auto& color = schema["properties"]["color"];
+
+    check(color["type"].asString() == "string");
+    check(color["enum"].isArray());
+
+    auto& values = color["enum"].asArray();
+    check(values.size() == 3);
+    check(values[0].asString() == "Red");
+    check(values[1].asString() == "Green");
+    check(values[2].asString() == "Blue");
+};
+
+auto schemaForOptionalEnum =
+    test("Schema: optional enum keeps enum keyword and adds nullable") = []
+{
+    auto schema = Miro::schemaOf<WithEnum>();
+    auto& accent = schema["properties"]["accent"];
+
+    check(accent["type"].asString() == "string");
+    check(accent["enum"].isArray());
+    check(accent["enum"].asArray().size() == 3);
+    check(accent["nullable"].asBool() == true);
+};
+
+auto schemaForTopLevelEnum =
+    test("Schema: top-level enum produces type+enum schema") = []
+{
+    auto schema = Miro::schemaOf<Color>();
+
+    check(schema["type"].asString() == "string");
+    check(schema["enum"].isArray());
+    check(schema["enum"].asArray().size() == 3);
 };
