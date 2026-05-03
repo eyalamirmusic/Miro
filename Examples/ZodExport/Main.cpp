@@ -1,48 +1,14 @@
-// Demonstration: declare a few reflectable C++ structs, print the
-// generated Zod and plain-TS modules to stdout, and drop them as
-// User.zod.ts / User.ts next to the executable so they can be imported
-// directly from a TS project.
+// Manual exporter: prints the Zod / plain-TS modules to stdout and
+// writes User.zod.ts / User.ts next to the executable. Uses the same
+// Types.h that ZodExportRegistrations registers with the auto-exporter,
+// so both stay in sync.
 
-#include <Miro/Miro.h>
+#include "Types.h"
 
 #include <filesystem>
 #include <fstream>
 #include <iostream>
-#include <map>
-#include <optional>
 #include <string>
-#include <vector>
-
-struct Address
-{
-    std::string street;
-    std::string zip;
-
-    MIRO_REFLECT(street, zip)
-};
-
-enum class Role
-{
-    Admin,
-    Editor,
-    Viewer
-};
-
-struct User
-{
-    std::string name;
-    int age = 0;
-    bool active = true;
-    Role role = Role::Viewer;
-    Address address;
-    std::vector<std::string> tags;
-    std::map<std::string, int> counters;
-    std::optional<std::string> note;
-    std::optional<Address> shippingAddress;
-
-    MIRO_REFLECT(
-        name, age, active, role, address, tags, counters, note, shippingAddress)
-};
 
 namespace
 {

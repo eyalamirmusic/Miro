@@ -4,6 +4,7 @@
 #include "../Reflection/Reflector.h"
 
 #include <memory>
+#include <span>
 #include <string>
 #include <string_view>
 #include <vector>
@@ -100,6 +101,15 @@ Detail::TsNode buildTree()
 
 std::string formatZodModule(const Detail::TsNode& root);
 std::string formatTypesModule(const Detail::TsNode& root);
+
+// Multi-root variants — emit one self-contained module that declares
+// every named (object or enum) type reachable from any of the roots,
+// deduped by name. Used by the type-export runner to bundle all
+// registered types into a single .zod.ts / .ts file. The single-root
+// versions above add a default export for anonymous roots; the bundled
+// versions skip that because a module only allows one default export.
+std::string formatZodModule(std::span<const Detail::TsNode> roots);
+std::string formatTypesModule(std::span<const Detail::TsNode> roots);
 
 // Public entry points.
 template <typename T>

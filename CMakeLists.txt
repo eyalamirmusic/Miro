@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.21)
+cmake_minimum_required(VERSION 3.29)
 project(Miro)
 
 set(CMAKE_CXX_STANDARD 20)
@@ -15,6 +15,8 @@ endif ()
 option(MIRO_UNITY_BUILD "Enable CMake unity build for the Miro library" ON)
 
 add_subdirectory(Lib)
+
+include(${CMAKE_CURRENT_LIST_DIR}/CMake/MiroTypeExport.cmake)
 
 option(MIRO_BUILD_TESTS "Build Miro internal tests" OFF)
 

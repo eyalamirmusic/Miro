@@ -342,11 +342,13 @@ bool rootIsHoisted(const TsNode& root)
 
 } // namespace
 
-std::string formatZodModule(const TsNode& root)
+std::string formatZodModule(std::span<const TsNode> roots)
 {
     auto seen = std::set<std::string> {};
     auto ordered = std::vector<const TsNode*> {};
-    collectNamed(root, seen, ordered);
+
+    for (auto& root: roots)
+        collectNamed(root, seen, ordered);
 
     auto out = std::ostringstream {};
     out << "import { z } from \"zod\";\n\n";
@@ -359,19 +361,16 @@ std::string formatZodModule(const TsNode& root)
             out << declareZodNamed(*node) << "\n";
     }
 
-    // If the root wasn't hoisted (e.g. a top-level vector), emit a
-    // default export for it so the module isn't pointless.
-    if (!rootIsHoisted(root))
-        out << "export default " << renderZod(root) << ";\n";
-
     return out.str();
 }
 
-std::string formatTypesModule(const TsNode& root)
+std::string formatTypesModule(std::span<const TsNode> roots)
 {
     auto seen = std::set<std::string> {};
     auto ordered = std::vector<const TsNode*> {};
-    collectNamed(root, seen, ordered);
+
+    for (auto& root: roots)
+        collectNamed(root, seen, ordered);
 
     auto out = std::ostringstream {};
 
@@ -383,11 +382,31 @@ std::string formatTypesModule(const TsNode& root)
             out << declareTypeNamed(*node) << "\n";
     }
 
-    if (!rootIsHoisted(root))
-        out << "export type Root = " << renderType(root, /*fieldContext=*/false)
-            << ";\n";
-
     return out.str();
+}
+
+std::string formatZodModule(const TsNode& root)
+{
+    auto out = formatZodModule(std::span<const TsNode> {&root, 1});
+
+    // The bundled overload skips default exports (one-per-module rule);
+    // the single-root path adds one for anonymous roots like top-level
+    // vectors so the module isn't pointless.
+    if (!rootIsHoisted(root))
+        out += "export default " + renderZod(root) + ";\n";
+
+    return out;
+}
+
+std::string formatTypesModule(const TsNode& root)
+{
+    auto out = formatTypesModule(std::span<const TsNode> {&root, 1});
+
+    if (!rootIsHoisted(root))
+        out +=
+            "export type Root = " + renderType(root, /*fieldContext=*/false) + ";\n";
+
+    return out;
 }
 
 } // namespace Miro::TypeScript
