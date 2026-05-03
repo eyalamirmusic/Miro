@@ -45,16 +45,18 @@ ValueKind TypeScriptReflector::kind() const
 
 void TypeScriptReflector::writeNull() {}
 
-void TypeScriptReflector::beginNamedType(std::string_view typeName)
+void TypeScriptReflector::beginNamedType(TypeId id)
 {
-    node.typeName = std::string {typeName};
+    node.typeName = std::string {id.shortName};
+    node.qualifiedName = std::string {id.qualifiedName};
 }
 
-void TypeScriptReflector::visitEnum(std::string_view typeName,
+void TypeScriptReflector::visitEnum(TypeId id,
                                     const std::vector<std::string_view>& names)
 {
     node.shape = TsNode::Shape::Enum;
-    node.typeName = std::string {typeName};
+    node.typeName = std::string {id.shortName};
+    node.qualifiedName = std::string {id.qualifiedName};
     node.enumValues.clear();
     node.enumValues.reserve(names.size());
 
@@ -152,19 +154,29 @@ std::string formatPropertyKey(std::string_view name)
     return out;
 }
 
+// Identity used to dedup a node in collectNamed. Prefers the raw
+// qualified name (always unique per C++ type); falls back to the short
+// name for the rare anonymous-object case so an unnamed slot still
+// pairs with itself if encountered twice.
+const std::string& dedupKey(const TsNode& node)
+{
+    return node.qualifiedName.empty() ? node.typeName : node.qualifiedName;
+}
+
 // Collects every named object/enum node reachable from root in
-// post-order (deepest first). Duplicates of the same name keep the
-// first node we saw — re-encounters become refs.
+// post-order (deepest first). Re-encounters of the same C++ type (by
+// qualified name) become inline name references in the rendered output.
 void collectNamed(const TsNode& node,
                   std::set<std::string>& seen,
                   std::vector<const TsNode*>& outOrdered)
 {
     if (node.shape == TsNode::Shape::Object && !node.typeName.empty())
     {
-        if (seen.contains(node.typeName))
+        auto& key = dedupKey(node);
+        if (seen.contains(key))
             return;
 
-        seen.insert(node.typeName);
+        seen.insert(key);
 
         for (auto& field: node.fields)
             collectNamed(*field.type, seen, outOrdered);
@@ -175,10 +187,11 @@ void collectNamed(const TsNode& node,
 
     if (node.shape == TsNode::Shape::Enum && !node.typeName.empty())
     {
-        if (seen.contains(node.typeName))
+        auto& key = dedupKey(node);
+        if (seen.contains(key))
             return;
 
-        seen.insert(node.typeName);
+        seen.insert(key);
         outOrdered.push_back(&node);
         return;
     }
@@ -192,6 +205,87 @@ void collectNamed(const TsNode& node,
     {
         collectNamed(*node.inner, seen, outOrdered);
     }
+}
+
+// Replaces every non-identifier run in `raw` with a single `_`, then
+// strips leading underscores or digits so the result is a legal TS
+// identifier. `Ns::Inner::Foo` → `Ns_Inner_Foo`.
+std::string sanitizeIdentifier(std::string_view raw)
+{
+    auto out = std::string {};
+    out.reserve(raw.size());
+
+    auto isIdChar = [](char c)
+    {
+        return (c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z')
+               || (c >= '0' && c <= '9') || c == '_';
+    };
+
+    for (auto c: raw)
+    {
+        if (isIdChar(c))
+            out += c;
+        else if (!out.empty() && out.back() != '_')
+            out += '_';
+    }
+
+    while (!out.empty() && out.back() == '_')
+        out.pop_back();
+    while (!out.empty()
+           && (out.front() == '_' || (out.front() >= '0' && out.front() <= '9')))
+        out.erase(0, 1);
+
+    return out;
+}
+
+using NameMap = std::map<std::string, std::string>;
+
+// For each named type collected from the roots, decides what string the
+// generator should print for it. When several distinct C++ types share
+// an unqualified name (different namespaces), the colliding entries
+// fall back to a sanitized qualified name so each declaration is unique.
+NameMap chooseOutputNames(const std::vector<const TsNode*>& ordered)
+{
+    auto byShortName = std::map<std::string, std::vector<const TsNode*>> {};
+    for (auto* node: ordered)
+        byShortName[node->typeName].push_back(node);
+
+    auto names = NameMap {};
+    for (auto& [shortName, group]: byShortName)
+    {
+        if (group.size() == 1)
+        {
+            auto* node = group.front();
+            if (!node->qualifiedName.empty())
+                names[node->qualifiedName] = shortName;
+            continue;
+        }
+
+        for (auto* node: group)
+            names[node->qualifiedName] = sanitizeIdentifier(node->qualifiedName);
+    }
+
+    return names;
+}
+
+// Walks every TsNode reachable from `root` and rewrites typeName to
+// the chosen output name. Re-references to a named type live as
+// separate TsNodes (Object/Enum with typeName but no fields), so the
+// walk has to descend into fields and inner.
+void applyOutputNames(TsNode& root, const NameMap& names)
+{
+    if (!root.qualifiedName.empty())
+    {
+        auto it = names.find(root.qualifiedName);
+        if (it != names.end())
+            root.typeName = it->second;
+    }
+
+    for (auto& field: root.fields)
+        applyOutputNames(*field.type, names);
+
+    if (root.inner)
+        applyOutputNames(*root.inner, names);
 }
 
 // ---------- Zod renderer ----------
@@ -390,13 +484,33 @@ bool rootIsHoisted(const TsNode& root)
 
 } // namespace
 
-std::string formatZodModule(std::span<const TsNode> roots)
+namespace
+{
+
+// Shared bookkeeping for both formatters: walk every root, dedup by
+// qualified name, then resolve display-name collisions and rewrite the
+// affected typeName fields in place so the renderer can stay simple.
+std::vector<const TsNode*> prepareRoots(std::span<TsNode> roots)
 {
     auto seen = std::set<std::string> {};
     auto ordered = std::vector<const TsNode*> {};
 
     for (auto& root: roots)
         collectNamed(root, seen, ordered);
+
+    auto names = chooseOutputNames(ordered);
+
+    for (auto& root: roots)
+        applyOutputNames(root, names);
+
+    return ordered;
+}
+
+} // namespace
+
+std::string formatZodModule(std::span<TsNode> roots)
+{
+    auto ordered = prepareRoots(roots);
 
     auto out = std::ostringstream {};
     out << "import { z } from \"zod\";\n\n";
@@ -412,13 +526,9 @@ std::string formatZodModule(std::span<const TsNode> roots)
     return out.str();
 }
 
-std::string formatTypesModule(std::span<const TsNode> roots)
+std::string formatTypesModule(std::span<TsNode> roots)
 {
-    auto seen = std::set<std::string> {};
-    auto ordered = std::vector<const TsNode*> {};
-
-    for (auto& root: roots)
-        collectNamed(root, seen, ordered);
+    auto ordered = prepareRoots(roots);
 
     auto out = std::ostringstream {};
 
@@ -433,9 +543,9 @@ std::string formatTypesModule(std::span<const TsNode> roots)
     return out.str();
 }
 
-std::string formatZodModule(const TsNode& root)
+std::string formatZodModule(TsNode& root)
 {
-    auto out = formatZodModule(std::span<const TsNode> {&root, 1});
+    auto out = formatZodModule(std::span<TsNode> {&root, 1});
 
     // The bundled overload skips default exports (one-per-module rule);
     // the single-root path adds one for anonymous roots like top-level
@@ -446,9 +556,9 @@ std::string formatZodModule(const TsNode& root)
     return out;
 }
 
-std::string formatTypesModule(const TsNode& root)
+std::string formatTypesModule(TsNode& root)
 {
-    auto out = formatTypesModule(std::span<const TsNode> {&root, 1});
+    auto out = formatTypesModule(std::span<TsNode> {&root, 1});
 
     if (!rootIsHoisted(root))
         out +=

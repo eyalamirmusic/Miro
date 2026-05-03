@@ -129,8 +129,7 @@ void SchemaReflector::visit(PrimitiveRef ref)
         ref.data);
 }
 
-void SchemaReflector::visitEnum(std::string_view,
-                                const std::vector<std::string_view>& names)
+void SchemaReflector::visitEnum(TypeId, const std::vector<std::string_view>& names)
 {
     node = enumSchema(names);
     applyNullable();

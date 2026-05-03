@@ -71,13 +71,19 @@ const auto kFormats = std::vector<Format> {
         "zod",
         ".zod.ts",
         [](const EntryList& entries)
-        { return Miro::TypeScript::formatZodModule(buildAllTsTrees(entries)); },
+        {
+            auto trees = buildAllTsTrees(entries);
+            return Miro::TypeScript::formatZodModule(trees);
+        },
     },
     Format {
         "ts",
         ".ts",
         [](const EntryList& entries)
-        { return Miro::TypeScript::formatTypesModule(buildAllTsTrees(entries)); },
+        {
+            auto trees = buildAllTsTrees(entries);
+            return Miro::TypeScript::formatTypesModule(trees);
+        },
     },
 };
 

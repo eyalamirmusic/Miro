@@ -70,6 +70,18 @@ struct Options
     bool schema = false;
 };
 
+// Identity of a named C++ type announced through reflection. `shortName`
+// is the unqualified spelling (used as the default display name in
+// generated output); `qualifiedName` is the compiler-derived full path
+// from `__PRETTY_FUNCTION__`/`__FUNCSIG__` (e.g. "Ns::Inner::Foo"),
+// stable per type and used as the dedup key when two types in different
+// namespaces happen to share a short name.
+struct TypeId
+{
+    std::string_view shortName;
+    std::string_view qualifiedName;
+};
+
 // First-class primitive handle. Constructs implicitly from any built-in
 // primitive — `ref.visit(myInt)` Just Works. To support a new primitive
 // type, add another constructor + variant alternative below (or provide
@@ -134,17 +146,18 @@ public:
     virtual ValueKind kind() const = 0;
 
     // Called by the dispatch right before invoking a reflectable type's
-    // own reflect() body, with the unqualified C++ type name. Reflectors
-    // that care about identity (TypeScript exporter, future schema $defs)
-    // override this; the JSON and current schema reflectors ignore it.
-    virtual void beginNamedType(std::string_view /*typeName*/) {}
+    // own reflect() body. `id` carries both the short and qualified C++
+    // names. Reflectors that care about type identity (TypeScript
+    // exporter, future schema $defs) override this; the JSON and current
+    // schema reflectors ignore it.
+    virtual void beginNamedType(TypeId /*id*/) {}
 
     // Called by the enum dispatcher in schema mode with the enum's
-    // C++ type name and the ordered list of valid enumerator names.
+    // identity and the ordered list of valid enumerator names.
     // Reflectors that want first-class enum output (e.g. the TypeScript
     // exporter) override this. The default falls back to a string slot,
     // which is what the JSON-Schema reflector has historically emitted.
-    virtual void visitEnum(std::string_view /*typeName*/,
+    virtual void visitEnum(TypeId /*id*/,
                            const std::vector<std::string_view>& /*names*/)
     {
         auto placeholder = std::string {"enum"};

@@ -148,7 +148,8 @@ void reflectValue(Reflector& ref, T& value)
     {
         if (ref.isSchema())
         {
-            ref.visitEnum(typeNameOf<T>(), enumNames<T>());
+            ref.visitEnum(TypeId {typeNameOf<T>(), rawTypeNameOf<T>()},
+                          enumNames<T>());
         }
         else if (auto name = std::string {enumToString(value)}; !name.empty())
         {

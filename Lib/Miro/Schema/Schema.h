@@ -26,8 +26,7 @@ public:
     void visit(PrimitiveRef ref) override;
     void writeNull() override;
     ValueKind kind() const override;
-    void visitEnum(std::string_view typeName,
-                   const std::vector<std::string_view>& names) override;
+    void visitEnum(TypeId id, const std::vector<std::string_view>& names) override;
 
     Reflector& atKey(std::string_view key, Options childOpts) override;
     Reflector& atIndex(std::size_t index, Options childOpts) override;

@@ -330,3 +330,110 @@ auto tsTypesLeavesIdentifierKeysBare =
     check(contains(out, "active: boolean;"));
     check(!contains(out, "\"active\":"));
 };
+
+// ---------- Namespace-disambiguation tests ----------
+//
+// These namespaces live at file scope (rather than nested inside an
+// anonymous namespace like the other test types) because the
+// disambiguation pass sanitizes the raw qualified name returned by
+// __PRETTY_FUNCTION__. Wrapping them in an anonymous namespace would
+// pollute the qualified name with "(anonymous namespace)::" and break
+// the assertions below. The namespace names are unique-prefixed so
+// they can safely sit at file scope without colliding with anything
+// else in the test executable.
+
+namespace TsCollAlpha
+{
+struct Item
+{
+    int id = 0;
+
+    MIRO_REFLECT(id)
+};
+} // namespace TsCollAlpha
+
+namespace TsCollBeta
+{
+struct Item
+{
+    bool flag = false;
+
+    MIRO_REFLECT(flag)
+};
+} // namespace TsCollBeta
+
+namespace TsCollSolo
+{
+struct Solo
+{
+    int x = 0;
+
+    MIRO_REFLECT(x)
+};
+} // namespace TsCollSolo
+
+namespace
+{
+
+struct CollidingPair
+{
+    TsCollAlpha::Item alpha;
+    TsCollBeta::Item beta;
+
+    MIRO_REFLECT(alpha, beta)
+};
+
+struct UsesSolo
+{
+    TsCollSolo::Solo solo;
+
+    MIRO_REFLECT(solo)
+};
+
+} // namespace
+
+auto tsZodDisambiguatesColliding =
+    test("TypeScript: same short name from different namespaces "
+         "gets sanitized qualified declarations in zod") = []
+{
+    auto out = Miro::TypeScript::toZod<CollidingPair>();
+
+    check(contains(out, "export const TsCollAlpha_Item = z.object({"));
+    check(contains(out, "export const TsCollBeta_Item = z.object({"));
+    check(contains(out, "id: z.number().int(),"));
+    check(contains(out, "flag: z.boolean(),"));
+
+    // The plain "Item" must not appear as a declaration anymore.
+    check(!contains(out, "export const Item = "));
+};
+
+auto tsZodReferencesUseDisambiguatedNames =
+    test("TypeScript: field references resolve to the disambiguated names") = []
+{
+    auto out = Miro::TypeScript::toZod<CollidingPair>();
+
+    check(contains(out, "alpha: TsCollAlpha_Item,"));
+    check(contains(out, "beta: TsCollBeta_Item,"));
+};
+
+auto tsTypesDisambiguatesColliding =
+    test("TypeScript types: collision produces sanitized qualified interfaces") = []
+{
+    auto out = Miro::TypeScript::toTypes<CollidingPair>();
+
+    check(contains(out, "export interface TsCollAlpha_Item {"));
+    check(contains(out, "export interface TsCollBeta_Item {"));
+    check(contains(out, "alpha: TsCollAlpha_Item;"));
+    check(contains(out, "beta: TsCollBeta_Item;"));
+    check(!contains(out, "export interface Item "));
+};
+
+auto tsKeepsShortNameWhenNoCollision =
+    test("TypeScript: namespaced type keeps its short name when no collision") = []
+{
+    auto out = Miro::TypeScript::toZod<UsesSolo>();
+
+    check(contains(out, "export const Solo = z.object({"));
+    check(contains(out, "solo: Solo,"));
+    check(!contains(out, "TsCollSolo_Solo"));
+};

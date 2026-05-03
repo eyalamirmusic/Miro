@@ -36,10 +36,18 @@ struct TsNode
     // Primitive only: the Zod expression (e.g. "z.string()").
     std::string primitive;
 
-    // Object / Enum only: the (unqualified) C++ type name. Empty if
-    // anonymous (only meaningful for objects — enums always come with a
-    // name from the dispatcher).
+    // Object / Enum only: the display name emitted in generated source.
+    // Defaults to the unqualified C++ type name; on collision the
+    // disambiguation pass rewrites it to a sanitized qualified form.
+    // Empty if anonymous (only meaningful for objects — enums always
+    // come with a name from the dispatcher).
     std::string typeName;
+
+    // Object / Enum only: the raw qualified C++ name from the compiler
+    // (e.g. "Ns::Inner::Foo"). Stable per type and used as the dedup
+    // key so two types in different namespaces with the same short
+    // name don't silently collapse into one declaration.
+    std::string qualifiedName;
 
     // Object only: ordered fields.
     struct Field
@@ -71,9 +79,8 @@ public:
     void visit(PrimitiveRef ref) override;
     void writeNull() override;
     ValueKind kind() const override;
-    void beginNamedType(std::string_view typeName) override;
-    void visitEnum(std::string_view typeName,
-                   const std::vector<std::string_view>& names) override;
+    void beginNamedType(TypeId id) override;
+    void visitEnum(TypeId id, const std::vector<std::string_view>& names) override;
 
     Reflector& atKey(std::string_view key, Options childOpts) override;
     Reflector& atIndex(std::size_t index, Options childOpts) override;
@@ -99,29 +106,36 @@ Detail::TsNode buildTree()
     return root;
 }
 
-std::string formatZodModule(const Detail::TsNode& root);
-std::string formatTypesModule(const Detail::TsNode& root);
+// The format functions take their roots by mutable reference because
+// emission may rewrite per-node `typeName` to disambiguate types from
+// different namespaces that share an unqualified name. Callers that
+// don't want their trees touched should hand over a copy.
+std::string formatZodModule(Detail::TsNode& root);
+std::string formatTypesModule(Detail::TsNode& root);
 
 // Multi-root variants — emit one self-contained module that declares
 // every named (object or enum) type reachable from any of the roots,
-// deduped by name. Used by the type-export runner to bundle all
-// registered types into a single .zod.ts / .ts file. The single-root
-// versions above add a default export for anonymous roots; the bundled
-// versions skip that because a module only allows one default export.
-std::string formatZodModule(std::span<const Detail::TsNode> roots);
-std::string formatTypesModule(std::span<const Detail::TsNode> roots);
+// deduped by qualified name. Used by the type-export runner to bundle
+// all registered types into a single .zod.ts / .ts file. The single-
+// root versions above add a default export for anonymous roots; the
+// bundled versions skip that because a module only allows one default
+// export.
+std::string formatZodModule(std::span<Detail::TsNode> roots);
+std::string formatTypesModule(std::span<Detail::TsNode> roots);
 
 // Public entry points.
 template <typename T>
 std::string toZod()
 {
-    return formatZodModule(buildTree<T>());
+    auto tree = buildTree<T>();
+    return formatZodModule(tree);
 }
 
 template <typename T>
 std::string toTypes()
 {
-    return formatTypesModule(buildTree<T>());
+    auto tree = buildTree<T>();
+    return formatTypesModule(tree);
 }
 
 } // namespace Miro::TypeScript
