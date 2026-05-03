@@ -176,6 +176,78 @@ The external-type variant with custom key strings:
 MIRO_REFLECT_EXTERNAL_MEMBERS(ThirdParty::Point, x, "X Coord", y, "Y Coord")
 ```
 
+## Exporting types to other languages
+
+Once your types are reflected, Miro can generate matching definitions for other languages and tools. The supported formats are:
+
+| Format       | Output extension | What it produces                                  |
+| ------------ | ---------------- | ------------------------------------------------- |
+| `ts`         | `.ts`            | TypeScript interfaces                             |
+| `zod`        | `.zod.ts`        | Zod schemas (TypeScript runtime validators)       |
+| `jsonschema` | `.schema.json`   | JSON Schema (Draft 2020-12)                       |
+| `cpp`        | `.types.h`       | Plain C++ structs (no Miro dependency)            |
+| `cpp-miro`   | `.miro.h`        | C++ structs with `MIRO_REFLECT(...)` baked in     |
+
+The pipeline is wired through CMake: a small helper builds a tiny executable that links your reflected types, runs it as a post-build step, and writes one bundled file per requested format.
+
+### Setting up an export target
+
+```cmake
+miro_add_type_export(
+    NAME       MySchema
+    SOURCES    Registrations.cpp
+    OUTPUT_DIR ${CMAKE_CURRENT_BINARY_DIR}/generated
+    FORMATS    ts zod jsonschema cpp cpp-miro   # optional; defaults to all
+)
+```
+
+The `miro_add_type_export()` function is registered by Miro's top-level `CMakeLists.txt`, so it is available anywhere downstream of `FetchContent_MakeAvailable(Miro)` — no extra `include()` needed.
+
+Arguments:
+
+- **`NAME`** (required) — name of the executable target. Also the default output basename.
+- **`SOURCES`** — `.cpp` files (relative to the caller's `CMakeLists.txt`) that contain `MIRO_EXPORT_TYPES(...)` registrations. Compiled directly into the executable.
+- **`LIBRARIES`** — extra libraries to link. Static libraries are linked with `WHOLE_ARCHIVE` so the registrations' static initializers survive linking; `INTERFACE` libraries are linked plainly.
+- **`OUTPUT_DIR`** (required) — directory the generated files are written to.
+- **`OUTPUT_NAME`** — output filename stem (defaults to `NAME`).
+- **`FORMATS`** — subset of the table above (defaults to all).
+
+At least one of `SOURCES` or `LIBRARIES` must be provided.
+
+### Registering types
+
+In one of the `SOURCES` files (or in a library passed via `LIBRARIES`), include `<Miro/TypeExport/Register.h>` and list the reflected types to export:
+
+```cpp
+#include "Types.h"
+
+#include <Miro/TypeExport/Register.h>
+
+MIRO_EXPORT_TYPES(User, Address, Role)
+```
+
+Every listed type must already have reflection — either an intrusive `reflect()` method, one of the `MIRO_REFLECT*` macros, or an `MIRO_REFLECT_EXTERNAL*` declaration. Enums work too (declared via `MIRO_REFLECT_ENUM(...)`).
+
+### What happens at build time
+
+Each time the export target is rebuilt, CMake runs the executable as a `POST_BUILD` step. The runner walks the registry once per requested format and writes one bundled file per format to `OUTPUT_DIR`, named `<OUTPUT_NAME>.<extension>`.
+
+With `NAME=MySchema` and the default formats, the output directory ends up with:
+
+```
+MySchema.ts
+MySchema.zod.ts
+MySchema.schema.json
+MySchema.types.h
+MySchema.miro.h
+```
+
+You can then `target_sources()` or otherwise consume those files from another target — they regenerate automatically whenever the reflected types change.
+
+### A complete example
+
+`Examples/MiroTypesExport/` is a working end-to-end example: three reflected types (`User`, `Address`, `Role`) wired up through `miro_add_type_export(...)`. Build with `-DMIRO_BUILD_EXAMPLES=ON` (or as the top-level project) and inspect the generated files under `build/Examples/MiroTypesExport/`.
+
 ## License
 
 See `LICENSE.txt`.
