@@ -195,15 +195,19 @@ auto schemaPaintsSaveLoadStillWorks =
     check(restored.tags.size() == 1);
 };
 
-auto schemaForEnumField = test("Schema: enum field gets type+enum keywords") = []
+auto schemaForEnumField =
+    test("Schema: enum field is a $ref; the body lives in $defs") = []
 {
     auto schema = Miro::schemaOf<WithEnum>();
-    auto& color = defOf(schema, "WithEnum")["properties"]["color"];
 
-    check(color["type"].asString() == "string");
-    check(color["enum"].isArray());
+    check(defOf(schema, "WithEnum")["properties"]["color"]["$ref"].asString()
+          == "#/$defs/Color");
 
-    auto& values = color["enum"].asArray();
+    auto& body = defOf(schema, "Color");
+    check(body["type"].asString() == "string");
+    check(body["enum"].isArray());
+
+    auto& values = body["enum"].asArray();
     check(values.size() == 3);
     check(values[0].asString() == "Red");
     check(values[1].asString() == "Green");
@@ -211,27 +215,23 @@ auto schemaForEnumField = test("Schema: enum field gets type+enum keywords") = [
 };
 
 auto schemaForOptionalEnum =
-    test("Schema: optional enum keeps enum keyword and adds nullable") = []
+    test("Schema: optional enum field keeps the $ref and adds nullable") = []
 {
     auto schema = Miro::schemaOf<WithEnum>();
     auto& accent = defOf(schema, "WithEnum")["properties"]["accent"];
 
-    check(accent["type"].asString() == "string");
-    check(accent["enum"].isArray());
-    check(accent["enum"].asArray().size() == 3);
+    check(accent["$ref"].asString() == "#/$defs/Color");
     check(accent["nullable"].asBool() == true);
 };
 
 auto schemaForTopLevelEnum =
-    test("Schema: top-level enum produces type+enum schema") = []
+    test("Schema: top-level enum gets hoisted to $defs like a struct") = []
 {
     auto schema = Miro::schemaOf<Color>();
 
-    // Enums are not hoisted to $defs (no recursion possible there).
-    check(schema.asObject().find("$defs") == schema.asObject().end());
-    check(schema["type"].asString() == "string");
-    check(schema["enum"].isArray());
-    check(schema["enum"].asArray().size() == 3);
+    check(schema["$ref"].asString() == "#/$defs/Color");
+    check(defOf(schema, "Color")["type"].asString() == "string");
+    check(defOf(schema, "Color")["enum"].asArray().size() == 3);
 };
 
 auto schemaRequiredListsNonOptionalFields =

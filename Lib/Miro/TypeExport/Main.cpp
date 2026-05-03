@@ -7,6 +7,7 @@
 // a one-line addition to the kFormats table below.
 
 #include "../TypeScript/TypeScript.h"
+#include "../TypeTree/TypeTree.h"
 #include "Register.h"
 
 #include <filesystem>
@@ -45,19 +46,18 @@ struct Format
     std::function<std::string(const EntryList&)> generate;
 };
 
-// Reflects every entry into its own TsNode tree. The trees are
+// Reflects every entry into its own TypeNode tree. The trees are
 // move-only (own unique_ptrs internally), so we reserve and emplace.
-std::vector<Miro::TypeScript::Detail::TsNode>
-    buildAllTsTrees(const EntryList& entries)
+std::vector<Miro::TypeTree::TypeNode> buildAllTypeTrees(const EntryList& entries)
 {
-    auto roots = std::vector<Miro::TypeScript::Detail::TsNode> {};
+    auto roots = std::vector<Miro::TypeTree::TypeNode> {};
     roots.reserve(entries.size());
 
     for (auto& entry: entries)
     {
         auto opts = entry->topLevelOptions(Miro::Mode::Save, /*schema=*/true);
         auto& root = roots.emplace_back();
-        auto refl = Miro::TypeScript::TypeScriptReflector {root, opts};
+        auto refl = Miro::TypeTree::TypeReflector {root, opts};
         entry->reflect(refl);
     }
 
@@ -72,7 +72,7 @@ const auto kFormats = std::vector<Format> {
         ".zod.ts",
         [](const EntryList& entries)
         {
-            auto trees = buildAllTsTrees(entries);
+            auto trees = buildAllTypeTrees(entries);
             return Miro::TypeScript::formatZodModule(trees);
         },
     },
@@ -81,7 +81,7 @@ const auto kFormats = std::vector<Format> {
         ".ts",
         [](const EntryList& entries)
         {
-            auto trees = buildAllTsTrees(entries);
+            auto trees = buildAllTypeTrees(entries);
             return Miro::TypeScript::formatTypesModule(trees);
         },
     },
