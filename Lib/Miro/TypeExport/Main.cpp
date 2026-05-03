@@ -6,6 +6,8 @@
 // format. The registry stays format-agnostic — adding a new format is
 // a one-line addition to the kFormats table below.
 
+#include "../JSON/Json.h"
+#include "../Schema/Schema.h"
 #include "../TypeScript/TypeScript.h"
 #include "../TypeTree/TypeTree.h"
 #include "Register.h"
@@ -83,6 +85,16 @@ const auto kFormats = std::vector<Format> {
         {
             auto trees = buildAllTypeTrees(entries);
             return Miro::TypeScript::formatTypesModule(trees);
+        },
+    },
+    Format {
+        "jsonschema",
+        ".schema.json",
+        [](const EntryList& entries)
+        {
+            auto trees = buildAllTypeTrees(entries);
+            auto schema = Miro::formatJsonSchema(trees);
+            return Miro::Json::print(schema, 2);
         },
     },
 };

@@ -159,11 +159,17 @@ Json::Value renderJsonNode(const TypeNode& node)
 
 } // namespace
 
-Json::Value formatJsonSchema(std::span<TypeNode> roots)
+namespace
+{
+
+// Walks every named type reachable from the roots and returns a $defs
+// object. Mutates roots in place via prepareRoots — the per-node
+// disambiguation pass rewrites typeName when distinct types share a
+// short name.
+Json::Value buildDefs(std::span<TypeNode> roots)
 {
     auto ordered = TypeTree::prepareRoots(roots);
 
-    // Build $defs first so root references resolve correctly.
     auto defs = Json::Value {Json::Object {}};
     for (auto* node: ordered)
     {
@@ -175,27 +181,44 @@ Json::Value formatJsonSchema(std::span<TypeNode> roots)
             obj = renderJsonObjectBody(*node);
     }
 
-    // The single-root contract: render the root inline, then attach
-    // $defs alongside if non-empty. The multi-root span overload is used
-    // by the type-export runner; we still produce a single object, but
-    // there's no obvious "the root" — treat the first root as the
-    // primary schema and ignore the rest beyond their $defs entries.
-    auto root = roots.empty() ? Json::Value {Json::Object {}}
-                              : renderJsonNode(roots.front());
+    return defs;
+}
+
+} // namespace
+
+// Multi-root variant — used by the type-export runner to bundle every
+// registered type into a single document. No type is privileged as
+// "the schema"; consumers point at one with {"$ref": "#/$defs/X"}.
+Json::Value formatJsonSchema(std::span<TypeNode> roots)
+{
+    auto defs = buildDefs(roots);
+
+    auto out = Json::Value {Json::Object {}};
+    if (!defs.asObject().empty())
+        out.asObject()["$defs"] = std::move(defs);
+
+    return out;
+}
+
+// Single-root: render the root (a $ref for named types, an inline body
+// for top-level vectors / primitives) and attach $defs alongside. Used
+// by `schemaOf<T>()`.
+Json::Value formatJsonSchema(TypeNode& root)
+{
+    // Build $defs first — prepareRoots rewrites typeName during this
+    // pass, and we need the renamed names when we render the root.
+    auto defs = buildDefs(std::span {&root, 1});
+
+    auto out = renderJsonNode(root);
 
     if (!defs.asObject().empty())
     {
-        if (!root.isObject())
-            root = Json::Value {Json::Object {}};
-        root.asObject()["$defs"] = std::move(defs);
+        if (!out.isObject())
+            out = Json::Value {Json::Object {}};
+        out.asObject()["$defs"] = std::move(defs);
     }
 
-    return root;
-}
-
-Json::Value formatJsonSchema(TypeNode& root)
-{
-    return formatJsonSchema(std::span {&root, 1});
+    return out;
 }
 
 } // namespace Miro
