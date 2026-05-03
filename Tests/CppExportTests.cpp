@@ -3,64 +3,13 @@
 // pure-types header with no Miro dependency, and a "with Miro" header
 // that adds MIRO_REFLECT(...) lines + the umbrella include.
 
-#include <Miro/Miro.h>
+#include "TestHelpers.h"
+#include "TestTypes.h"
+
 #include <Miro/Cpp/Cpp.h>
 #include <NanoTest/NanoTest.h>
 
-#include <string>
-#include <string_view>
-
 using namespace nano;
-
-namespace
-{
-
-struct Address
-{
-    std::string street;
-    std::string zip;
-
-    MIRO_REFLECT(street, zip)
-};
-
-enum class Color
-{
-    Red,
-    Green,
-    Blue
-};
-
-struct User
-{
-    std::string name;
-    int age = 0;
-    bool active = true;
-    Address address;
-    std::vector<std::string> tags;
-    std::map<std::string, int> counters;
-    std::optional<std::string> note;
-    std::optional<Address> shipping;
-    Color favourite = Color::Red;
-
-    MIRO_REFLECT(
-        name, age, active, address, tags, counters, note, shipping, favourite)
-};
-
-bool contains(const std::string& haystack, std::string_view needle)
-{
-    return haystack.find(needle) != std::string::npos;
-}
-
-bool comesBefore(const std::string& s,
-                 std::string_view earlier,
-                 std::string_view later)
-{
-    auto e = s.find(earlier);
-    auto l = s.find(later);
-    return e != std::string::npos && l != std::string::npos && e < l;
-}
-
-} // namespace
 
 // ---------- Plain (Miro-free) ----------
 
@@ -147,7 +96,7 @@ auto cppMiroReflect =
     check(contains(out, "MIRO_REFLECT(street, zip)"));
     check(contains(out,
                    "MIRO_REFLECT(name, age, active, address, tags, counters, "
-                   "note, shipping, favourite)"));
+                   "note, shipping, color, priority, accent)"));
 };
 
 auto cppMiroEnumNoReflect =

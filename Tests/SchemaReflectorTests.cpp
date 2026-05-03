@@ -6,7 +6,8 @@
 // `defOf(schema, "Foo")` is a helper for navigating into the body of
 // a named type's definition; everything else hangs off the root.
 
-#include <Miro/Miro.h>
+#include "TestTypes.h"
+
 #include <NanoTest/NanoTest.h>
 
 using namespace nano;
@@ -14,26 +15,8 @@ using namespace nano;
 namespace
 {
 
-struct Address
-{
-    std::string street;
-    std::string zip;
-
-    MIRO_REFLECT(street, zip)
-};
-
-struct User
-{
-    std::string name;
-    int age = 0;
-    bool active = true;
-    Address address;
-    std::vector<std::string> tags;
-    std::map<std::string, int> counters;
-    std::optional<std::string> note;
-
-    MIRO_REFLECT(name, age, active, address, tags, counters, note)
-};
+// Schema-only fixtures — types that don't show up in the cross-test
+// shared header because they're shaped specifically for one assertion.
 
 struct NestedArrays
 {
@@ -56,28 +39,6 @@ struct FixedAndDynamic
     std::vector<int> dynamic;
 
     MIRO_REFLECT(fixed, dynamic)
-};
-
-enum class Color
-{
-    Red,
-    Green,
-    Blue
-};
-
-struct WithEnum
-{
-    Color color = Color::Red;
-    std::optional<Color> accent;
-
-    MIRO_REFLECT(color, accent)
-};
-
-struct WithShipping
-{
-    std::optional<Address> shipping;
-
-    MIRO_REFLECT(shipping)
 };
 
 const Miro::Json::Value& defOf(const Miro::Json::Value& schema, const char* name)
@@ -198,9 +159,9 @@ auto schemaPaintsSaveLoadStillWorks =
 auto schemaForEnumField =
     test("Schema: enum field is a $ref; the body lives in $defs") = []
 {
-    auto schema = Miro::schemaOf<WithEnum>();
+    auto schema = Miro::schemaOf<User>();
 
-    check(defOf(schema, "WithEnum")["properties"]["color"]["$ref"].asString()
+    check(defOf(schema, "User")["properties"]["color"]["$ref"].asString()
           == "#/$defs/Color");
 
     auto& body = defOf(schema, "Color");
@@ -217,8 +178,8 @@ auto schemaForEnumField =
 auto schemaForOptionalEnum =
     test("Schema: optional enum field keeps the $ref and adds nullable") = []
 {
-    auto schema = Miro::schemaOf<WithEnum>();
-    auto& accent = defOf(schema, "WithEnum")["properties"]["accent"];
+    auto schema = Miro::schemaOf<User>();
+    auto& accent = defOf(schema, "User")["properties"]["accent"];
 
     check(accent["$ref"].asString() == "#/$defs/Color");
     check(accent["nullable"].asBool() == true);
@@ -285,8 +246,8 @@ auto schemaRequiredInsideOptionalStruct =
     test("Schema: inner fields stay required even when the wrapping struct "
          "is optional") = []
 {
-    auto schema = Miro::schemaOf<WithShipping>();
-    auto& shipping = defOf(schema, "WithShipping")["properties"]["shipping"];
+    auto schema = Miro::schemaOf<User>();
+    auto& shipping = defOf(schema, "User")["properties"]["shipping"];
 
     // The reference slot carries the nullable bit; the referenced
     // type's body still requires its inner fields.

@@ -244,3 +244,51 @@ struct ClassWithEnum
     Signal signal = Signal::Go;
     UnscopedMode mode = ModeAuto;
 };
+
+// ---------- Types shared across the export-format tests ------------------
+// Address + User cover the cases the TypeScript / Schema / C++ exporters
+// each want to assert on (primitives, named refs, optionals of named
+// types, vectors, maps, enums). Each individual test file uses just
+// the slice of fields it cares about — extra fields are harmless.
+
+enum class Priority : int
+{
+    Low = -1,
+    Medium = 0,
+    High = 1
+};
+
+struct Address
+{
+    std::string street;
+    std::string zip;
+
+    MIRO_REFLECT(street, zip)
+};
+
+struct User
+{
+    std::string name;
+    int age = 0;
+    bool active = true;
+    Address address;
+    std::vector<std::string> tags;
+    std::map<std::string, int> counters;
+    std::optional<std::string> note;
+    std::optional<Address> shipping;
+    Color color = Color::Red;
+    Priority priority = Priority::Medium;
+    std::optional<Color> accent;
+
+    MIRO_REFLECT(name,
+                 age,
+                 active,
+                 address,
+                 tags,
+                 counters,
+                 note,
+                 shipping,
+                 color,
+                 priority,
+                 accent)
+};

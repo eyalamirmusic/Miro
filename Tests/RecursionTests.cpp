@@ -11,11 +11,11 @@
 // assertions below describe the minimum behavior the exporters should
 // produce; they can be tightened as the fix lands.
 
+#include "TestHelpers.h"
+
 #include <Miro/Miro.h>
 #include <NanoTest/NanoTest.h>
 
-#include <string>
-#include <string_view>
 #include <vector>
 
 using namespace nano;
@@ -30,11 +30,6 @@ struct Node
 
     MIRO_REFLECT(value, children)
 };
-
-bool contains(const std::string& haystack, std::string_view needle)
-{
-    return haystack.find(needle) != std::string::npos;
-}
 
 } // namespace
 
