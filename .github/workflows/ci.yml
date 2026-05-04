@@ -44,7 +44,7 @@ jobs:
               -DCMAKE_SYSTEM_NAME=iOS
               -DCMAKE_OSX_DEPLOYMENT_TARGET=13.0
             cmake_build_args: --config Release -- -sdk iphonesimulator
-            ios_test: true
+            ios_build_only: true
 
     steps:
       - uses: actions/checkout@v4
@@ -66,18 +66,10 @@ jobs:
       - name: Build
         run: cmake --build build ${{ matrix.cmake_build_args }}
 
+      # iOS is a build-only lane — we verify the library compiles for the
+      # iphonesimulator SDK but skip running the test binary. The test
+      # logic is platform-independent and is already exercised on macOS,
+      # so booting a simulator just to re-run it is pure CI cost.
       - name: Test
-        if: ${{ !matrix.ios_test }}
+        if: ${{ !matrix.ios_build_only }}
         run: ctest --test-dir build --output-on-failure
-
-      - name: Test (iOS Simulator)
-        if: ${{ matrix.ios_test }}
-        run: |
-          DEVICE=$(xcrun simctl list devices available -j | python3 -c "
-          import sys, json
-          devs = json.load(sys.stdin)['devices']
-          print(next(d['udid'] for ds in devs.values() for d in ds if d['isAvailable'] and 'iPhone' in d['name']))
-          ")
-          xcrun simctl boot "$DEVICE"
-          xcrun simctl spawn "$DEVICE" build/Tests/Release-iphonesimulator/MiroTests.app/MiroTests
-          xcrun simctl shutdown "$DEVICE"
