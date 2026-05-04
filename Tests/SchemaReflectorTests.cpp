@@ -41,6 +41,14 @@ struct FixedAndDynamic
     MIRO_REFLECT(fixed, dynamic)
 };
 
+struct AddressPair
+{
+    Address first;
+    Address second;
+
+    MIRO_REFLECT(first, second)
+};
+
 const Miro::Json::Value& defOf(const Miro::Json::Value& schema, const char* name)
 {
     return schema["$defs"][name];
@@ -299,21 +307,13 @@ auto schemaArrayBoundsForTopLevelArray =
 auto schemaDedupsRepeatedStructs =
     test("Schema: a struct used in multiple places appears once in $defs") = []
 {
-    struct Pair
-    {
-        Address first;
-        Address second;
-
-        MIRO_REFLECT(first, second)
-    };
-
-    auto schema = Miro::schemaOf<Pair>();
+    auto schema = Miro::schemaOf<AddressPair>();
     auto& defs = schema["$defs"].asObject();
 
-    // Address only appears once, both Pair fields reference it.
+    // Address only appears once, both AddressPair fields reference it.
     check(defs.contains("Address"));
-    check(defOf(schema, "Pair")["properties"]["first"]["$ref"].asString()
+    check(defOf(schema, "AddressPair")["properties"]["first"]["$ref"].asString()
           == "#/$defs/Address");
-    check(defOf(schema, "Pair")["properties"]["second"]["$ref"].asString()
+    check(defOf(schema, "AddressPair")["properties"]["second"]["$ref"].asString()
           == "#/$defs/Address");
 };

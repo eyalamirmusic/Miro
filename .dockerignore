@@ -1,0 +1,8 @@
+# Don't ship local build / IDE state into the build context — both bloat
+# the image-build context send and clobber container-side build dirs.
+build*
+cmake-build-*
+.idea/
+.vs/
+.vscode/
+.DS_Store
