@@ -1,5 +1,6 @@
 #pragma once
 
+#include <array>
 #include <string_view>
 
 namespace Miro::Detail
@@ -32,6 +33,26 @@ constexpr std::string_view rawTypeNameOf()
 #endif
 }
 
+// Like rawTypeNameOf but strips the leading C++ class-key keyword that
+// MSVC's __FUNCSIG__ emits ("struct ", "class ", "enum "). All namespace
+// qualifiers and template arguments are preserved. This is the canonical
+// spelling to compare or hash across compilers — Clang/GCC don't emit
+// the keyword in __PRETTY_FUNCTION__, so this is a no-op there.
+template <typename T>
+constexpr std::string_view qualifiedNameOf()
+{
+    auto raw = rawTypeNameOf<T>();
+    constexpr auto prefixes = std::array {
+        std::string_view {"struct "},
+        std::string_view {"class "},
+        std::string_view {"enum "},
+    };
+    for (auto p: prefixes)
+        if (raw.starts_with(p))
+            return raw.substr(p.size());
+    return raw;
+}
+
 // Returns just the unqualified short name. Strips namespaces (incl.
 // "(anonymous namespace)::"). Templates and STL types are deliberately
 // left intact in the raw form — callers that want to filter them can
@@ -39,16 +60,7 @@ constexpr std::string_view rawTypeNameOf()
 template <typename T>
 constexpr std::string_view typeNameOf()
 {
-    auto name = rawTypeNameOf<T>();
-
-    // Strip leading "struct " / "class " (MSVC).
-    constexpr auto structPrefix = std::string_view {"struct "};
-    constexpr auto classPrefix = std::string_view {"class "};
-
-    if (name.starts_with(structPrefix))
-        name.remove_prefix(structPrefix.size());
-    else if (name.starts_with(classPrefix))
-        name.remove_prefix(classPrefix.size());
+    auto name = qualifiedNameOf<T>();
 
     // Find the rightmost "::" that is *not* inside template angle
     // brackets, and trim everything before it.
