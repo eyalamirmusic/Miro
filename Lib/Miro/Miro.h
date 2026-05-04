@@ -1,5 +1,6 @@
 #pragma once
 
+#include "CommandExport/Register.h"
 #include "Reflection/Any.h"
 #include "Reflection/CommandTable.h"
 #include "Reflection/JsonReflector.h"

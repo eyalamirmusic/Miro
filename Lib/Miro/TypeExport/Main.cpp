@@ -6,6 +6,7 @@
 // format. The registry stays format-agnostic — adding a new format is
 // a one-line addition to the kFormats table below.
 
+#include "../CommandExport/Register.h"
 #include "../Cpp/Cpp.h"
 #include "../JSON/Json.h"
 #include "../Schema/Schema.h"
@@ -17,22 +18,13 @@
 #include <fstream>
 #include <functional>
 #include <iostream>
+#include <map>
 #include <memory>
 #include <set>
+#include <sstream>
 #include <string>
 #include <string_view>
 #include <vector>
-
-namespace Miro::TypeExport::Detail
-{
-
-std::vector<std::unique_ptr<TypeEntry>>& registry()
-{
-    static auto entries = std::vector<std::unique_ptr<TypeEntry>> {};
-    return entries;
-}
-
-} // namespace Miro::TypeExport::Detail
 
 namespace
 {
@@ -46,7 +38,10 @@ struct Format
 {
     std::string_view name;
     std::string_view extension;
-    std::function<std::string(const EntryList&)> generate;
+    // baseName is the output filename stem (e.g. "schema"). Formats that
+    // emit a self-contained module ignore it; the backend wrapper uses it
+    // to import the matching types module by relative path.
+    std::function<std::string(const EntryList&, std::string_view baseName)> generate;
 };
 
 // Reflects every entry into its own TypeNode tree. The trees are
@@ -67,13 +62,90 @@ std::vector<Miro::TypeTree::TypeNode> buildAllTypeTrees(const EntryList& entries
     return roots;
 }
 
+// Resolves a final TypeScript-level type name (post collision rewrite)
+// for each named type, plus a flag for "object with zero fields" so the
+// backend generator can elide empty request parameters. Keyed by the
+// raw qualified C++ name, which matches CommandEntry::*QualifiedName.
+struct ResolvedTypes
+{
+    std::map<std::string, std::string> finalNameByQualified;
+    std::map<std::string, bool> emptyByQualified;
+};
+
+ResolvedTypes resolveTypes(const EntryList& entries)
+{
+    auto roots = buildAllTypeTrees(entries);
+    auto rootSpan = std::span<Miro::TypeTree::TypeNode> {roots};
+    Miro::TypeTree::prepareRoots(rootSpan); // rewrites typeName in place
+
+    auto resolved = ResolvedTypes {};
+    for (auto& root: roots)
+    {
+        if (root.qualifiedName.empty())
+            continue;
+
+        resolved.finalNameByQualified[root.qualifiedName] = root.typeName;
+        resolved.emptyByQualified[root.qualifiedName] =
+            root.shape == Miro::TypeTree::TypeNode::Shape::Object
+            && root.fields.empty();
+    }
+    return resolved;
+}
+
+std::string formatBackendModule(const EntryList& typeEntries,
+                                std::string_view baseName)
+{
+    auto resolved = resolveTypes(typeEntries);
+
+    auto out = std::ostringstream {};
+    out << "import type * as T from './" << baseName << "';\n\n";
+    out << "export type Invoke = (command: string, payload: unknown) => "
+           "Promise<unknown>;\n\n";
+    out << "export function makeBackend(invoke: Invoke)\n{\n";
+    out << "    return {\n";
+
+    for (auto& cmd: Miro::CommandExport::Detail::registry())
+    {
+        auto resName = resolved.finalNameByQualified.count(cmd.responseQualifiedName)
+                           ? resolved.finalNameByQualified[cmd.responseQualifiedName]
+                           : cmd.responseTypeName;
+
+        auto reqEmpty = resolved.emptyByQualified.count(cmd.requestQualifiedName)
+                        && resolved.emptyByQualified[cmd.requestQualifiedName];
+
+        out << "        " << cmd.name << ": ";
+
+        if (reqEmpty)
+        {
+            out << "(): Promise<T." << resName << "> =>\n"
+                << "            invoke('" << cmd.name << "', {}) as Promise<T."
+                << resName << ">,\n";
+        }
+        else
+        {
+            auto reqName =
+                resolved.finalNameByQualified.count(cmd.requestQualifiedName)
+                    ? resolved.finalNameByQualified[cmd.requestQualifiedName]
+                    : cmd.requestTypeName;
+
+            out << "(req: T." << reqName << "): Promise<T." << resName << "> =>\n"
+                << "            invoke('" << cmd.name << "', req) as Promise<T."
+                << resName << ">,\n";
+        }
+    }
+
+    out << "    };\n}\n";
+    return out.str();
+}
+
 // Add new formats here. The runner doesn't care what each format does —
-// it just calls generate(entries) and writes the result to <name><ext>.
+// it just calls generate(entries, baseName) and writes the result to
+// <baseName><ext>.
 const auto kFormats = std::vector<Format> {
     Format {
         "zod",
         ".zod.ts",
-        [](const EntryList& entries)
+        [](const EntryList& entries, std::string_view)
         {
             auto trees = buildAllTypeTrees(entries);
             return Miro::TypeScript::formatZodModule(trees);
@@ -82,16 +154,22 @@ const auto kFormats = std::vector<Format> {
     Format {
         "ts",
         ".ts",
-        [](const EntryList& entries)
+        [](const EntryList& entries, std::string_view)
         {
             auto trees = buildAllTypeTrees(entries);
             return Miro::TypeScript::formatTypesModule(trees);
         },
     },
     Format {
+        "backend",
+        ".backend.ts",
+        [](const EntryList& entries, std::string_view baseName)
+        { return formatBackendModule(entries, baseName); },
+    },
+    Format {
         "jsonschema",
         ".schema.json",
-        [](const EntryList& entries)
+        [](const EntryList& entries, std::string_view)
         {
             auto trees = buildAllTypeTrees(entries);
             auto schema = Miro::formatJsonSchema(trees);
@@ -101,7 +179,7 @@ const auto kFormats = std::vector<Format> {
     Format {
         "cpp",
         ".types.h",
-        [](const EntryList& entries)
+        [](const EntryList& entries, std::string_view)
         {
             auto trees = buildAllTypeTrees(entries);
             return Miro::Cpp::formatHeader(trees, /*withMiro=*/false);
@@ -110,7 +188,7 @@ const auto kFormats = std::vector<Format> {
     Format {
         "cpp-miro",
         ".miro.h",
-        [](const EntryList& entries)
+        [](const EntryList& entries, std::string_view)
         {
             auto trees = buildAllTypeTrees(entries);
             return Miro::Cpp::formatHeader(trees, /*withMiro=*/true);
@@ -188,7 +266,7 @@ int main(int argc, char** argv)
             continue;
 
         auto fileName = baseName + std::string {fmt.extension};
-        writeFile(outDir / fileName, fmt.generate(entries));
+        writeFile(outDir / fileName, fmt.generate(entries, baseName));
     }
 
     return 0;

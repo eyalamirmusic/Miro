@@ -56,6 +56,11 @@ public:
         on<Req, Res>(command, std::function<Res(const Req&)> {handler});
     }
 
+    void on(const std::string& command, const RawHandler& handler)
+    {
+        registerHandler(command, handler);
+    }
+
     bool has(std::string_view command) const;
 
     Json::Value dispatch(std::string_view command, const Json::Value& payload) const;

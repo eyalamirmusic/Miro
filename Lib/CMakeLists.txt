@@ -1,4 +1,5 @@
 add_library(Miro STATIC
+    Miro/CommandExport/Register.cpp
     Miro/Cpp/Cpp.cpp
     Miro/JSON/Json.cpp
     Miro/JSON/Parser.cpp
@@ -8,6 +9,7 @@ add_library(Miro STATIC
     Miro/Reflection/JsonReflector.cpp
     Miro/Reflection/Reflector.cpp
     Miro/Schema/Schema.cpp
+    Miro/TypeExport/Register.cpp
     Miro/TypeTree/TypeTree.cpp
     Miro/TypeScript/TypeScript.cpp)
 target_include_directories(Miro PUBLIC ${CMAKE_CURRENT_LIST_DIR})
