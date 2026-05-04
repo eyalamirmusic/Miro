@@ -14,6 +14,8 @@
 #include "../TypeTree/TypeTree.h"
 #include "Register.h"
 
+#include <algorithm>
+#include <cstddef>
 #include <filesystem>
 #include <fstream>
 #include <functional>
@@ -22,8 +24,10 @@
 #include <memory>
 #include <set>
 #include <sstream>
+#include <stdexcept>
 #include <string>
 #include <string_view>
+#include <utility>
 #include <vector>
 
 namespace
@@ -92,49 +96,176 @@ ResolvedTypes resolveTypes(const EntryList& entries)
     return resolved;
 }
 
+// One node in the namespace tree built from CommandEntry::name. A node
+// is either a leaf (carries a CommandEntry) or a branch (carries
+// children). Mixing the two at the same path — e.g. registering both
+// `api` and `api::ping` — is a structural error and is rejected by
+// insertCommand.
+struct CommandNode
+{
+    const Miro::CommandExport::CommandEntry* leaf = nullptr;
+
+    // Insertion-ordered so the emitted JS tree mirrors registration
+    // order rather than alphabetical, which matches the existing
+    // single-level format.
+    std::vector<std::pair<std::string, CommandNode>> children;
+};
+
+std::vector<std::string> splitOnDoubleColon(std::string_view name)
+{
+    auto out = std::vector<std::string> {};
+    auto start = std::size_t {0};
+
+    while (start <= name.size())
+    {
+        auto pos = name.find("::", start);
+        auto segment = std::string {pos == std::string_view::npos
+                                        ? name.substr(start)
+                                        : name.substr(start, pos - start)};
+
+        // Tolerate whitespace the preprocessor preserved from the
+        // macro's stringification (e.g. MIRO_EXPORT_COMMAND( a :: b )).
+        auto first = segment.find_first_not_of(" \t");
+        auto last = segment.find_last_not_of(" \t");
+        if (first != std::string::npos)
+            segment = segment.substr(first, last - first + 1);
+        else
+            segment.clear();
+
+        out.push_back(std::move(segment));
+
+        if (pos == std::string_view::npos)
+            break;
+        start = pos + 2;
+    }
+
+    return out;
+}
+
+void insertCommand(CommandNode& root, const Miro::CommandExport::CommandEntry& cmd)
+{
+    auto path = splitOnDoubleColon(cmd.name);
+    auto* node = &root;
+
+    for (auto i = std::size_t {0}; i < path.size(); ++i)
+    {
+        auto& segment = path[i];
+        auto isLast = (i + 1 == path.size());
+
+        auto it = std::find_if(node->children.begin(),
+                               node->children.end(),
+                               [&](auto& c) { return c.first == segment; });
+
+        if (it == node->children.end())
+        {
+            node->children.emplace_back(segment, CommandNode {});
+            it = std::prev(node->children.end());
+        }
+
+        if (isLast)
+        {
+            if (it->second.leaf || !it->second.children.empty())
+                throw std::runtime_error("command path collision at '" + cmd.name
+                                         + "': segment '" + segment
+                                         + "' is used as both a function and a "
+                                           "namespace");
+            it->second.leaf = &cmd;
+        }
+        else
+        {
+            if (it->second.leaf)
+                throw std::runtime_error("command path collision at '" + cmd.name
+                                         + "': segment '" + segment
+                                         + "' is already a function");
+            node = &it->second;
+        }
+    }
+}
+
+std::string indentString(int depth)
+{
+    // Braced init-list would bind to initializer_list<char>, not the
+    // (size_type, char) ctor we want.
+    // NOLINTNEXTLINE(modernize-return-braced-init-list)
+    return std::string(static_cast<std::size_t>(depth) * 4, ' ');
+}
+
+void emitLeaf(std::ostringstream& out,
+              int depth,
+              const Miro::CommandExport::CommandEntry& cmd,
+              const ResolvedTypes& resolved)
+{
+    auto resName = resolved.finalNameByQualified.count(cmd.responseQualifiedName)
+                       ? resolved.finalNameByQualified.at(cmd.responseQualifiedName)
+                       : cmd.responseTypeName;
+
+    auto reqEmpty = resolved.emptyByQualified.count(cmd.requestQualifiedName)
+                    && resolved.emptyByQualified.at(cmd.requestQualifiedName);
+
+    auto bodyIndent = indentString(depth + 1);
+
+    if (reqEmpty)
+    {
+        out << "(): Promise<T." << resName << "> =>\n"
+            << bodyIndent << "invoke('" << cmd.name << "', {}) as Promise<T."
+            << resName << ">";
+    }
+    else
+    {
+        auto reqName =
+            resolved.finalNameByQualified.count(cmd.requestQualifiedName)
+                ? resolved.finalNameByQualified.at(cmd.requestQualifiedName)
+                : cmd.requestTypeName;
+
+        out << "(req: T." << reqName << "): Promise<T." << resName << "> =>\n"
+            << bodyIndent << "invoke('" << cmd.name << "', req) as Promise<T."
+            << resName << ">";
+    }
+}
+
+void emitNode(std::ostringstream& out,
+              int depth,
+              const CommandNode& node,
+              const ResolvedTypes& resolved)
+{
+    out << "{\n";
+
+    auto childIndent = indentString(depth + 1);
+    auto closeIndent = indentString(depth);
+
+    for (auto& [name, child]: node.children)
+    {
+        out << childIndent << name << ": ";
+
+        if (child.leaf != nullptr)
+            emitLeaf(out, depth + 1, *child.leaf, resolved);
+        else
+            emitNode(out, depth + 1, child, resolved);
+
+        out << ",\n";
+    }
+
+    out << closeIndent << "}";
+}
+
 std::string formatBackendModule(const EntryList& typeEntries,
                                 std::string_view baseName)
 {
     auto resolved = resolveTypes(typeEntries);
+
+    auto root = CommandNode {};
+    for (auto& cmd: Miro::CommandExport::Detail::registry())
+        insertCommand(root, cmd);
 
     auto out = std::ostringstream {};
     out << "import type * as T from './" << baseName << "';\n\n";
     out << "export type Invoke = (command: string, payload: unknown) => "
            "Promise<unknown>;\n\n";
     out << "export function makeBackend(invoke: Invoke)\n{\n";
-    out << "    return {\n";
+    out << "    return ";
+    emitNode(out, 1, root, resolved);
+    out << ";\n}\n";
 
-    for (auto& cmd: Miro::CommandExport::Detail::registry())
-    {
-        auto resName = resolved.finalNameByQualified.count(cmd.responseQualifiedName)
-                           ? resolved.finalNameByQualified[cmd.responseQualifiedName]
-                           : cmd.responseTypeName;
-
-        auto reqEmpty = resolved.emptyByQualified.count(cmd.requestQualifiedName)
-                        && resolved.emptyByQualified[cmd.requestQualifiedName];
-
-        out << "        " << cmd.name << ": ";
-
-        if (reqEmpty)
-        {
-            out << "(): Promise<T." << resName << "> =>\n"
-                << "            invoke('" << cmd.name << "', {}) as Promise<T."
-                << resName << ">,\n";
-        }
-        else
-        {
-            auto reqName =
-                resolved.finalNameByQualified.count(cmd.requestQualifiedName)
-                    ? resolved.finalNameByQualified[cmd.requestQualifiedName]
-                    : cmd.requestTypeName;
-
-            out << "(req: T." << reqName << "): Promise<T." << resName << "> =>\n"
-                << "            invoke('" << cmd.name << "', req) as Promise<T."
-                << resName << ">,\n";
-        }
-    }
-
-    out << "    };\n}\n";
     return out.str();
 }
 
