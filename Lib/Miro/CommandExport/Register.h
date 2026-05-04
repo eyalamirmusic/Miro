@@ -2,11 +2,12 @@
 
 #include "../Reflection/CommandTable.h"
 #include "../Reflection/ReflectMacro.h"
+#include "../Reflection/Serialize.h"
 #include "../Reflection/TypeName.h"
 #include "../TypeExport/Register.h"
 
-#include <functional>
 #include <string>
+#include <type_traits>
 #include <vector>
 
 namespace Miro::CommandExport
@@ -16,12 +17,20 @@ namespace Miro::CommandExport
 // the request and response (so the export runner can match them up
 // against TypeNode trees) plus a JSON-in / JSON-out thunk for runtime
 // dispatch.
+//
+// hasRequest/hasResponse are false when the C++ handler omits the
+// corresponding side (zero-arg function / void-returning function).
+// The matching type-name fields are empty in that case, and the
+// generator emits `()` / `Promise<void>` respectively.
 struct CommandEntry
 {
     std::string name;
 
+    bool hasRequest = true;
     std::string requestTypeName;
     std::string requestQualifiedName;
+
+    bool hasResponse = true;
     std::string responseTypeName;
     std::string responseQualifiedName;
 
@@ -36,27 +45,104 @@ namespace Detail
 // this in main(); applications walk it via registerStaticCommandsInto.
 std::vector<CommandEntry>& registry();
 
-// Drives one command registration. Templated on a free-function pointer
-// `Res(const Req&)` so Req/Res are deduced from the call site — the
-// macros just hand over the symbol's address and stringified name.
-template <typename Res, typename Req>
-inline void registerCommand(const char* nameToUse, Res (*handlerToUse)(const Req&))
+// Trait that classifies a free-function handler. Specializations cover
+// the four shapes we accept: Res/void return, with/without a const-ref
+// request argument. Req/Res are still spelled even when absent (as
+// void) so that if-constexpr discarded branches stay well-formed.
+template <typename F>
+struct CommandSignature;
+
+template <typename R, typename A>
+struct CommandSignature<R (*)(const A&)>
+{
+    using Res = R;
+    using Req = A;
+    static constexpr bool hasReq = true;
+    static constexpr bool hasRes = !std::is_void_v<R>;
+};
+
+template <typename R>
+struct CommandSignature<R (*)()>
+{
+    using Res = R;
+    using Req = void;
+    static constexpr bool hasReq = false;
+    static constexpr bool hasRes = !std::is_void_v<R>;
+};
+
+// Templated on the handler's address (passed as a non-type template
+// parameter) so we can branch on its signature with if constexpr.
+// Registers Req/Res with the type-export registry only when present,
+// and builds a thunk that adapts the four shapes to the uniform
+// JSON-in / JSON-out interface CommandTable expects.
+template <auto Handler>
+inline void registerCommand(const char* nameToUse)
 {
     using Miro::Detail::qualifiedNameOf;
     using Miro::Detail::typeNameOf;
     using TypeExport::Detail::registerOne;
 
-    registerOne<Req>();
-    registerOne<Res>();
+    using Sig = CommandSignature<decltype(Handler)>;
 
     auto entry = CommandEntry {};
     entry.name = nameToUse;
-    entry.requestTypeName = typeNameOf<Req>();
-    entry.requestQualifiedName = qualifiedNameOf<Req>();
-    entry.responseTypeName = typeNameOf<Res>();
-    entry.responseQualifiedName = qualifiedNameOf<Res>();
-    entry.thunk = CommandTable::createRawHandler<Req, Res>(
-        std::function<Res(const Req&)> {handlerToUse});
+
+    if constexpr (Sig::hasReq)
+    {
+        using Req = Sig::Req;
+        registerOne<Req>();
+        entry.hasRequest = true;
+        entry.requestTypeName = typeNameOf<Req>();
+        entry.requestQualifiedName = qualifiedNameOf<Req>();
+    }
+    else
+    {
+        entry.hasRequest = false;
+    }
+
+    if constexpr (Sig::hasRes)
+    {
+        using Res = Sig::Res;
+        registerOne<Res>();
+        entry.hasResponse = true;
+        entry.responseTypeName = typeNameOf<Res>();
+        entry.responseQualifiedName = qualifiedNameOf<Res>();
+    }
+    else
+    {
+        entry.hasResponse = false;
+    }
+
+    entry.thunk = [](const Miro::Json::Value& payload) -> Miro::Json::Value
+    {
+        if constexpr (Sig::hasReq)
+        {
+            using Req = Sig::Req;
+            auto req = Req {};
+            auto adjusted = payload.isNull()
+                                ? Miro::Json::Value {Miro::Json::Object {}}
+                                : payload;
+            Miro::fromJSON(req, adjusted);
+
+            if constexpr (Sig::hasRes)
+                return Miro::toJSON(Handler(req));
+            else
+            {
+                Handler(req);
+                return Miro::Json::Value {};
+            }
+        }
+        else
+        {
+            if constexpr (Sig::hasRes)
+                return Miro::toJSON(Handler());
+            else
+            {
+                Handler();
+                return Miro::Json::Value {};
+            }
+        }
+    };
 
     registry().push_back(std::move(entry));
 }
@@ -75,9 +161,12 @@ void registerStaticCommandsInto(CommandTable& table);
 
 // Single registration step used inside the variadic fan-out. The
 // function's identifier doubles as the command name, so the JS side
-// calls `await backend.<fn>(...)`.
+// calls `await backend.<fn>(...)`. The handler is passed as a non-type
+// template argument, which lets registerCommand branch on the
+// signature with if constexpr to support all four shapes:
+// Res(Req), Res(), void(Req), void().
 #define MIRO_EXPORT_COMMAND_ITEM(fn)                                                \
-    ::Miro::CommandExport::Detail::registerCommand(#fn, &(fn));
+    ::Miro::CommandExport::Detail::registerCommand<&(fn)>(#fn);
 
 // Registers one or more free functions as commands exposed across the
 // bridge. Use at namespace scope after the handler(s) are fully

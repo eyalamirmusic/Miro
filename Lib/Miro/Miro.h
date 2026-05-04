@@ -1,5 +1,6 @@
 #pragma once
 
+#include "CommandExport/CommandExport.h"
 #include "CommandExport/Register.h"
 #include "Reflection/Any.h"
 #include "Reflection/CommandTable.h"
