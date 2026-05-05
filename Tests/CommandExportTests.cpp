@@ -14,6 +14,7 @@
 #include <string>
 
 using namespace nano;
+using namespace Miro;
 
 namespace
 {
@@ -43,7 +44,7 @@ struct CETEchoResponse
 // an anonymous namespace) so MIRO_EXPORT_COMMAND can take their
 // address as a non-type template argument and the qualified-name
 // stringification matches the JS-side expectation.
-CETPingResponse cetWithReqAndRes(const Miro::EmptyValue&)
+CETPingResponse cetWithReqAndRes(const EmptyValue&)
 {
     return CETPingResponse {.ok = true};
 }
@@ -73,7 +74,7 @@ CETEchoResponse cetNamespaced(const CETEchoRequest& req)
 // Helpers for hand-building CommandEntry without touching the global
 // registry — keeps formatBackendModule tests deterministic regardless
 // of static-init order.
-Miro::CommandExport::CommandEntry makeEntry(std::string name,
+CommandExport::CommandEntry makeEntry(std::string name,
                                             bool hasReq,
                                             std::string reqType,
                                             std::string reqQual,
@@ -81,7 +82,7 @@ Miro::CommandExport::CommandEntry makeEntry(std::string name,
                                             std::string resType,
                                             std::string resQual)
 {
-    auto entry = Miro::CommandExport::CommandEntry {};
+    auto entry = CommandExport::CommandEntry {};
     entry.name = std::move(name);
     entry.hasRequest = hasReq;
     entry.requestTypeName = std::move(reqType);
@@ -92,10 +93,10 @@ Miro::CommandExport::CommandEntry makeEntry(std::string name,
     return entry;
 }
 
-const Miro::CommandExport::CommandEntry*
+const CommandExport::CommandEntry*
 findRegistered(const std::string& name)
 {
-    auto& reg = Miro::CommandExport::Detail::registry();
+    auto& reg = CommandExport::Detail::registry();
     auto it =
         std::find_if(reg.begin(),
                      reg.end(),
@@ -179,7 +180,7 @@ auto cetThunkResAndReq = test("CommandExport: thunk for Res(Req) round-trips") =
     auto* e = findRegistered("cetEcho");
     check(e != nullptr);
 
-    auto payload = Miro::Json::parse(R"({"text":"hi"})");
+    auto payload = Json::parse(R"({"text":"hi"})");
     auto result = e->thunk(payload);
 
     check(result.isObject());
@@ -191,7 +192,7 @@ auto cetThunkResOnly = test("CommandExport: thunk for Res() ignores payload") = 
     auto* e = findRegistered("cetWithResOnly");
     check(e != nullptr);
 
-    auto result = e->thunk(Miro::Json::Value {});
+    auto result = e->thunk(JSON {});
 
     check(result.isObject());
     check(result["ok"].asBool() == true);
@@ -202,7 +203,7 @@ auto cetThunkReqOnly = test("CommandExport: thunk for void(Req) returns null") =
     auto* e = findRegistered("cetWithReqOnly");
     check(e != nullptr);
 
-    auto payload = Miro::Json::parse(R"({"text":"hi"})");
+    auto payload = Json::parse(R"({"text":"hi"})");
     auto result = e->thunk(payload);
 
     check(result.isNull());
@@ -213,7 +214,7 @@ auto cetThunkNeither = test("CommandExport: thunk for void() returns null") = []
     auto* e = findRegistered("cetWithNeither");
     check(e != nullptr);
 
-    auto result = e->thunk(Miro::Json::Value {});
+    auto result = e->thunk(JSON {});
 
     check(result.isNull());
 };
@@ -223,14 +224,14 @@ auto cetThunkNeither = test("CommandExport: thunk for void() returns null") = []
 auto cetWiresIntoTable =
     test("CommandExport: registerStaticCommandsInto exposes each command") = []
 {
-    auto table = Miro::CommandTable {};
-    Miro::CommandExport::registerStaticCommandsInto(table);
+    auto table = CommandTable {};
+    CommandExport::registerStaticCommandsInto(table);
 
     check(table.has("cetEcho"));
     check(table.has("cetWithNeither"));
     check(table.has("api::cetNamespaced"));
 
-    auto payload = Miro::Json::parse(R"({"text":"yo"})");
+    auto payload = Json::parse(R"({"text":"yo"})");
     auto result = table.dispatch("cetEcho", payload);
     check(result["echoed"].asString() == "yo!");
 };
@@ -240,11 +241,11 @@ auto cetWiresIntoTable =
 auto cetBackendImports =
     test("CommandExport: backend module imports types by basename") = []
 {
-    auto roots = std::vector<Miro::TypeTree::TypeNode> {};
-    auto entries = std::vector<Miro::CommandExport::CommandEntry> {};
+    auto roots = std::vector<TypeTree::TypeNode> {};
+    auto entries = std::vector<CommandExport::CommandEntry> {};
 
-    auto out = Miro::CommandExport::formatBackendModule(
-        std::span<Miro::TypeTree::TypeNode> {roots}, entries, "schema");
+    auto out = CommandExport::formatBackendModule(
+        std::span<TypeTree::TypeNode> {roots}, entries, "schema");
     check(contains(out, "import type * as T from './schema';"));
     check(contains(out, "export function makeBackend(invoke: Invoke)"));
 };
@@ -252,22 +253,22 @@ auto cetBackendImports =
 auto cetBackendResAndReq =
     test("CommandExport: Res(Req) emits typed param and return") = []
 {
-    auto roots = std::vector<Miro::TypeTree::TypeNode> {};
-    roots.push_back(Miro::TypeTree::buildTree<CETEchoRequest>());
-    roots.push_back(Miro::TypeTree::buildTree<CETEchoResponse>());
+    auto roots = std::vector<TypeTree::TypeNode> {};
+    roots.push_back(TypeTree::buildTree<CETEchoRequest>());
+    roots.push_back(TypeTree::buildTree<CETEchoResponse>());
 
-    auto entries = std::vector<Miro::CommandExport::CommandEntry> {
+    auto entries = std::vector<CommandExport::CommandEntry> {
         makeEntry("echo",
                   true,
-                  std::string {Miro::Detail::typeNameOf<CETEchoRequest>()},
-                  std::string {Miro::Detail::qualifiedNameOf<CETEchoRequest>()},
+                  std::string {Detail::typeNameOf<CETEchoRequest>()},
+                  std::string {Detail::qualifiedNameOf<CETEchoRequest>()},
                   true,
-                  std::string {Miro::Detail::typeNameOf<CETEchoResponse>()},
-                  std::string {Miro::Detail::qualifiedNameOf<CETEchoResponse>()}),
+                  std::string {Detail::typeNameOf<CETEchoResponse>()},
+                  std::string {Detail::qualifiedNameOf<CETEchoResponse>()}),
     };
 
-    auto out = Miro::CommandExport::formatBackendModule(
-        std::span<Miro::TypeTree::TypeNode> {roots}, entries, "schema");
+    auto out = CommandExport::formatBackendModule(
+        std::span<TypeTree::TypeNode> {roots}, entries, "schema");
 
     check(contains(out, "echo: (req: T.CETEchoRequest): Promise<T.CETEchoResponse>"));
     check(contains(out, "invoke('echo', req) as Promise<T.CETEchoResponse>"));
@@ -276,22 +277,22 @@ auto cetBackendResAndReq =
 auto cetBackendEmptyRequestElided =
     test("CommandExport: empty-struct request elides the parameter") = []
 {
-    auto roots = std::vector<Miro::TypeTree::TypeNode> {};
-    roots.push_back(Miro::TypeTree::buildTree<Miro::EmptyValue>());
-    roots.push_back(Miro::TypeTree::buildTree<CETPingResponse>());
+    auto roots = std::vector<TypeTree::TypeNode> {};
+    roots.push_back(TypeTree::buildTree<EmptyValue>());
+    roots.push_back(TypeTree::buildTree<CETPingResponse>());
 
-    auto entries = std::vector<Miro::CommandExport::CommandEntry> {
+    auto entries = std::vector<CommandExport::CommandEntry> {
         makeEntry("ping",
                   true,
-                  std::string {Miro::Detail::typeNameOf<Miro::EmptyValue>()},
-                  std::string {Miro::Detail::qualifiedNameOf<Miro::EmptyValue>()},
+                  std::string {Detail::typeNameOf<EmptyValue>()},
+                  std::string {Detail::qualifiedNameOf<EmptyValue>()},
                   true,
-                  std::string {Miro::Detail::typeNameOf<CETPingResponse>()},
-                  std::string {Miro::Detail::qualifiedNameOf<CETPingResponse>()}),
+                  std::string {Detail::typeNameOf<CETPingResponse>()},
+                  std::string {Detail::qualifiedNameOf<CETPingResponse>()}),
     };
 
-    auto out = Miro::CommandExport::formatBackendModule(
-        std::span<Miro::TypeTree::TypeNode> {roots}, entries, "schema");
+    auto out = CommandExport::formatBackendModule(
+        std::span<TypeTree::TypeNode> {roots}, entries, "schema");
 
     check(contains(out, "ping: (): Promise<T.CETPingResponse>"));
     check(contains(out, "invoke('ping', {}) as Promise<T.CETPingResponse>"));
@@ -300,21 +301,21 @@ auto cetBackendEmptyRequestElided =
 auto cetBackendResOnly =
     test("CommandExport: Res() emits no-arg signature") = []
 {
-    auto roots = std::vector<Miro::TypeTree::TypeNode> {};
-    roots.push_back(Miro::TypeTree::buildTree<CETPingResponse>());
+    auto roots = std::vector<TypeTree::TypeNode> {};
+    roots.push_back(TypeTree::buildTree<CETPingResponse>());
 
-    auto entries = std::vector<Miro::CommandExport::CommandEntry> {
+    auto entries = std::vector<CommandExport::CommandEntry> {
         makeEntry("status",
                   false,
                   "",
                   "",
                   true,
-                  std::string {Miro::Detail::typeNameOf<CETPingResponse>()},
-                  std::string {Miro::Detail::qualifiedNameOf<CETPingResponse>()}),
+                  std::string {Detail::typeNameOf<CETPingResponse>()},
+                  std::string {Detail::qualifiedNameOf<CETPingResponse>()}),
     };
 
-    auto out = Miro::CommandExport::formatBackendModule(
-        std::span<Miro::TypeTree::TypeNode> {roots}, entries, "schema");
+    auto out = CommandExport::formatBackendModule(
+        std::span<TypeTree::TypeNode> {roots}, entries, "schema");
 
     check(contains(out, "status: (): Promise<T.CETPingResponse>"));
 };
@@ -322,21 +323,21 @@ auto cetBackendResOnly =
 auto cetBackendVoidReq =
     test("CommandExport: void(Req) emits Promise<void>") = []
 {
-    auto roots = std::vector<Miro::TypeTree::TypeNode> {};
-    roots.push_back(Miro::TypeTree::buildTree<CETEchoRequest>());
+    auto roots = std::vector<TypeTree::TypeNode> {};
+    roots.push_back(TypeTree::buildTree<CETEchoRequest>());
 
-    auto entries = std::vector<Miro::CommandExport::CommandEntry> {
+    auto entries = std::vector<CommandExport::CommandEntry> {
         makeEntry("log",
                   true,
-                  std::string {Miro::Detail::typeNameOf<CETEchoRequest>()},
-                  std::string {Miro::Detail::qualifiedNameOf<CETEchoRequest>()},
+                  std::string {Detail::typeNameOf<CETEchoRequest>()},
+                  std::string {Detail::qualifiedNameOf<CETEchoRequest>()},
                   false,
                   "",
                   ""),
     };
 
-    auto out = Miro::CommandExport::formatBackendModule(
-        std::span<Miro::TypeTree::TypeNode> {roots}, entries, "schema");
+    auto out = CommandExport::formatBackendModule(
+        std::span<TypeTree::TypeNode> {roots}, entries, "schema");
 
     check(contains(out, "log: (req: T.CETEchoRequest): Promise<void>"));
     check(contains(out, "invoke('log', req) as Promise<void>"));
@@ -345,14 +346,14 @@ auto cetBackendVoidReq =
 auto cetBackendVoidNoArg =
     test("CommandExport: void() emits no-arg Promise<void>") = []
 {
-    auto roots = std::vector<Miro::TypeTree::TypeNode> {};
+    auto roots = std::vector<TypeTree::TypeNode> {};
 
-    auto entries = std::vector<Miro::CommandExport::CommandEntry> {
+    auto entries = std::vector<CommandExport::CommandEntry> {
         makeEntry("quit", false, "", "", false, "", ""),
     };
 
-    auto out = Miro::CommandExport::formatBackendModule(
-        std::span<Miro::TypeTree::TypeNode> {roots}, entries, "schema");
+    auto out = CommandExport::formatBackendModule(
+        std::span<TypeTree::TypeNode> {roots}, entries, "schema");
 
     check(contains(out, "quit: (): Promise<void>"));
     check(contains(out, "invoke('quit', {}) as Promise<void>"));
@@ -361,22 +362,22 @@ auto cetBackendVoidNoArg =
 auto cetBackendNamespaceNests =
     test("CommandExport: a::b::name produces nested objects") = []
 {
-    auto roots = std::vector<Miro::TypeTree::TypeNode> {};
-    roots.push_back(Miro::TypeTree::buildTree<CETEchoRequest>());
-    roots.push_back(Miro::TypeTree::buildTree<CETEchoResponse>());
+    auto roots = std::vector<TypeTree::TypeNode> {};
+    roots.push_back(TypeTree::buildTree<CETEchoRequest>());
+    roots.push_back(TypeTree::buildTree<CETEchoResponse>());
 
-    auto entries = std::vector<Miro::CommandExport::CommandEntry> {
+    auto entries = std::vector<CommandExport::CommandEntry> {
         makeEntry("api::v2::echo",
                   true,
-                  std::string {Miro::Detail::typeNameOf<CETEchoRequest>()},
-                  std::string {Miro::Detail::qualifiedNameOf<CETEchoRequest>()},
+                  std::string {Detail::typeNameOf<CETEchoRequest>()},
+                  std::string {Detail::qualifiedNameOf<CETEchoRequest>()},
                   true,
-                  std::string {Miro::Detail::typeNameOf<CETEchoResponse>()},
-                  std::string {Miro::Detail::qualifiedNameOf<CETEchoResponse>()}),
+                  std::string {Detail::typeNameOf<CETEchoResponse>()},
+                  std::string {Detail::qualifiedNameOf<CETEchoResponse>()}),
     };
 
-    auto out = Miro::CommandExport::formatBackendModule(
-        std::span<Miro::TypeTree::TypeNode> {roots}, entries, "schema");
+    auto out = CommandExport::formatBackendModule(
+        std::span<TypeTree::TypeNode> {roots}, entries, "schema");
 
     check(contains(out, "api: {"));
     check(contains(out, "v2: {"));
@@ -387,14 +388,14 @@ auto cetBackendNamespaceNests =
 auto cetBackendCollisionThrows =
     test("CommandExport: same path used as both leaf and namespace throws") = []
 {
-    auto roots = std::vector<Miro::TypeTree::TypeNode> {};
-    roots.push_back(Miro::TypeTree::buildTree<Miro::EmptyValue>());
-    roots.push_back(Miro::TypeTree::buildTree<CETPingResponse>());
+    auto roots = std::vector<TypeTree::TypeNode> {};
+    roots.push_back(TypeTree::buildTree<EmptyValue>());
+    roots.push_back(TypeTree::buildTree<CETPingResponse>());
 
-    auto resQual = std::string {Miro::Detail::qualifiedNameOf<CETPingResponse>()};
-    auto resName = std::string {Miro::Detail::typeNameOf<CETPingResponse>()};
+    auto resQual = std::string {Detail::qualifiedNameOf<CETPingResponse>()};
+    auto resName = std::string {Detail::typeNameOf<CETPingResponse>()};
 
-    auto entries = std::vector<Miro::CommandExport::CommandEntry> {
+    auto entries = std::vector<CommandExport::CommandEntry> {
         makeEntry("api", false, "", "", true, resName, resQual),
         makeEntry("api::ping", false, "", "", true, resName, resQual),
     };
@@ -402,8 +403,8 @@ auto cetBackendCollisionThrows =
     auto threw = false;
     try
     {
-        Miro::CommandExport::formatBackendModule(
-            std::span<Miro::TypeTree::TypeNode> {roots}, entries, "schema");
+        CommandExport::formatBackendModule(
+            std::span<TypeTree::TypeNode> {roots}, entries, "schema");
     }
     catch (const std::runtime_error&)
     {

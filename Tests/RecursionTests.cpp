@@ -19,6 +19,7 @@
 #include <vector>
 
 using namespace nano;
+using namespace Miro;
 
 namespace
 {
@@ -36,7 +37,7 @@ struct Node
 auto recursiveTypeScript =
     test("Recursion: TypeScript exporter handles self-referencing types") = []
 {
-    auto out = Miro::TypeScript::toZod<Node>();
+    auto out = TypeScript::toZod<Node>();
 
     check(!out.empty());
     check(contains(out, "export const Node = z.object({"));
@@ -47,7 +48,7 @@ auto recursiveTypeScript =
 auto recursiveSchema =
     test("Recursion: Schema reflector handles self-referencing types") = []
 {
-    auto schema = Miro::schemaOf<Node>();
+    auto schema = schemaOf<Node>();
 
     // Top-level $ref into the $defs entry for Node.
     check(schema["$ref"].asString() == "#/$defs/Node");
@@ -73,7 +74,7 @@ auto recursiveJsonRoundtrip =
     root.children[1].children.resize(1);
     root.children[1].children[0].value = 4;
 
-    auto restored = Miro::createFromJSONString<Node>(Miro::toJSONString(root));
+    auto restored = createFromJSONString<Node>(toJSONString(root));
 
     check(restored.value == 1);
     check(restored.children.size() == 2);

@@ -3,6 +3,7 @@
 #include <NanoTest/NanoTest.h>
 
 using namespace nano;
+using namespace Miro;
 
 namespace
 {
@@ -32,7 +33,7 @@ struct PingResponse
     MIRO_REFLECT(pong)
 };
 
-PingResponse handlePing(const Miro::EmptyValue&)
+PingResponse handlePing(const EmptyValue&)
 {
     return PingResponse {.pong = true};
 }
@@ -40,10 +41,10 @@ PingResponse handlePing(const Miro::EmptyValue&)
 
 auto dispatchTyped = test("CommandTable dispatches typed handler") = []
 {
-    auto table = Miro::CommandTable {};
+    auto table = CommandTable {};
     table.on("echo", handleEcho);
 
-    auto payload = Miro::Json::parse(R"({"text":"hi"})");
+    auto payload = Json::parse(R"({"text":"hi"})");
     auto result = table.dispatch("echo", payload);
 
     check(result.isObject());
@@ -52,10 +53,10 @@ auto dispatchTyped = test("CommandTable dispatches typed handler") = []
 
 auto dispatchEmpty = test("CommandTable handles EmptyValue input") = []
 {
-    auto table = Miro::CommandTable {};
+    auto table = CommandTable {};
     table.on("ping", handlePing);
 
-    auto result = table.dispatch("ping", Miro::Json::Value {});
+    auto result = table.dispatch("ping", JSON {});
 
     check(result.isObject());
     check(result["pong"].asBool() == true);
@@ -63,14 +64,14 @@ auto dispatchEmpty = test("CommandTable handles EmptyValue input") = []
 
 auto dispatchUnknown = test("CommandTable throws on unknown command") = []
 {
-    auto table = Miro::CommandTable {};
+    auto table = CommandTable {};
     auto threw = false;
 
     try
     {
-        table.dispatch("missing", Miro::Json::Value {});
+        table.dispatch("missing", JSON {});
     }
-    catch (const Miro::UnknownCommandError&)
+    catch (const UnknownCommandError&)
     {
         threw = true;
     }
@@ -80,7 +81,7 @@ auto dispatchUnknown = test("CommandTable throws on unknown command") = []
 
 auto dispatchHas = test("CommandTable::has reflects registration") = []
 {
-    auto table = Miro::CommandTable {};
+    auto table = CommandTable {};
     check(!table.has("echo"));
 
     table.on("echo", handleEcho);

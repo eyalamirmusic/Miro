@@ -2,6 +2,7 @@
 #include <NanoTest/NanoTest.h>
 
 using namespace nano;
+using namespace Miro;
 using namespace Miro::Json;
 
 auto parseNull = test("Parse null") = []
@@ -127,43 +128,43 @@ auto valueEquality = test("Value equality") = []
 
 auto implicitConvertToBool = test("Implicit convert to bool") = []
 {
-    Value value = true;
+    JSON value = true;
     bool result = value;
     check(result == true);
 
-    Value falseValue = false;
+    JSON falseValue = false;
     bool falseResult = falseValue;
     check(falseResult == false);
 };
 
 auto implicitConvertToInt = test("Implicit convert to int") = []
 {
-    Value value = 42;
+    JSON value = 42;
     int result = value;
     check(result == 42);
 
-    Value negative = -7;
+    JSON negative = -7;
     int negativeResult = negative;
     check(negativeResult == -7);
 };
 
 auto implicitConvertToDouble = test("Implicit convert to double") = []
 {
-    Value value = 3.14;
+    JSON value = 3.14;
     double result = value;
     check(result == 3.14);
 };
 
 auto implicitConvertToFloat = test("Implicit convert to float") = []
 {
-    Value value = 1.5;
+    JSON value = 1.5;
     float result = value;
     check(result == 1.5f);
 };
 
 auto implicitConvertToString = test("Implicit convert to string") = []
 {
-    Value value = std::string("hello");
+    JSON value = std::string("hello");
     std::string result = value;
     check(result == "hello");
 };
@@ -193,11 +194,11 @@ auto implicitConvertFromParsedObject =
 
 auto implicitConvertInExpression = test("Implicit convert in expression") = []
 {
-    Value value = 10;
+    JSON value = 10;
     int doubled = static_cast<int>(value) * 2;
     check(doubled == 20);
 
-    Value flag = true;
+    JSON flag = true;
     if (flag)
         check(true);
     else

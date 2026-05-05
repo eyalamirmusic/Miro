@@ -15,6 +15,7 @@
 #include <sstream>
 
 using namespace nano;
+using namespace Miro;
 
 // ─── Example user types — same shape as today's user code ─────────────
 
@@ -52,7 +53,7 @@ struct HandWritten
     int count = 0;
     std::string label;
 
-    void reflect(Miro::Reflector& ref)
+    void reflect(Reflector& ref)
     {
         ref["count"](count);
         ref["label"](label);
@@ -67,7 +68,7 @@ auto roundtripStruct = test("Virtual API: struct round-trip") = []
 {
     auto original = Polygon {"triangle", {{0, 0}, {1, 0}, {0, 1}}};
     auto restored =
-        Miro::createFromJSONString<Polygon>(Miro::toJSONString(original));
+        createFromJSONString<Polygon>(toJSONString(original));
 
     check(restored.name == "triangle");
     check(restored.vertices.size() == 3);
@@ -84,7 +85,7 @@ auto roundtripContainersAndOptional =
                               .counters = {{"a", 1}, {"b", 2}}};
 
     auto restored =
-        Miro::createFromJSONString<Settings>(Miro::toJSONString(original));
+        createFromJSONString<Settings>(toJSONString(original));
 
     check(restored.enabled == false);
     check(restored.maxRetries == 7);
@@ -98,7 +99,7 @@ auto handWrittenReflect = test("Virtual API: hand-written reflect method") = []
 {
     auto original = HandWritten {42, "hello"};
     auto restored =
-        Miro::createFromJSONString<HandWritten>(Miro::toJSONString(original));
+        createFromJSONString<HandWritten>(toJSONString(original));
 
     check(restored.count == 42);
     check(restored.label == "hello");
@@ -108,7 +109,7 @@ auto rootLevelVector = test("Virtual API: top-level vector serializes as array")
 {
     auto original = std::vector<int> {1, 2, 3};
     auto restored =
-        Miro::createFromJSONString<std::vector<int>>(Miro::toJSONString(original));
+        createFromJSONString<std::vector<int>>(toJSONString(original));
 
     check(restored.size() == 3);
     check(restored[0] == 1);
@@ -121,7 +122,7 @@ auto optionalNullRoundtrip = test("Virtual API: optional null round-trip") = []
     original.note.reset();
 
     auto restored =
-        Miro::createFromJSONString<Settings>(Miro::toJSONString(original));
+        createFromJSONString<Settings>(toJSONString(original));
 
     check(!restored.note.has_value());
 };
@@ -138,7 +139,7 @@ auto optionalNullRoundtrip = test("Virtual API: optional null round-trip") = []
 namespace
 {
 
-struct TracingReflector : Miro::Reflector
+struct TracingReflector : Reflector
 {
     std::ostringstream& out;
     std::string label;
@@ -146,22 +147,22 @@ struct TracingReflector : Miro::Reflector
     std::unique_ptr<TracingReflector> currentChild;
 
     TracingReflector(std::ostringstream& outToUse,
-                     Miro::Options optsToUse,
+                     Options optsToUse,
                      std::string labelToUse = {})
-        : Miro::Reflector(optsToUse)
+        : Reflector(optsToUse)
         , out(outToUse)
         , label(std::move(labelToUse))
     {
         switch (optsToUse.shape)
         {
-            case Miro::Shape::Primitive:
+            case Shape::Primitive:
                 break;
-            case Miro::Shape::Object:
-            case Miro::Shape::Map:
+            case Shape::Object:
+            case Shape::Map:
                 out << label << "={";
                 closer = "}";
                 break;
-            case Miro::Shape::Array:
+            case Shape::Array:
                 out << label << "=[";
                 closer = "]";
                 break;
@@ -174,7 +175,7 @@ struct TracingReflector : Miro::Reflector
         out << closer;
     }
 
-    void visit(Miro::PrimitiveRef ref) override
+    void visit(PrimitiveRef ref) override
     {
         out << label << "=";
         std::visit(
@@ -193,9 +194,9 @@ struct TracingReflector : Miro::Reflector
     }
 
     void writeNull() override { out << label << "=null;"; }
-    Miro::ValueKind kind() const override { return Miro::ValueKind::Absent; }
+    ValueKind kind() const override { return ValueKind::Absent; }
 
-    Reflector& atKey(std::string_view key, Miro::Options childOpts) override
+    Reflector& atKey(std::string_view key, Options childOpts) override
     {
         currentChild.reset();
         currentChild =
@@ -203,7 +204,7 @@ struct TracingReflector : Miro::Reflector
         return *currentChild;
     }
 
-    Reflector& atIndex(std::size_t index, Miro::Options childOpts) override
+    Reflector& atIndex(std::size_t index, Options childOpts) override
     {
         currentChild.reset();
         currentChild = std::make_unique<TracingReflector>(
@@ -218,7 +219,7 @@ auto customReflectorOnStruct =
     test("Custom reflector: traces struct reflection") = []
 {
     auto trace = std::ostringstream {};
-    auto reflector = TracingReflector {trace, {.shape = Miro::Shape::Primitive}};
+    auto reflector = TracingReflector {trace, {.shape = Shape::Primitive}};
     auto value = Point {3.0, 4.0};
 
     value.reflect(reflector);
@@ -231,7 +232,7 @@ auto customReflectorOnNested =
 {
     auto trace = std::ostringstream {};
     {
-        auto reflector = TracingReflector {trace, {.shape = Miro::Shape::Primitive}};
+        auto reflector = TracingReflector {trace, {.shape = Shape::Primitive}};
         auto poly = Polygon {"L", {{1, 0}, {0, 1}}};
         poly.reflect(reflector);
     }
@@ -246,9 +247,9 @@ auto customReflectorTopLevelVector =
     {
         auto reflector = TracingReflector {
             trace,
-            Miro::Detail::topLevelOptions<std::vector<int>>(Miro::Mode::Save)};
+            Detail::topLevelOptions<std::vector<int>>(Mode::Save)};
         auto vec = std::vector<int> {10, 20, 30};
-        Miro::Detail::reflectValue(reflector, vec);
+        Detail::reflectValue(reflector, vec);
     }
 
     check(trace.str() == "=[[0]=10;[1]=20;[2]=30;]");
