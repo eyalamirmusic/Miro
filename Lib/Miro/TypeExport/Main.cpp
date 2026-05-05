@@ -15,7 +15,8 @@
 #include "../TypeTree/TypeTree.h"
 #include "Register.h"
 
-#include <filesystem>
+#include <ghc/filesystem.hpp>
+
 #include <fstream>
 #include <functional>
 #include <iostream>
@@ -129,7 +130,7 @@ const auto kFormats = std::vector<Format> {
     },
 };
 
-void writeFile(const std::filesystem::path& path, const std::string& contents)
+void writeFile(const ghc::filesystem::path& path, const std::string& contents)
 {
     auto out = std::ofstream {path};
     out << contents;
@@ -153,7 +154,7 @@ void usage(const char* exeName)
 
 int main(int argc, char** argv)
 {
-    auto outDir = std::filesystem::path {};
+    auto outDir = ghc::filesystem::path {};
     auto baseName = std::string {"schema"};
     auto requestedFormats = std::set<std::string> {};
 
@@ -180,7 +181,7 @@ int main(int argc, char** argv)
         return 1;
     }
 
-    std::filesystem::create_directories(outDir);
+    ghc::filesystem::create_directories(outDir);
 
     auto& entries = Miro::TypeExport::Detail::registry();
 

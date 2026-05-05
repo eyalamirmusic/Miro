@@ -76,12 +76,6 @@ function(miro_add_type_export)
         endif ()
     endforeach ()
 
-    # Match MiroTypeExportMain's deployment-target override so the link
-    # step doesn't downgrade and warn about std::filesystem references.
-    if (APPLE)
-        target_link_options(${MTE_NAME} PRIVATE -mmacosx-version-min=10.15)
-    endif ()
-
     set(formatArgs "")
     foreach (fmt IN LISTS MTE_FORMATS)
         list(APPEND formatArgs --format ${fmt})
