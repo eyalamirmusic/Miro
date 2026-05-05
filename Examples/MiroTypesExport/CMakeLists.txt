@@ -5,4 +5,8 @@ miro_add_type_export(
     FORMATS     zod ts jsonschema cpp cpp-miro
 )
 
-target_link_libraries(MiroTypesExport PRIVATE miro_warnings)
+# miro_add_type_export() is a no-op when cross-compiling, so the
+# target only exists on host builds.
+if (TARGET MiroTypesExport)
+    target_link_libraries(MiroTypesExport PRIVATE miro_warnings)
+endif ()

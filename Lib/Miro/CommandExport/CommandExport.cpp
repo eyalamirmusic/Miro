@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <cstddef>
 #include <map>
+#include <memory>
 #include <sstream>
 #include <stdexcept>
 #include <string>
@@ -20,13 +21,26 @@ namespace
 // children). Mixing the two at the same path — e.g. registering both
 // `api` and `api::ping` — is a structural error and is rejected by
 // insertCommand.
+//
+// Children go through unique_ptr so CommandNode can hold a vector of
+// itself without forcing std::pair to instantiate completeness traits
+// on the still-incomplete CommandNode (libstdc++ rejects that under
+// C++20).
+struct CommandNode;
+
+struct CommandChild
+{
+    std::string name;
+    std::unique_ptr<CommandNode> node;
+};
+
 struct CommandNode
 {
     const CommandEntry* leaf = nullptr;
 
     // Insertion-ordered so the emitted JS tree mirrors registration
     // order rather than alphabetical.
-    std::vector<std::pair<std::string, CommandNode>> children;
+    std::vector<CommandChild> children;
 };
 
 // Resolved per-type info derived from the supplied TypeNode roots:
@@ -100,30 +114,33 @@ void insertCommand(CommandNode& root, const CommandEntry& cmd)
 
         auto it = std::find_if(node->children.begin(),
                                node->children.end(),
-                               [&](auto& c) { return c.first == segment; });
+                               [&](auto& c) { return c.name == segment; });
 
         if (it == node->children.end())
         {
-            node->children.emplace_back(segment, CommandNode {});
+            node->children.push_back(
+                CommandChild {segment, std::make_unique<CommandNode>()});
             it = std::prev(node->children.end());
         }
 
+        auto& child = *it->node;
+
         if (isLast)
         {
-            if (it->second.leaf || !it->second.children.empty())
+            if (child.leaf || !child.children.empty())
                 throw std::runtime_error("command path collision at '" + cmd.name
                                          + "': segment '" + segment
                                          + "' is used as both a function and a "
                                            "namespace");
-            it->second.leaf = &cmd;
+            child.leaf = &cmd;
         }
         else
         {
-            if (it->second.leaf)
+            if (child.leaf)
                 throw std::runtime_error("command path collision at '" + cmd.name
                                          + "': segment '" + segment
                                          + "' is already a function");
-            node = &it->second;
+            node = &child;
         }
     }
 }
@@ -192,14 +209,14 @@ void emitNode(std::ostringstream& out,
     auto childIndent = indentString(depth + 1);
     auto closeIndent = indentString(depth);
 
-    for (auto& [name, child]: node.children)
+    for (auto& c: node.children)
     {
-        out << childIndent << name << ": ";
+        out << childIndent << c.name << ": ";
 
-        if (child.leaf != nullptr)
-            emitLeaf(out, depth + 1, *child.leaf, resolved);
+        if (c.node->leaf != nullptr)
+            emitLeaf(out, depth + 1, *c.node->leaf, resolved);
         else
-            emitNode(out, depth + 1, child, resolved);
+            emitNode(out, depth + 1, *c.node, resolved);
 
         out << ",\n";
     }
