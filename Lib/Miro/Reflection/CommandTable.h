@@ -25,7 +25,7 @@ public:
 class CommandTable
 {
 public:
-    using RawHandler = std::function<Json::Value(const Json::Value& payload)>;
+    using RawHandler = std::function<JSON(const JSON& payload)>;
 
     template <typename Req, typename Res>
     using TypedHandler = const std::function<Res(const Req&)>;
@@ -33,11 +33,11 @@ public:
     template <typename Req, typename Res>
     static RawHandler createRawHandler(const TypedHandler<Req, Res>& handler)
     {
-        return [handler](const Json::Value& payload) -> Json::Value
+        return [handler](const JSON& payload) -> JSON
         {
             auto req = Req {};
             auto adjusted =
-                payload.isNull() ? Json::Value {Json::Object {}} : payload;
+                payload.isNull() ? JSON {Json::Object {}} : payload;
             fromJSON(req, adjusted);
             auto res = handler(req);
             return toJSON(res);
@@ -63,7 +63,7 @@ public:
 
     bool has(std::string_view command) const;
 
-    Json::Value dispatch(std::string_view command, const Json::Value& payload) const;
+    JSON dispatch(std::string_view command, const JSON& payload) const;
 
 private:
     void registerHandler(const std::string& command, const RawHandler& handler);

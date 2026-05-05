@@ -17,11 +17,11 @@ namespace Miro
 // per-node `typeName` when distinct C++ types share an unqualified
 // name. Callers that don't want the trees touched should hand over a
 // copy.
-Json::Value formatJsonSchema(TypeTree::TypeNode& root);
-Json::Value formatJsonSchema(std::span<TypeTree::TypeNode> roots);
+JSON formatJsonSchema(TypeTree::TypeNode& root);
+JSON formatJsonSchema(std::span<TypeTree::TypeNode> roots);
 
 template <typename T>
-Json::Value schemaOf()
+JSON schemaOf()
 {
     auto tree = TypeTree::buildTree<T>();
     return formatJsonSchema(tree);

@@ -8,7 +8,7 @@ namespace Miro
 namespace
 {
 
-ValueKind kindOf(const Json::Value& value)
+ValueKind kindOf(const JSON& value)
 {
     if (value.isNull())
         return ValueKind::Null;
@@ -28,12 +28,12 @@ ValueKind kindOf(const Json::Value& value)
 
 } // namespace
 
-JsonReflector::JsonReflector(Json::Value& slotToUse, Options optsToUse)
+JsonReflector::JsonReflector(JSON& slotToUse, Options optsToUse)
     : JsonReflector(slotToUse, optsToUse, false)
 {
 }
 
-JsonReflector::JsonReflector(Json::Value& slotToUse,
+JsonReflector::JsonReflector(JSON& slotToUse,
                              Options optsToUse,
                              bool absentToUse)
     : Reflector(optsToUse)
@@ -56,7 +56,7 @@ void JsonReflector::commitShape()
         case Shape::Object:
         case Shape::Map:
             if (!slot.isObject())
-                slot = Json::Value {Json::Object {}};
+                slot = JSON {Json::Object {}};
             break;
         case Shape::Array:
             if (!slot.isArray())
@@ -75,7 +75,7 @@ ValueKind JsonReflector::kind() const
 
 void JsonReflector::writeNull()
 {
-    slot = Json::Value {nullptr};
+    slot = JSON {nullptr};
 }
 
 void JsonReflector::visit(PrimitiveRef ref)
@@ -88,9 +88,9 @@ void JsonReflector::visit(PrimitiveRef ref)
                 using T = std::remove_pointer_t<decltype(ptr)>;
                 if constexpr (std::same_as<T, bool> || std::same_as<T, std::string>
                               || std::same_as<T, double>)
-                    slot = Json::Value {*ptr};
+                    slot = JSON {*ptr};
                 else
-                    slot = Json::Value {static_cast<double>(*ptr)};
+                    slot = JSON {static_cast<double>(*ptr)};
             },
             ref.data);
         return;
@@ -119,7 +119,7 @@ void JsonReflector::visit(PrimitiveRef ref)
         ref.data);
 }
 
-Reflector& JsonReflector::spawnChild(Json::Value& targetSlot,
+Reflector& JsonReflector::spawnChild(JSON& targetSlot,
                                      Options childOpts,
                                      bool absentToUse)
 {
@@ -137,11 +137,11 @@ Reflector& JsonReflector::atKey(std::string_view key, Options childOpts)
     if (isSaving())
     {
         if (!slot.isObject())
-            slot = Json::Value {Json::Object {}};
+            slot = JSON {Json::Object {}};
         return spawnChild(slot.asObject()[std::string {key}], childOpts, false);
     }
 
-    missingSlot = Json::Value {nullptr};
+    missingSlot = JSON {nullptr};
 
     if (!slot.isObject())
         return spawnChild(missingSlot, childOpts, true);
@@ -166,7 +166,7 @@ Reflector& JsonReflector::atIndex(std::size_t index, Options childOpts)
         return spawnChild(arr[index], childOpts, false);
     }
 
-    missingSlot = Json::Value {nullptr};
+    missingSlot = JSON {nullptr};
 
     if (!slot.isArray())
         return spawnChild(missingSlot, childOpts, true);

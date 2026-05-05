@@ -19,8 +19,8 @@ bool CommandTable::has(std::string_view command) const
     return handlers.contains(std::string {command});
 }
 
-Json::Value CommandTable::dispatch(std::string_view command,
-                                   const Json::Value& payload) const
+JSON CommandTable::dispatch(std::string_view command,
+                                   const JSON& payload) const
 {
     auto it = handlers.find(std::string {command});
 

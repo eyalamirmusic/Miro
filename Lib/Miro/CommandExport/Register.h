@@ -113,15 +113,13 @@ inline void registerCommand(const char* nameToUse)
         entry.hasResponse = false;
     }
 
-    entry.thunk = [](const Miro::Json::Value& payload) -> Miro::Json::Value
+    entry.thunk = [](const JSON& payload) -> JSON
     {
         if constexpr (Sig::hasReq)
         {
             using Req = Sig::Req;
             auto req = Req {};
-            auto adjusted = payload.isNull()
-                                ? Miro::Json::Value {Miro::Json::Object {}}
-                                : payload;
+            auto adjusted = payload.isNull() ? JSON {Json::Object {}} : payload;
             Miro::fromJSON(req, adjusted);
 
             if constexpr (Sig::hasRes)
@@ -129,7 +127,7 @@ inline void registerCommand(const char* nameToUse)
             else
             {
                 Handler(req);
-                return Miro::Json::Value {};
+                return {};
             }
         }
         else
@@ -139,7 +137,7 @@ inline void registerCommand(const char* nameToUse)
             else
             {
                 Handler();
-                return Miro::Json::Value {};
+                return JSON {};
             }
         }
     };
@@ -191,7 +189,7 @@ void registerStaticCommandsInto(CommandTable& table);
     namespace                                                                       \
     {                                                                               \
     [[maybe_unused]] const auto MIRO_EXPORT_COMMAND_CAT(miroCommandRegistry_,       \
-                                                       __LINE__) = []               \
+                                                        __LINE__) = []              \
     {                                                                               \
         MIRO_FOR_EACH(MIRO_EXPORT_COMMAND_ITEM, __VA_ARGS__)                        \
         return 0;                                                                   \

@@ -32,9 +32,9 @@ std::string_view jsonSchemaPrimitive(TypeTree::PrimitiveKind kind)
 // (Object, Enum) become {"$ref": "#/$defs/<typeName>"}; the bodies live
 // in $defs and are emitted separately. Anonymous nodes (top-level
 // primitives, vectors, maps with no named root) get an inline body.
-Json::Value renderJsonNode(const TypeNode& node);
+JSON renderJsonNode(const TypeNode& node);
 
-void writeRequired(const TypeNode& node, Json::Value& out)
+void writeRequired(const TypeNode& node, JSON& out)
 {
     auto required = Json::Array {};
 
@@ -43,15 +43,15 @@ void writeRequired(const TypeNode& node, Json::Value& out)
             required.emplace_back(field.name);
 
     if (!required.empty())
-        out.asObject()["required"] = Json::Value {std::move(required)};
+        out.asObject()["required"] = JSON {std::move(required)};
 }
 
-Json::Value renderJsonObjectBody(const TypeNode& node)
+JSON renderJsonObjectBody(const TypeNode& node)
 {
-    auto out = Json::Value {Json::Object {}};
-    out.asObject()["type"] = Json::Value {std::string {"object"}};
+    auto out = JSON {Json::Object {}};
+    out.asObject()["type"] = JSON {std::string {"object"}};
 
-    auto props = Json::Value {Json::Object {}};
+    auto props = JSON {Json::Object {}};
     for (auto& field: node.fields)
         props.asObject()[field.name] = renderJsonNode(*field.type);
 
@@ -62,11 +62,11 @@ Json::Value renderJsonObjectBody(const TypeNode& node)
     return out;
 }
 
-Json::Value renderJsonEnumBody(const TypeNode& node)
+JSON renderJsonEnumBody(const TypeNode& node)
 {
-    auto out = Json::Value {Json::Object {}};
+    auto out = JSON {Json::Object {}};
     auto& obj = out.asObject();
-    obj["type"] = Json::Value {std::string {"string"}};
+    obj["type"] = JSON {std::string {"string"}};
 
     if (!node.enumValues.empty())
     {
@@ -74,22 +74,22 @@ Json::Value renderJsonEnumBody(const TypeNode& node)
         values.reserve(node.enumValues.size());
         for (auto& v: node.enumValues)
             values.emplace_back(v);
-        obj["enum"] = Json::Value {std::move(values)};
+        obj["enum"] = JSON {std::move(values)};
     }
 
     return out;
 }
 
-Json::Value renderJsonNode(const TypeNode& node)
+JSON renderJsonNode(const TypeNode& node)
 {
-    auto out = Json::Value {Json::Object {}};
+    auto out = JSON {Json::Object {}};
 
     auto& obj = out.asObject();
 
     auto applyOptional = [&]
     {
         if (node.optional)
-            obj["nullable"] = Json::Value {true};
+            obj["nullable"] = JSON {true};
     };
 
     switch (node.shape)
@@ -97,7 +97,7 @@ Json::Value renderJsonNode(const TypeNode& node)
         case TypeNode::Shape::Primitive:
         {
             obj["type"] =
-                Json::Value {std::string {jsonSchemaPrimitive(node.primitive)}};
+                JSON {std::string {jsonSchemaPrimitive(node.primitive)}};
 
             applyOptional();
             return out;
@@ -107,7 +107,7 @@ Json::Value renderJsonNode(const TypeNode& node)
         {
             if (!node.typeName.empty())
             {
-                obj["$ref"] = Json::Value {std::string {"#/$defs/"} + node.typeName};
+                obj["$ref"] = JSON {std::string {"#/$defs/"} + node.typeName};
                 applyOptional();
                 return out;
             }
@@ -119,20 +119,20 @@ Json::Value renderJsonNode(const TypeNode& node)
 
         case TypeNode::Shape::Array:
         {
-            obj["type"] = Json::Value {std::string {"array"}};
+            obj["type"] = JSON {std::string {"array"}};
             obj["items"] = renderJsonNode(*node.inner);
 
             if (node.minItems)
-                obj["minItems"] = Json::Value {static_cast<double>(*node.minItems)};
+                obj["minItems"] = JSON {static_cast<double>(*node.minItems)};
             if (node.maxItems)
-                obj["maxItems"] = Json::Value {static_cast<double>(*node.maxItems)};
+                obj["maxItems"] = JSON {static_cast<double>(*node.maxItems)};
             applyOptional();
             return out;
         }
 
         case TypeNode::Shape::Map:
         {
-            obj["type"] = Json::Value {std::string {"object"}};
+            obj["type"] = JSON {std::string {"object"}};
             obj["additionalProperties"] = renderJsonNode(*node.inner);
             applyOptional();
             return out;
@@ -142,7 +142,7 @@ Json::Value renderJsonNode(const TypeNode& node)
         {
             if (!node.typeName.empty())
             {
-                obj["$ref"] = Json::Value {std::string {"#/$defs/"} + node.typeName};
+                obj["$ref"] = JSON {std::string {"#/$defs/"} + node.typeName};
                 applyOptional();
                 return out;
             }
@@ -166,11 +166,11 @@ namespace
 // object. Mutates roots in place via prepareRoots — the per-node
 // disambiguation pass rewrites typeName when distinct types share a
 // short name.
-Json::Value buildDefs(std::span<TypeNode> roots)
+JSON buildDefs(std::span<TypeNode> roots)
 {
     auto ordered = TypeTree::prepareRoots(roots);
 
-    auto defs = Json::Value {Json::Object {}};
+    auto defs = JSON {Json::Object {}};
     for (auto* node: ordered)
     {
         auto& obj = defs.asObject()[node->typeName];
@@ -189,11 +189,11 @@ Json::Value buildDefs(std::span<TypeNode> roots)
 // Multi-root variant — used by the type-export runner to bundle every
 // registered type into a single document. No type is privileged as
 // "the schema"; consumers point at one with {"$ref": "#/$defs/X"}.
-Json::Value formatJsonSchema(std::span<TypeNode> roots)
+JSON formatJsonSchema(std::span<TypeNode> roots)
 {
     auto defs = buildDefs(roots);
 
-    auto out = Json::Value {Json::Object {}};
+    auto out = JSON {Json::Object {}};
     if (!defs.asObject().empty())
         out.asObject()["$defs"] = std::move(defs);
 
@@ -203,7 +203,7 @@ Json::Value formatJsonSchema(std::span<TypeNode> roots)
 // Single-root: render the root (a $ref for named types, an inline body
 // for top-level vectors / primitives) and attach $defs alongside. Used
 // by `schemaOf<T>()`.
-Json::Value formatJsonSchema(TypeNode& root)
+JSON formatJsonSchema(TypeNode& root)
 {
     // Build $defs first — prepareRoots rewrites typeName during this
     // pass, and we need the renamed names when we render the root.
@@ -214,7 +214,7 @@ Json::Value formatJsonSchema(TypeNode& root)
     if (!defs.asObject().empty())
     {
         if (!out.isObject())
-            out = Json::Value {Json::Object {}};
+            out = JSON {Json::Object {}};
         out.asObject()["$defs"] = std::move(defs);
     }
 

@@ -7,7 +7,7 @@
 namespace Miro
 {
 
-// A JsonReflector represents a single Json::Value slot. The shape
+// A JsonReflector represents a single JSON slot. The shape
 // (object/array/map/primitive) is fixed at construction via Options
 // and committed eagerly when saving — atKey/atIndex spawn children
 // that commit their own shape the same way. The child is owned by
@@ -16,7 +16,7 @@ namespace Miro
 class JsonReflector final : public Reflector
 {
 public:
-    JsonReflector(Json::Value& slotToUse, Options optsToUse);
+    JsonReflector(JSON& slotToUse, Options optsToUse);
     ~JsonReflector() override;
 
     void visit(PrimitiveRef ref) override;
@@ -31,21 +31,21 @@ public:
     std::vector<std::string> mapKeys() const override;
 
 private:
-    Json::Value& slot;
+    JSON& slot;
     bool absent = false;
 
     // Sentinel used as the target slot when loading and the requested
     // key/index isn't present. Operations on a child pointing at it
     // become no-ops, matching the prior "skip body" semantics.
-    Json::Value missingSlot;
+    JSON missingSlot;
 
     std::unique_ptr<JsonReflector> currentChild;
 
-    JsonReflector(Json::Value& slotToUse, Options optsToUse, bool absentToUse);
+    JsonReflector(JSON& slotToUse, Options optsToUse, bool absentToUse);
 
     void commitShape();
     Reflector&
-        spawnChild(Json::Value& targetSlot, Options childOpts, bool absentToUse);
+        spawnChild(JSON& targetSlot, Options childOpts, bool absentToUse);
 };
 
 } // namespace Miro
