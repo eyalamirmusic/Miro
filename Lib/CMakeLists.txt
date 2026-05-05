@@ -32,8 +32,6 @@ endif ()
 # foreign-arch executable anyway). Filesystem access goes through
 # ghc::filesystem so we don't need a macOS 10.15+ deployment target.
 if (NOT CMAKE_CROSSCOMPILING)
-    find_package(GhcFilesystem REQUIRED)
-
     add_library(MiroTypeExportMain OBJECT Miro/TypeExport/Main.cpp)
     target_link_libraries(MiroTypeExportMain
         PUBLIC Miro

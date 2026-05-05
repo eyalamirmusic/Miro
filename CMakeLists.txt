@@ -12,6 +12,7 @@ include(MiroTypeExport)
 option(MIRO_UNITY_BUILD "Enable CMake unity build for the Miro library" ON)
 option(MIRO_BUILD_TESTS "Build Miro internal tests" OFF)
 
+add_subdirectory(SDKs)
 add_subdirectory(Lib)
 
 if (PROJECT_IS_TOP_LEVEL OR MIRO_BUILD_TESTS)
