@@ -4,29 +4,18 @@ project(Miro)
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
-if (PROJECT_IS_TOP_LEVEL)
-    if (MSVC)
-        add_compile_options(/W4)
-    else ()
-        add_compile_options(-Wall -Wextra -Wpedantic)
-    endif ()
-endif ()
+list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/CMake")
+
+include(Warnings)
+include(MiroTypeExport)
 
 option(MIRO_UNITY_BUILD "Enable CMake unity build for the Miro library" ON)
+option(MIRO_BUILD_TESTS "Build Miro internal tests" OFF)
 
 add_subdirectory(Lib)
-
-include(${CMAKE_CURRENT_LIST_DIR}/CMake/MiroTypeExport.cmake)
-
-option(MIRO_BUILD_TESTS "Build Miro internal tests" OFF)
 
 if (PROJECT_IS_TOP_LEVEL OR MIRO_BUILD_TESTS)
     enable_testing()
     add_subdirectory(Tests)
-endif ()
-
-option(MIRO_BUILD_EXAMPLES "Build Miro examples" OFF)
-
-if (PROJECT_IS_TOP_LEVEL OR MIRO_BUILD_EXAMPLES)
     add_subdirectory(Examples)
 endif ()

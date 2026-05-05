@@ -15,6 +15,7 @@ add_library(Miro STATIC
     Miro/TypeScript/TypeScript.cpp)
 target_include_directories(Miro PUBLIC ${CMAKE_CURRENT_LIST_DIR})
 target_compile_options(Miro PUBLIC $<$<CXX_COMPILER_ID:MSVC>:/Zc:preprocessor>)
+target_link_libraries(Miro PRIVATE miro_warnings)
 
 if (MIRO_UNITY_BUILD)
     set_target_properties(Miro PROPERTIES UNITY_BUILD ON)

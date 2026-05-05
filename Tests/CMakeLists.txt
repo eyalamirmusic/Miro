@@ -1,12 +1,6 @@
 include(FetchContent)
 
-FetchContent_Declare(
-        NanoTest
-        GIT_REPOSITORY https://github.com/eyalamirmusic/NanoTest.git
-        GIT_TAG main
-)
-
-FetchContent_MakeAvailable(NanoTest)
+find_package(NanoTest REQUIRED)
 
 set(CMAKE_FOLDER Tests)
 
@@ -19,16 +13,14 @@ nano_add_executable(MiroTests SOURCES
         SchemaReflectorTests.cpp
         TypeScriptTests.cpp
         CppExportTests.cpp
-
         TARGETS Miro)
 
-# Isolated binary for tests that may stack-overflow today (recursive
-# self-referencing types in Schema / TypeScript exporters). Keeping
-# them out of MiroTests means a SIGSEGV in one of these doesn't take
-# the rest of the suite down with it.
+target_link_libraries(MiroTests PRIVATE miro_warnings)
+
 nano_add_executable(MiroRecursionTests SOURCES
         RecursionTests.cpp
-
         TARGETS Miro)
+
+target_link_libraries(MiroRecursionTests PRIVATE miro_warnings)
 
 add_subdirectory(Benchmark)
