@@ -26,14 +26,6 @@
 #   - One bundled file per format is written to OUTPUT_DIR, named
 #     ${OUTPUT_NAME}.<extension> (e.g. schema.zod.ts, schema.ts).
 function(miro_add_type_export)
-    # The exporter is a build-time tool that runs as a POST_BUILD step on
-    # the host. When cross-compiling there's no way to run a foreign-arch
-    # executable on the build machine, so skip target creation entirely
-    # and let the same CMakeLists.txt work for both host and cross builds.
-    if (CMAKE_CROSSCOMPILING)
-        return()
-    endif ()
-
     set(options "")
     set(oneValueArgs NAME OUTPUT_DIR OUTPUT_NAME)
     set(multiValueArgs FORMATS LIBRARIES SOURCES)
@@ -52,6 +44,17 @@ function(miro_add_type_export)
     endif ()
     if (NOT MTE_OUTPUT_NAME)
         set(MTE_OUTPUT_NAME ${MTE_NAME})
+    endif ()
+
+    # The exporter is a build-time tool that runs as a POST_BUILD step on
+    # the host. When cross-compiling there's no way to run a foreign-arch
+    # executable on the build machine, so emit a no-op stub target with
+    # the requested name. This keeps caller-side add_dependencies(${NAME})
+    # working unchanged across host and cross builds; the generated files
+    # are expected to be committed to the repo for cross builds.
+    if (CMAKE_CROSSCOMPILING)
+        add_custom_target(${MTE_NAME})
+        return()
     endif ()
 
     # Plug MiroTypeExportMain in as a source so the executable is non-empty
