@@ -10,7 +10,6 @@
 #include <string_view>
 #include <type_traits>
 #include <utility>
-#include <vector>
 
 namespace Miro
 {
@@ -124,13 +123,13 @@ constexpr std::optional<E> enumFromString(std::string_view str)
 
 template <typename E>
     requires std::is_enum_v<E>
-std::vector<std::string_view> enumNames()
+Vector<std::string_view> enumNames()
 {
-    auto names = std::vector<std::string_view> {};
+    auto names = Vector<std::string_view> {};
 
     for (auto& [_, name]: Detail::enumTable<E>)
         if (!name.empty())
-            names.push_back(name);
+            names.add(name);
 
     return names;
 }

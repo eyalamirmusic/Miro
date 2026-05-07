@@ -6,9 +6,9 @@ namespace Miro::CommandExport
 namespace Detail
 {
 
-std::vector<CommandEntry>& registry()
+Vector<CommandEntry>& registry()
 {
-    static auto entries = std::vector<CommandEntry> {};
+    static auto entries = Vector<CommandEntry> {};
     return entries;
 }
 

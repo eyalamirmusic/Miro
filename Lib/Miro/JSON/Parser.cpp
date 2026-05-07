@@ -1,6 +1,5 @@
 #include "Json.h"
 
-#include <array>
 #include <charconv>
 #include <cstdlib>
 
@@ -227,7 +226,7 @@ private:
         if (remaining() < 4)
             error("unexpected end of unicode escape");
 
-        auto hex = std::array<char, 4> {pos[0], pos[1], pos[2], pos[3]};
+        auto hex = Miro::Array<char, 4> {pos[0], pos[1], pos[2], pos[3]};
         pos += 4;
 
         auto codepoint = unsigned {};
@@ -251,13 +250,13 @@ private:
         if (pos < end && *pos != ']')
         {
             elements.reserve(16);
-            elements.push_back(parseValue());
+            elements.add(parseValue());
             skipWhitespace();
 
             while (pos < end && *pos == ',')
             {
                 ++pos;
-                elements.push_back(parseValue());
+                elements.add(parseValue());
                 skipWhitespace();
             }
         }

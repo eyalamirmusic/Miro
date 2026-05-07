@@ -127,8 +127,7 @@ Reflector& JsonReflector::spawnChild(JSON& targetSlot,
     // any subclass with destructor side effects (e.g. emitting close
     // brackets) sees a strict open-then-close ordering.
     currentChild.reset();
-    currentChild = std::unique_ptr<JsonReflector>(
-        new JsonReflector(targetSlot, childOpts, absentToUse));
+    currentChild = new JsonReflector(targetSlot, childOpts, absentToUse);
     return *currentChild;
 }
 
@@ -160,7 +159,7 @@ Reflector& JsonReflector::atIndex(std::size_t index, Options childOpts)
     {
         if (!slot.isArray())
             slot.data.emplace<Json::Array>();
-        auto& arr = std::get<Json::Array>(slot.data);
+        auto& arr = std::get<Json::Array>(slot.data).getVector();
         if (arr.size() <= index)
             arr.resize(index + 1);
         return spawnChild(arr[index], childOpts, false);
@@ -171,7 +170,7 @@ Reflector& JsonReflector::atIndex(std::size_t index, Options childOpts)
     if (!slot.isArray())
         return spawnChild(missingSlot, childOpts, true);
 
-    auto& arr = std::get<Json::Array>(slot.data);
+    auto& arr = std::get<Json::Array>(slot.data).getVector();
     if (index >= arr.size())
         return spawnChild(missingSlot, childOpts, true);
 
@@ -180,26 +179,26 @@ Reflector& JsonReflector::atIndex(std::size_t index, Options childOpts)
 
 std::size_t JsonReflector::arraySize() const
 {
-    return slot.isArray() ? slot.asArray().size() : 0;
+    return slot.isArray() ? slot.asArray().getVector().size() : 0;
 }
 
 void JsonReflector::resizeArray(std::size_t newSize)
 {
     if (!slot.isArray())
         slot.data.emplace<Json::Array>();
-    auto& arr = std::get<Json::Array>(slot.data);
+    auto& arr = std::get<Json::Array>(slot.data).getVector();
     arr.resize(newSize);
 }
 
-std::vector<std::string> JsonReflector::mapKeys() const
+Vector<std::string> JsonReflector::mapKeys() const
 {
-    auto keys = std::vector<std::string> {};
+    auto keys = Vector<std::string> {};
 
     if (!slot.isObject())
         return keys;
 
     for (auto& [key, _]: slot.asObject())
-        keys.push_back(key);
+        keys.add(key);
 
     return keys;
 }

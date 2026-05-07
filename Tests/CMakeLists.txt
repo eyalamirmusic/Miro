@@ -13,6 +13,7 @@ nano_add_executable(MiroTests SOURCES
         SchemaReflectorTests.cpp
         TypeScriptTests.cpp
         CppExportTests.cpp
+        EAContainerTests.cpp
         TARGETS Miro)
 
 target_link_libraries(MiroTests PRIVATE miro_warnings)

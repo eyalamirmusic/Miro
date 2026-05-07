@@ -3,9 +3,9 @@
 namespace Miro::TypeExport::Detail
 {
 
-std::vector<std::unique_ptr<TypeEntry>>& registry()
+OwnedVector<TypeEntry>& registry()
 {
-    static auto entries = std::vector<std::unique_ptr<TypeEntry>> {};
+    static auto entries = OwnedVector<TypeEntry> {};
     return entries;
 }
 

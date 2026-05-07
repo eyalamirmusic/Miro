@@ -8,7 +8,6 @@
 
 #include <string>
 #include <type_traits>
-#include <vector>
 
 namespace Miro::CommandExport
 {
@@ -43,7 +42,7 @@ namespace Detail
 // Process-wide registry, populated by static initializers from
 // MIRO_EXPORT_COMMAND(S)(...) at program start. The export runner walks
 // this in main(); applications walk it via registerStaticCommandsInto.
-std::vector<CommandEntry>& registry();
+Vector<CommandEntry>& registry();
 
 // Trait that classifies a free-function handler. Specializations cover
 // the four shapes we accept: Res/void return, with/without a const-ref
@@ -142,7 +141,7 @@ inline void registerCommand(const char* nameToUse)
         }
     };
 
-    registry().push_back(std::move(entry));
+    registry().add(std::move(entry));
 }
 
 } // namespace Detail

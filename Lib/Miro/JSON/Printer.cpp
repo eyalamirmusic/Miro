@@ -1,6 +1,5 @@
 #include "Json.h"
 
-#include <array>
 #include <cmath>
 #include <sstream>
 #include <iostream>
@@ -42,10 +41,10 @@ void printString(std::string& output, const std::string& str)
             default:
                 if (static_cast<unsigned char>(c) < 0x20)
                 {
-                    auto buf = std::array<char, 8> {};
+                    auto buf = Miro::Array<char, 8> {};
                     std::snprintf(
                         buf.data(),
-                        buf.size(),
+                        static_cast<std::size_t>(buf.size()),
                         "\\u%04x",
                         static_cast<unsigned>(static_cast<unsigned char>(c)));
                     output += buf.data();
@@ -93,15 +92,19 @@ void printArray(std::string& output, const Array& array, int indent, int depth)
         return;
     }
 
-    for (auto i = std::size_t {0}; i < array.size(); ++i)
+    auto first = true;
+
+    for (const auto& element: array)
     {
-        if (i > 0)
+        if (!first)
             output += ',';
+
+        first = false;
 
         if (indent > 0)
             writeIndent(output, indent, depth + 1);
 
-        printTo(output, array[i], indent, depth + 1);
+        printTo(output, element, indent, depth + 1);
     }
 
     if (indent > 0)

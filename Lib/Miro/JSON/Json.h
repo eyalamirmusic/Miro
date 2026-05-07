@@ -1,11 +1,12 @@
 #pragma once
 
+#include "../Containers.h"
+
 #include <map>
 #include <stdexcept>
 #include <string>
 #include <string_view>
 #include <variant>
-#include <vector>
 
 namespace Miro::Json
 {
@@ -13,7 +14,7 @@ namespace Miro::Json
 struct Value;
 
 using Null = std::nullptr_t;
-using Array = std::vector<Value>;
+using Array = Miro::Vector<Value>;
 using Object = std::map<std::string, Value>;
 
 struct Value

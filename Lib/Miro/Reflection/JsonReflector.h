@@ -2,8 +2,6 @@
 
 #include "Reflector.h"
 
-#include <memory>
-
 namespace Miro
 {
 
@@ -28,7 +26,7 @@ public:
 
     std::size_t arraySize() const override;
     void resizeArray(std::size_t newSize) override;
-    std::vector<std::string> mapKeys() const override;
+    Vector<std::string> mapKeys() const override;
 
 private:
     JSON& slot;
@@ -39,7 +37,7 @@ private:
     // become no-ops, matching the prior "skip body" semantics.
     JSON missingSlot;
 
-    std::unique_ptr<JsonReflector> currentChild;
+    OwningPointer<JsonReflector> currentChild;
 
     JsonReflector(JSON& slotToUse, Options optsToUse, bool absentToUse);
 

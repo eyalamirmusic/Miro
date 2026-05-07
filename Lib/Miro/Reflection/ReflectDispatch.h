@@ -37,6 +37,13 @@ struct IsOptional<std::optional<T>> : std::true_type
 {
 };
 
+// OwningPointer behaves like std::optional for reflection — nullable
+// slot whose inner shape is decided by T.
+template <typename T>
+struct IsOptional<OwningPointer<T>> : std::true_type
+{
+};
+
 template <typename T>
 struct InnerOf
 {
@@ -45,6 +52,12 @@ struct InnerOf
 
 template <typename T>
 struct InnerOf<std::optional<T>>
+{
+    using type = T;
+};
+
+template <typename T>
+struct InnerOf<OwningPointer<T>>
 {
     using type = T;
 };
@@ -64,6 +77,16 @@ struct IsArrayLike<std::array<T, N>> : std::true_type
 {
 };
 
+template <typename T, typename Allocator>
+struct IsArrayLike<Vector<T, Allocator>> : std::true_type
+{
+};
+
+template <typename T, int N>
+struct IsArrayLike<Array<T, N>> : std::true_type
+{
+};
+
 template <typename T>
 struct IsMapLike : std::false_type
 {
@@ -71,6 +94,11 @@ struct IsMapLike : std::false_type
 
 template <typename V>
 struct IsMapLike<std::map<std::string, V>> : std::true_type
+{
+};
+
+template <typename V>
+struct IsMapLike<EA::MapVector<std::string, V>> : std::true_type
 {
 };
 
@@ -137,6 +165,18 @@ void reflectValue(Reflector& ref, std::map<std::string, V>& value);
 
 template <typename T>
 void reflectValue(Reflector& ref, std::optional<T>& value);
+
+template <typename T, typename Allocator>
+void reflectValue(Reflector& ref, Vector<T, Allocator>& value);
+
+template <typename T, int N>
+void reflectValue(Reflector& ref, Array<T, N>& value);
+
+template <typename V>
+void reflectValue(Reflector& ref, EA::MapVector<std::string, V>& value);
+
+template <typename T>
+void reflectValue(Reflector& ref, OwningPointer<T>& value);
 
 template <typename T>
     requires std::is_enum_v<T>

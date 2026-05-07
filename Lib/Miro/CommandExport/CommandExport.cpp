@@ -3,12 +3,10 @@
 #include <algorithm>
 #include <cstddef>
 #include <map>
-#include <memory>
 #include <sstream>
 #include <stdexcept>
 #include <string>
 #include <utility>
-#include <vector>
 
 namespace Miro::CommandExport
 {
@@ -31,7 +29,7 @@ struct CommandNode;
 struct CommandChild
 {
     std::string name;
-    std::unique_ptr<CommandNode> node;
+    OwningPointer<CommandNode> node;
 };
 
 struct CommandNode
@@ -40,7 +38,7 @@ struct CommandNode
 
     // Insertion-ordered so the emitted JS tree mirrors registration
     // order rather than alphabetical.
-    std::vector<CommandChild> children;
+    Vector<CommandChild> children;
 };
 
 // Resolved per-type info derived from the supplied TypeNode roots:
@@ -71,9 +69,9 @@ ResolvedTypes resolveTypes(std::span<TypeTree::TypeNode> typeRoots)
     return resolved;
 }
 
-std::vector<std::string> splitOnDoubleColon(std::string_view name)
+Vector<std::string> splitOnDoubleColon(std::string_view name)
 {
-    auto out = std::vector<std::string> {};
+    auto out = Vector<std::string> {};
     auto start = std::size_t {0};
 
     while (start <= name.size())
@@ -92,7 +90,7 @@ std::vector<std::string> splitOnDoubleColon(std::string_view name)
         else
             segment.clear();
 
-        out.push_back(std::move(segment));
+        out.add(std::move(segment));
 
         if (pos == std::string_view::npos)
             break;
@@ -107,7 +105,7 @@ void insertCommand(CommandNode& root, const CommandEntry& cmd)
     auto path = splitOnDoubleColon(cmd.name);
     auto* node = &root;
 
-    for (auto i = std::size_t {0}; i < path.size(); ++i)
+    for (auto i = 0; i < path.size(); ++i)
     {
         auto& segment = path[i];
         auto isLast = (i + 1 == path.size());
@@ -118,8 +116,8 @@ void insertCommand(CommandNode& root, const CommandEntry& cmd)
 
         if (it == node->children.end())
         {
-            node->children.push_back(
-                CommandChild {segment, std::make_unique<CommandNode>()});
+            node->children.add(
+                CommandChild {segment, EA::makeOwned<CommandNode>()});
             it = std::prev(node->children.end());
         }
 

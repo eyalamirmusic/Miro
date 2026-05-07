@@ -4,9 +4,7 @@
 #include "../Reflection/Reflector.h"
 #include "../Reflection/TypeName.h"
 
-#include <memory>
 #include <string>
-#include <vector>
 
 namespace Miro::TypeExport
 {
@@ -47,14 +45,14 @@ struct TypedEntry final : TypeEntry
 
 // Process-wide registry, populated by static initializers from
 // MIRO_EXPORT_TYPES(...) at program start. The runner walks this in main().
-std::vector<std::unique_ptr<TypeEntry>>& registry();
+OwnedVector<TypeEntry>& registry();
 
 template <typename T>
 inline void registerOne()
 {
-    auto entry = std::make_unique<TypedEntry<T>>();
+    auto entry = OwningPointer<TypeEntry> {new TypedEntry<T> {}};
     entry->typeName = std::string {Miro::Detail::typeNameOf<T>()};
-    registry().push_back(std::move(entry));
+    registry().add(std::move(entry));
 }
 
 // Anchors a global per macro invocation; its constructor populates the

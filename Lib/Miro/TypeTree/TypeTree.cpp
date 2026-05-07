@@ -28,11 +28,11 @@ TypeReflector::TypeReflector(TypeNode& nodeToUse,
             break;
         case Miro::Shape::Array:
             node.shape = TypeNode::Shape::Array;
-            node.inner = std::make_unique<TypeNode>();
+            node.inner = EA::makeOwned<TypeNode>();
             break;
         case Miro::Shape::Map:
             node.shape = TypeNode::Shape::Map;
-            node.inner = std::make_unique<TypeNode>();
+            node.inner = EA::makeOwned<TypeNode>();
             break;
     }
 
@@ -69,7 +69,7 @@ bool TypeReflector::beginNamedType(TypeId id)
     return true;
 }
 
-void TypeReflector::visitEnum(TypeId id, const std::vector<std::string_view>& names)
+void TypeReflector::visitEnum(TypeId id, const Vector<std::string_view>& names)
 {
     node.shape = TypeNode::Shape::Enum;
     node.typeName = std::string {id.shortName};
@@ -102,7 +102,7 @@ void TypeReflector::visit(PrimitiveRef ref)
 Reflector& TypeReflector::spawnChild(TypeNode& targetNode, Options childOpts)
 {
     currentChild.reset();
-    currentChild = std::make_unique<TypeReflector>(targetNode, childOpts, this);
+    currentChild.create(targetNode, childOpts, this);
     return *currentChild;
 }
 
@@ -111,8 +111,8 @@ Reflector& TypeReflector::atKey(std::string_view key, Options childOpts)
     if (node.shape == TypeNode::Shape::Map)
         return spawnChild(*node.inner, childOpts);
 
-    auto field = TypeNode::Field {std::string {key}, std::make_unique<TypeNode>()};
-    node.fields.push_back(std::move(field));
+    auto field = TypeNode::Field {std::string {key}, EA::makeOwned<TypeNode>()};
+    node.fields.add(std::move(field));
     return spawnChild(*node.fields.back().type, childOpts);
 }
 
@@ -146,7 +146,7 @@ const std::string& dedupKey(const TypeNode& node)
 // qualified name) become inline name references in rendered output.
 void collectNamed(const TypeNode& node,
                   std::set<std::string>& seen,
-                  std::vector<const TypeNode*>& outOrdered)
+                  Vector<const TypeNode*>& outOrdered)
 {
     if (node.shape == TypeNode::Shape::Object && !node.typeName.empty())
     {
@@ -159,7 +159,7 @@ void collectNamed(const TypeNode& node,
         for (auto& field: node.fields)
             collectNamed(*field.type, seen, outOrdered);
 
-        outOrdered.push_back(&node);
+        outOrdered.add(&node);
         return;
     }
 
@@ -170,7 +170,7 @@ void collectNamed(const TypeNode& node,
             return;
 
         seen.insert(key);
-        outOrdered.push_back(&node);
+        outOrdered.add(&node);
         return;
     }
 
@@ -179,7 +179,7 @@ void collectNamed(const TypeNode& node,
         for (auto& field: node.fields)
             collectNamed(*field.type, seen, outOrdered);
     }
-    else if (node.inner)
+    else if (node.inner.get() != nullptr)
     {
         collectNamed(*node.inner, seen, outOrdered);
     }
@@ -229,11 +229,11 @@ using NameMap = std::map<std::string, std::string>;
 // will be emitted for it. When several distinct C++ types share an
 // unqualified name (different namespaces), the colliding entries fall
 // back to a sanitized qualified name so each declaration is unique.
-NameMap chooseOutputNames(const std::vector<const TypeNode*>& ordered)
+NameMap chooseOutputNames(const Vector<const TypeNode*>& ordered)
 {
-    auto byShortName = std::map<std::string, std::vector<const TypeNode*>> {};
+    auto byShortName = std::map<std::string, Vector<const TypeNode*>> {};
     for (auto* n: ordered)
-        byShortName[n->typeName].push_back(n);
+        byShortName[n->typeName].add(n);
 
     auto names = NameMap {};
     for (auto& [shortName, group]: byShortName)
@@ -269,16 +269,16 @@ void applyOutputNames(TypeNode& root, const NameMap& names)
     for (auto& field: root.fields)
         applyOutputNames(*field.type, names);
 
-    if (root.inner)
+    if (root.inner.get() != nullptr)
         applyOutputNames(*root.inner, names);
 }
 
 } // namespace
 
-std::vector<const TypeNode*> prepareRoots(std::span<TypeNode> roots)
+Vector<const TypeNode*> prepareRoots(std::span<TypeNode> roots)
 {
     auto seen = std::set<std::string> {};
-    auto ordered = std::vector<const TypeNode*> {};
+    auto ordered = Vector<const TypeNode*> {};
 
     for (auto& root: roots)
         collectNamed(root, seen, ordered);

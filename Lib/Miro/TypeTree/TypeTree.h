@@ -4,12 +4,10 @@
 #include "../Reflection/Reflector.h"
 
 #include <cstddef>
-#include <memory>
 #include <optional>
 #include <span>
 #include <string>
 #include <string_view>
-#include <vector>
 
 // A format-neutral description of a reflected C++ type. The TypeReflector
 // walks any MIRO_REFLECT-enabled value and builds a TypeNode tree;
@@ -67,18 +65,19 @@ struct TypeNode
     struct Field
     {
         std::string name;
-        std::unique_ptr<TypeNode> type;
+        OwningPointer<TypeNode> type;
     };
-    std::vector<Field> fields;
+    Vector<Field> fields;
 
     // Array / Map only: the inner element type.
-    std::unique_ptr<TypeNode> inner;
+    OwningPointer<TypeNode> inner;
 
     // Enum only: ordered enumerator names.
-    std::vector<std::string> enumValues;
+    Vector<std::string> enumValues;
 
-    // Array only, and only when fixed-size (std::array<T, N>): both
-    // bounds get N. nullopt for std::vector. Schema renderer uses these
+    // Array only, and only when fixed-size (std::array<T, N> or
+    // EA::Array<T, N>): both bounds get N. nullopt for resizable
+    // arrays (std::vector / EA::Vector). Schema renderer uses these
     // to emit minItems/maxItems.
     std::optional<std::size_t> minItems;
     std::optional<std::size_t> maxItems;
@@ -99,7 +98,7 @@ public:
     void writeNull() override;
     ValueKind kind() const override;
     bool beginNamedType(TypeId id) override;
-    void visitEnum(TypeId id, const std::vector<std::string_view>& names) override;
+    void visitEnum(TypeId id, const Vector<std::string_view>& names) override;
 
     Reflector& atKey(std::string_view key, Options childOpts) override;
     Reflector& atIndex(std::size_t index, Options childOpts) override;
@@ -108,7 +107,7 @@ public:
 
 private:
     TypeNode& node;
-    std::unique_ptr<TypeReflector> currentChild;
+    EA::OwningPointer<TypeReflector> currentChild;
 
     // Parent in the spawn chain; nullptr at the root. Used by
     // beginNamedType to detect a recursive descent into the same C++
@@ -142,6 +141,6 @@ TypeNode buildTree()
 //
 // Roots are passed mutably because the rewrite happens in place; if a
 // caller doesn't want their trees touched, hand over a copy.
-std::vector<const TypeNode*> prepareRoots(std::span<TypeNode> roots);
+Vector<const TypeNode*> prepareRoots(std::span<TypeNode> roots);
 
 } // namespace Miro::TypeTree

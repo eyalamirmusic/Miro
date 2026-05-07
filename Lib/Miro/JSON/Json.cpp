@@ -159,16 +159,16 @@ const Value& Value::operator[](const char* keyToUse) const
 
 Value& Value::operator[](std::size_t indexToUse)
 {
-    return std::get<Array>(data).at(indexToUse);
+    return std::get<Array>(data)[indexToUse];
 }
 
 const Value& Value::operator[](std::size_t indexToUse) const
 {
-    return std::get<Array>(data).at(indexToUse);
+    return std::get<Array>(data)[indexToUse];
 }
 Value& Value::operator[](int indexToUse)
 {
-    return operator[]((size_t) indexToUse);
+    return std::get<Array>(data)[indexToUse];
 }
 
 const Value& Value::operator[](int indexToUse) const

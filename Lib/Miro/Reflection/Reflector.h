@@ -160,7 +160,7 @@ public:
     // exporter) override this. The default falls back to a string slot,
     // which is what the JSON-Schema reflector has historically emitted.
     virtual void visitEnum(TypeId /*id*/,
-                           const std::vector<std::string_view>& /*names*/)
+                           const Vector<std::string_view>& /*names*/)
     {
         auto placeholder = std::string {"enum"};
         visit(placeholder);
@@ -179,12 +179,12 @@ public:
     // (e.g. SchemaReflector) need not override.
     virtual std::size_t arraySize() const { return 0; }
     virtual void resizeArray(std::size_t /*newSize*/) {}
-    virtual std::vector<std::string> mapKeys() const { return {}; }
+    virtual Vector<std::string> mapKeys() const { return {}; }
 
-    // Schema hint for fixed-size arrays. Called from the std::array
-    // dispatcher with the compile-time N as both min and max. Reflectors
-    // that don't care (the JSON reflector) keep the no-op default; the
-    // schema reflector translates this into minItems/maxItems.
+    // Schema hint for fixed-size arrays. Called from the std::array /
+    // EA::Array dispatcher with the compile-time N as both min and max.
+    // Reflectors that don't care (the JSON reflector) keep the no-op
+    // default; the schema reflector translates this into minItems/maxItems.
     virtual void setArrayBounds(std::size_t /*min*/, std::size_t /*max*/) {}
 
 protected:

@@ -20,19 +20,16 @@
 #include <fstream>
 #include <functional>
 #include <iostream>
-#include <memory>
 #include <set>
 #include <string>
 #include <string_view>
-#include <vector>
 
 namespace
 {
 
 using Miro::TypeExport::TypeEntry;
 
-using EntryPtr = std::unique_ptr<TypeEntry>;
-using EntryList = std::vector<EntryPtr>;
+using EntryList = Miro::OwnedVector<TypeEntry>;
 
 struct Format
 {
@@ -45,10 +42,10 @@ struct Format
 };
 
 // Reflects every entry into its own TypeNode tree. The trees are
-// move-only (own unique_ptrs internally), so we reserve and emplace.
-std::vector<Miro::TypeTree::TypeNode> buildAllTypeTrees(const EntryList& entries)
+// move-only (own OwningPointers internally), so we reserve and emplace.
+Miro::Vector<Miro::TypeTree::TypeNode> buildAllTypeTrees(const EntryList& entries)
 {
-    auto roots = std::vector<Miro::TypeTree::TypeNode> {};
+    auto roots = Miro::Vector<Miro::TypeTree::TypeNode> {};
     roots.reserve(entries.size());
 
     for (auto& entry: entries)
@@ -75,7 +72,7 @@ std::string formatBackendModule(const EntryList& typeEntries,
 // Add new formats here. The runner doesn't care what each format does —
 // it just calls generate(entries, baseName) and writes the result to
 // <baseName><ext>.
-const auto kFormats = std::vector<Format> {
+const auto kFormats = Miro::Vector<Format> {
     Format {
         "zod",
         ".zod.ts",
