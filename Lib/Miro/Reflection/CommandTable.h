@@ -36,8 +36,7 @@ public:
         return [handler](const JSON& payload) -> JSON
         {
             auto req = Req {};
-            auto adjusted =
-                payload.isNull() ? JSON {Json::Object {}} : payload;
+            auto adjusted = payload.isNull() ? JSON {Json::Object {}} : payload;
             fromJSON(req, adjusted);
             auto res = handler(req);
             return toJSON(res);
@@ -54,6 +53,38 @@ public:
     void on(const std::string& command, Res (*handler)(const Req&))
     {
         on<Req, Res>(command, std::function<Res(const Req&)> {handler});
+    }
+
+    template <typename Res>
+    void on(const std::string& command, Res (*handler)())
+    {
+        registerHandler(
+            command, [handler](const JSON&) -> JSON { return toJSON(handler()); });
+    }
+
+    template <typename Req>
+    void on(const std::string& command, void (*handler)(const Req&))
+    {
+        registerHandler(command,
+                        [handler](const JSON& payload) -> JSON
+                        {
+                            auto req = Req {};
+                            auto adjusted =
+                                payload.isNull() ? JSON {Json::Object {}} : payload;
+                            fromJSON(req, adjusted);
+                            handler(req);
+                            return JSON {};
+                        });
+    }
+
+    void on(const std::string& command, void (*handler)())
+    {
+        registerHandler(command,
+                        [handler](const JSON&) -> JSON
+                        {
+                            handler();
+                            return JSON {};
+                        });
     }
 
     void on(const std::string& command, const RawHandler& handler)
