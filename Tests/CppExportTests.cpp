@@ -16,13 +16,13 @@ using namespace Miro;
 
 auto cppPragmaOnce = test("Cpp: header begins with #pragma once") = []
 {
-    auto out = Cpp::toHeader<User>(/*withMiro=*/false);
+    auto out = Cpp::toHeader<User>(Cpp::Modes::PureCPP);
     check(out.starts_with("#pragma once"));
 };
 
 auto cppStdIncludes = test("Cpp: pulls in std headers it needs") = []
 {
-    auto out = Cpp::toHeader<User>(/*withMiro=*/false);
+    auto out = Cpp::toHeader<User>(Cpp::Modes::PureCPP);
     check(contains(out, "#include <map>"));
     check(contains(out, "#include <optional>"));
     check(contains(out, "#include <string>"));
@@ -31,20 +31,20 @@ auto cppStdIncludes = test("Cpp: pulls in std headers it needs") = []
 
 auto cppNoMiroInclude = test("Cpp: pure variant has no <Miro/Miro.h> include") = []
 {
-    auto out = Cpp::toHeader<User>(/*withMiro=*/false);
+    auto out = Cpp::toHeader<User>(Cpp::Modes::PureCPP);
     check(!contains(out, "Miro/Miro.h"));
 };
 
 auto cppNoMiroReflect = test("Cpp: pure variant emits no MIRO_REFLECT lines") = []
 {
-    auto out = Cpp::toHeader<User>(/*withMiro=*/false);
+    auto out = Cpp::toHeader<User>(Cpp::Modes::PureCPP);
     check(!contains(out, "MIRO_REFLECT"));
 };
 
 auto cppPrimitiveTypes =
     test("Cpp: primitive fields use bool/int/std::string with sane defaults") = []
 {
-    auto out = Cpp::toHeader<User>(/*withMiro=*/false);
+    auto out = Cpp::toHeader<User>(Cpp::Modes::PureCPP);
     check(contains(out, "std::string name;"));
     check(contains(out, "int age = 0;"));
     check(contains(out, "bool active = false;"));
@@ -52,7 +52,7 @@ auto cppPrimitiveTypes =
 
 auto cppContainerTypes = test("Cpp: vector / map / optional spellings") = []
 {
-    auto out = Cpp::toHeader<User>(/*withMiro=*/false);
+    auto out = Cpp::toHeader<User>(Cpp::Modes::PureCPP);
     check(contains(out, "std::vector<std::string> tags;"));
     check(contains(out, "std::map<std::string, int> counters;"));
     check(contains(out, "std::optional<std::string> note;"));
@@ -61,13 +61,13 @@ auto cppContainerTypes = test("Cpp: vector / map / optional spellings") = []
 
 auto cppNamedReference = test("Cpp: nested named struct emitted by name") = []
 {
-    auto out = Cpp::toHeader<User>(/*withMiro=*/false);
+    auto out = Cpp::toHeader<User>(Cpp::Modes::PureCPP);
     check(contains(out, "Address address;"));
 };
 
 auto cppEnumDeclaration = test("Cpp: enum becomes a top-level enum class") = []
 {
-    auto out = Cpp::toHeader<User>(/*withMiro=*/false);
+    auto out = Cpp::toHeader<User>(Cpp::Modes::PureCPP);
     check(contains(out, "enum class Color"));
     check(contains(out, "Red"));
     check(contains(out, "Green"));
@@ -77,7 +77,7 @@ auto cppEnumDeclaration = test("Cpp: enum becomes a top-level enum class") = []
 auto cppDependencyOrder =
     test("Cpp: dependency ordering — referenced types declared first") = []
 {
-    auto out = Cpp::toHeader<User>(/*withMiro=*/false);
+    auto out = Cpp::toHeader<User>(Cpp::Modes::PureCPP);
     check(comesBefore(out, "struct Address", "struct User"));
     check(comesBefore(out, "enum class Color", "struct User"));
 };
@@ -86,14 +86,14 @@ auto cppDependencyOrder =
 
 auto cppMiroIncludes = test("Cpp (miro): includes Miro/Miro.h") = []
 {
-    auto out = Cpp::toHeader<User>(/*withMiro=*/true);
+    auto out = Cpp::toHeader<User>(Cpp::Modes::Miro);
     check(contains(out, "#include <Miro/Miro.h>"));
 };
 
 auto cppMiroReflect =
     test("Cpp (miro): every struct has a MIRO_REFLECT line listing its fields") = []
 {
-    auto out = Cpp::toHeader<User>(/*withMiro=*/true);
+    auto out = Cpp::toHeader<User>(Cpp::Modes::Miro);
     check(contains(out, "MIRO_REFLECT(street, zip)"));
     check(contains(out,
                    "MIRO_REFLECT(name, age, active, address, tags, counters, "
@@ -103,7 +103,7 @@ auto cppMiroReflect =
 auto cppMiroEnumNoReflect =
     test("Cpp (miro): enum classes do not get a MIRO_REFLECT line") = []
 {
-    auto out = Cpp::toHeader<User>(/*withMiro=*/true);
+    auto out = Cpp::toHeader<User>(Cpp::Modes::Miro);
     // The enum block sits between "enum class Color" and the next "};"
     auto enumStart = out.find("enum class Color");
     auto enumEnd = out.find("};", enumStart);

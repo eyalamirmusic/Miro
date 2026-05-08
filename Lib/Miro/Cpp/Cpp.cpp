@@ -84,7 +84,7 @@ std::string renderType(const TypeNode& node)
     return "auto";
 }
 
-std::string emitStruct(const TypeNode& node, bool withMiro)
+std::string emitStruct(const TypeNode& node, Modes mode)
 {
     auto out = std::ostringstream {};
     out << "struct " << node.typeName << "\n{\n";
@@ -93,7 +93,7 @@ std::string emitStruct(const TypeNode& node, bool withMiro)
         out << "    " << renderTypeWithOptional(*field.type) << " " << field.name
             << defaultInitFor(*field.type) << ";\n";
 
-    if (withMiro)
+    if (mode == Modes::Miro)
     {
         if (!node.fields.empty())
             out << "\n";
@@ -134,7 +134,7 @@ std::string emitEnum(const TypeNode& node)
 
 } // namespace
 
-std::string formatHeader(std::span<TypeNode> roots, bool withMiro)
+std::string formatHeader(std::span<TypeNode> roots, Modes mode)
 {
     auto ordered = TypeTree::prepareRoots(roots);
 
@@ -145,7 +145,7 @@ std::string formatHeader(std::span<TypeNode> roots, bool withMiro)
     out << "#include <string>\n";
     out << "#include <vector>\n";
 
-    if (withMiro)
+    if (mode == Modes::Miro)
         out << "\n#include <Miro/Miro.h>\n";
 
     out << "\n";
@@ -155,15 +155,15 @@ std::string formatHeader(std::span<TypeNode> roots, bool withMiro)
         if (node->shape == TypeNode::Shape::Enum)
             out << emitEnum(*node) << "\n";
         else
-            out << emitStruct(*node, withMiro) << "\n";
+            out << emitStruct(*node, mode) << "\n";
     }
 
     return out.str();
 }
 
-std::string formatHeader(TypeNode& root, bool withMiro)
+std::string formatHeader(TypeNode& root, Modes mode)
 {
-    return formatHeader(std::span<TypeNode> {&root, 1}, withMiro);
+    return formatHeader(std::span<TypeNode> {&root, 1}, mode);
 }
 
 } // namespace Miro::Cpp

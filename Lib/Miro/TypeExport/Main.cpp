@@ -114,7 +114,7 @@ const auto kFormats = Miro::Vector<Format> {
         [](const EntryList& entries, std::string_view)
         {
             auto trees = buildAllTypeTrees(entries);
-            return Miro::Cpp::formatHeader(trees, /*withMiro=*/false);
+            return Miro::Cpp::formatHeader(trees, Miro::Cpp::Modes::PureCPP);
         },
     },
     Format {
@@ -123,7 +123,7 @@ const auto kFormats = Miro::Vector<Format> {
         [](const EntryList& entries, std::string_view)
         {
             auto trees = buildAllTypeTrees(entries);
-            return Miro::Cpp::formatHeader(trees, /*withMiro=*/true);
+            return Miro::Cpp::formatHeader(trees, Miro::Cpp::Modes::Miro);
         },
     },
     Format {

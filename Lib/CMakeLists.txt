@@ -1,5 +1,7 @@
 find_package(EADataStructures REQUIRED)
 
+set(CMAKE_FOLDER Miro)
+
 add_library(Miro STATIC
     Miro/CommandExport/CommandExport.cpp
     Miro/CommandExport/Register.cpp

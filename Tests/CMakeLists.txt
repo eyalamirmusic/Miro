@@ -1,8 +1,6 @@
-include(FetchContent)
+set(CMAKE_FOLDER Tests)
 
 find_package(NanoTest REQUIRED)
-
-set(CMAKE_FOLDER Tests)
 
 nano_add_executable(MiroTests SOURCES
         JsonTests.cpp

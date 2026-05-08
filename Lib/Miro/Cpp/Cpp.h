@@ -13,8 +13,8 @@
 // on the original source.
 //
 // Two flavours, picked at the call site:
-//   - `withMiro = false`: pure types, zero Miro dependency.
-//   - `withMiro = true` : the same shapes plus `MIRO_REFLECT(...)` and
+//   - `Modes::PureCPP`: pure types, zero Miro dependency.
+//   - `Modes::Miro`   : the same shapes plus `MIRO_REFLECT(...)` and
 //     an `#include <Miro/Miro.h>`, so the generated types are
 //     immediately serializable.
 //
@@ -24,14 +24,21 @@
 namespace Miro::Cpp
 {
 
-std::string formatHeader(TypeTree::TypeNode& root, bool withMiro);
-std::string formatHeader(std::span<TypeTree::TypeNode> roots, bool withMiro);
+enum class Modes
+{
+    Miro,
+    PureCPP
+};
+
+std::string formatHeader(TypeTree::TypeNode& root, Modes mode = Modes::PureCPP);
+std::string formatHeader(std::span<TypeTree::TypeNode> roots,
+                         Modes mode = Modes::PureCPP);
 
 template <typename T>
-std::string toHeader(bool withMiro)
+std::string toHeader(Modes mode = Modes::PureCPP)
 {
     auto tree = TypeTree::buildTree<T>();
-    return formatHeader(tree, withMiro);
+    return formatHeader(tree, mode);
 }
 
 } // namespace Miro::Cpp

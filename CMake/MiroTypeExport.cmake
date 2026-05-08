@@ -1,3 +1,4 @@
+
 # miro_add_type_export — defines a build-time type-export executable plus
 # a custom command that runs it. The executable's main() comes from the
 # MiroTypeExportMain target; the user provides registrations via
