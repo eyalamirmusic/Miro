@@ -4,6 +4,7 @@ add_library(Miro STATIC
     Miro/CommandExport/CommandExport.cpp
     Miro/CommandExport/Register.cpp
     Miro/Cpp/Cpp.cpp
+    Miro/Cpp/CppClient.cpp
     Miro/JSON/Json.cpp
     Miro/JSON/Parser.cpp
     Miro/JSON/Printer.cpp

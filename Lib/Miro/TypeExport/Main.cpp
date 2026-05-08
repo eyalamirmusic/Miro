@@ -9,6 +9,7 @@
 #include "../CommandExport/CommandExport.h"
 #include "../CommandExport/Register.h"
 #include "../Cpp/Cpp.h"
+#include "../Cpp/CppClient.h"
 #include "../JSON/Json.h"
 #include "../Schema/Schema.h"
 #include "../TypeScript/TypeScript.h"
@@ -123,6 +124,18 @@ const auto kFormats = Miro::Vector<Format> {
         {
             auto trees = buildAllTypeTrees(entries);
             return Miro::Cpp::formatHeader(trees, /*withMiro=*/true);
+        },
+    },
+    Format {
+        "cpp-client",
+        ".client.h",
+        [](const EntryList& entries, std::string_view baseName)
+        {
+            auto trees = buildAllTypeTrees(entries);
+            return Miro::Cpp::formatClientHeader(
+                std::span<Miro::TypeTree::TypeNode> {trees},
+                Miro::CommandExport::Detail::registry(),
+                baseName);
         },
     },
 };
