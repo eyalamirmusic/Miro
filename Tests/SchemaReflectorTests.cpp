@@ -166,7 +166,7 @@ auto schemaPaintsSaveLoadStillWorks =
 };
 
 auto schemaForEnumField =
-    test("Schema: enum field is a $ref; the body lives in $defs") = []
+    test("Schema: enum field is a $ref - the body lives in $defs") = []
 {
     auto schema = schemaOf<User>();
 
