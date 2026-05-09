@@ -2,6 +2,7 @@
 
 #include "Containers.h"
 
+#include "Bridge/Bridge.h"
 #include "CommandExport/CommandExport.h"
 #include "CommandExport/Register.h"
 #include "Reflection/Any.h"
