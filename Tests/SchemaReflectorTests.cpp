@@ -123,6 +123,13 @@ auto schemaForPrimitiveTypes = test("Schema: primitive type spellings") = []
     check(userBody["properties"]["active"]["type"].asString() == "boolean");
 };
 
+auto schemaForInt64 = test("Schema: 64-bit integer fields are 'integer'") = []
+{
+    auto schema = schemaOf<ClassWithInt64>();
+    auto& body = defOf(schema, "ClassWithInt64");
+    check(body["properties"]["epochMs"]["type"].asString() == "integer");
+};
+
 auto schemaForTopLevelVector = test("Schema: top-level vector") = []
 {
     auto schema = schemaOf<std::vector<int>>();

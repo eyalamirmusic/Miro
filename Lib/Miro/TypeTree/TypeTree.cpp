@@ -93,6 +93,8 @@ void TypeReflector::visit(PrimitiveRef ref)
                 node.primitive = PrimitiveKind::String;
             else if constexpr (std::same_as<T, double>)
                 node.primitive = PrimitiveKind::Number;
+            else if constexpr (std::same_as<T, std::int64_t>)
+                node.primitive = PrimitiveKind::Int64;
             else
                 node.primitive = PrimitiveKind::Integer;
         },

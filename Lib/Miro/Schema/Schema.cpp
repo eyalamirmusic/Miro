@@ -23,6 +23,7 @@ std::string_view jsonSchemaPrimitive(TypeTree::PrimitiveKind kind)
         case TypeTree::PrimitiveKind::Number:
             return "number";
         case TypeTree::PrimitiveKind::Integer:
+        case TypeTree::PrimitiveKind::Int64:
             return "integer";
     }
     return "string";

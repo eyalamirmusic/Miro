@@ -68,6 +68,7 @@ std::string_view zodPrimitive(TypeTree::PrimitiveKind kind)
         case TypeTree::PrimitiveKind::Number:
             return "z.number()";
         case TypeTree::PrimitiveKind::Integer:
+        case TypeTree::PrimitiveKind::Int64:
             return "z.number().int()";
     }
     return "z.unknown()";
@@ -83,6 +84,7 @@ std::string_view tsPrimitive(TypeTree::PrimitiveKind kind)
             return "string";
         case TypeTree::PrimitiveKind::Number:
         case TypeTree::PrimitiveKind::Integer:
+        case TypeTree::PrimitiveKind::Int64:
             return "number";
     }
     return "unknown";

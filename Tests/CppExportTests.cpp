@@ -23,6 +23,7 @@ auto cppPragmaOnce = test("Cpp: header begins with #pragma once") = []
 auto cppStdIncludes = test("Cpp: pulls in std headers it needs") = []
 {
     auto out = Cpp::toHeader<User>(Cpp::Modes::PureCPP);
+    check(contains(out, "#include <cstdint>"));
     check(contains(out, "#include <map>"));
     check(contains(out, "#include <optional>"));
     check(contains(out, "#include <string>"));
@@ -98,6 +99,13 @@ auto cppMiroReflect =
     check(contains(out,
                    "MIRO_REFLECT(name, age, active, address, tags, counters, "
                    "note, shipping, color, priority, accent)"));
+};
+
+auto cppInt64Field =
+    test("Cpp: 64-bit integer fields render as std::int64_t") = []
+{
+    auto out = Cpp::toHeader<ClassWithInt64>(Cpp::Modes::PureCPP);
+    check(contains(out, "std::int64_t epochMs = 0;"));
 };
 
 auto cppMiroEnumNoReflect =

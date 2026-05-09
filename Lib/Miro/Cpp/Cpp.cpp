@@ -24,6 +24,8 @@ std::string_view cppPrimitive(TypeTree::PrimitiveKind kind)
             return "double";
         case TypeTree::PrimitiveKind::Integer:
             return "int";
+        case TypeTree::PrimitiveKind::Int64:
+            return "std::int64_t";
     }
     return "int";
 }
@@ -46,6 +48,7 @@ std::string defaultInitFor(const TypeNode& field)
             return " = false";
         case TypeTree::PrimitiveKind::Number:
         case TypeTree::PrimitiveKind::Integer:
+        case TypeTree::PrimitiveKind::Int64:
             return " = 0";
         case TypeTree::PrimitiveKind::String:
             return {};
@@ -140,6 +143,7 @@ std::string formatHeader(std::span<TypeNode> roots, Modes mode)
 
     auto out = std::ostringstream {};
     out << "#pragma once\n\n";
+    out << "#include <cstdint>\n";
     out << "#include <map>\n";
     out << "#include <optional>\n";
     out << "#include <string>\n";

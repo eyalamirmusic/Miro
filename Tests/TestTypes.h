@@ -2,6 +2,7 @@
 
 #include <Miro/Miro.h>
 
+#include <cstdint>
 #include <optional>
 
 struct Inner
@@ -201,6 +202,13 @@ struct ClassWithIntegrals
     short s = -3;
     long long ll = 1234567890123LL;
     char c = 'A';
+};
+
+struct ClassWithInt64
+{
+    std::int64_t epochMs = 0;
+
+    MIRO_REFLECT(epochMs)
 };
 
 struct ClassWithOptional

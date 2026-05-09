@@ -39,6 +39,19 @@ auto tsPrimitiveSpellings = test("TypeScript: primitive Zod spellings") = []
     check(contains(out, "active: z.boolean()"));
 };
 
+auto tsInt64Zod =
+    test("TypeScript: 64-bit integer fields use z.number().int()") = []
+{
+    auto out = TypeScript::toZod<ClassWithInt64>();
+    check(contains(out, "epochMs: z.number().int()"));
+};
+
+auto tsInt64Type = test("TypeScript types: 64-bit integer fields are number") = []
+{
+    auto out = TypeScript::toTypes<ClassWithInt64>();
+    check(contains(out, "epochMs: number;"));
+};
+
 auto tsArrayField = test("TypeScript: vector field becomes z.array") = []
 {
     auto out = TypeScript::toZod<User>();

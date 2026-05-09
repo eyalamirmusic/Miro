@@ -27,6 +27,7 @@ enum class PrimitiveKind
     String,
     Number,
     Integer,
+    Int64,
 };
 
 struct TypeNode
