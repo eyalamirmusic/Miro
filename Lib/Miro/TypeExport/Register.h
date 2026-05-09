@@ -71,7 +71,7 @@ struct MultiRegistrar
 
 // Registers one or more types with the type-export runner. Use at
 // namespace scope from a .cpp file linked into a target passed to
-// miro_add_type_export() — the CMake helper links such targets with
+// miro_export() — the CMake helper links such targets with
 // WHOLE_ARCHIVE so these static initializers survive.
 //
 // Usage: MIRO_EXPORT_TYPES(User, Address, Role)

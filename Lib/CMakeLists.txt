@@ -29,7 +29,7 @@ if (MIRO_UNITY_BUILD)
     set_target_properties(Miro PROPERTIES UNITY_BUILD ON)
 endif ()
 
-# Pre-built main() for executables created via miro_add_type_export().
+# Pre-built main() for executables created via miro_export().
 # OBJECT (rather than STATIC) so the helper can plug it directly into
 # add_executable() as a source — sidesteps the empty-target check and
 # makes main() visible to the linker without needing WHOLE_ARCHIVE.

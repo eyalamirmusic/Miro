@@ -1,5 +1,5 @@
 // Pre-built main() for the Miro type-export runner. Linked into the
-// executable target created by miro_add_type_export() in CMake. User
+// executable target created by miro_export() in CMake. User
 // code provides MIRO_EXPORT_TYPES(...) registrations; this file walks the
 // registry once per requested format, bundles every registered type's
 // reflected output into a single module, and writes it as one file per
