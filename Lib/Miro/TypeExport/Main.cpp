@@ -99,6 +99,18 @@ const auto kFormats = Miro::Vector<Format> {
         { return formatBackendModule(entries, baseName); },
     },
     Format {
+        "ts-server",
+        ".handlers.ts",
+        [](const EntryList& entries, std::string_view baseName)
+        {
+            auto trees = buildAllTypeTrees(entries);
+            return Miro::CommandExport::formatServerHandlersModule(
+                std::span<Miro::TypeTree::TypeNode> {trees},
+                Miro::CommandExport::Detail::registry(),
+                baseName);
+        },
+    },
+    Format {
         "jsonschema",
         ".schema.json",
         [](const EntryList& entries, std::string_view)

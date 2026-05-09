@@ -63,6 +63,10 @@ function(miro_add_type_export)
     add_executable(${MTE_NAME} $<TARGET_OBJECTS:MiroTypeExportMain>)
     target_link_libraries(${MTE_NAME} PRIVATE MiroTypeExportMain)
 
+    if (TARGET miro_warnings)
+        target_link_libraries(${MTE_NAME} PRIVATE miro_warnings)
+    endif ()
+
     # SOURCES paths are resolved against CMAKE_CURRENT_SOURCE_DIR at call
     # site (the caller's CMakeLists.txt directory), so users can pass
     # bare filenames like "Registrations.cpp".

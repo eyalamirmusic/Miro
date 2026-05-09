@@ -222,6 +222,114 @@ void emitNode(std::ostringstream& out,
     out << closeIndent << "}";
 }
 
+bool isRequestEmpty(const CommandEntry& cmd, const ResolvedTypes& resolved)
+{
+    return cmd.hasRequest
+           && resolved.emptyByQualified.count(cmd.requestQualifiedName) != 0
+           && resolved.emptyByQualified.at(cmd.requestQualifiedName);
+}
+
+std::string resolvedNameFor(const std::string& qualified,
+                            const std::string& fallback,
+                            const ResolvedTypes& resolved)
+{
+    auto it = resolved.finalNameByQualified.find(qualified);
+    if (it != resolved.finalNameByQualified.end())
+        return it->second;
+    return fallback;
+}
+
+std::string handlerReturnType(const CommandEntry& cmd,
+                              const ResolvedTypes& resolved)
+{
+    if (!cmd.hasResponse)
+        return "void | Promise<void>";
+
+    auto resName = "T."
+                   + resolvedNameFor(cmd.responseQualifiedName,
+                                     cmd.responseTypeName,
+                                     resolved);
+    return resName + " | Promise<" + resName + ">";
+}
+
+void emitHandlerSignature(std::ostringstream& out,
+                          const CommandEntry& cmd,
+                          const ResolvedTypes& resolved)
+{
+    auto emitParam = cmd.hasRequest && !isRequestEmpty(cmd, resolved);
+
+    out << "(";
+    if (emitParam)
+    {
+        auto reqName = resolvedNameFor(cmd.requestQualifiedName,
+                                       cmd.requestTypeName,
+                                       resolved);
+        out << "req: T." << reqName;
+    }
+    out << "): " << handlerReturnType(cmd, resolved);
+}
+
+void emitHandlerType(std::ostringstream& out,
+                     int depth,
+                     const CommandNode& node,
+                     const ResolvedTypes& resolved)
+{
+    out << "{\n";
+
+    auto childIndent = indentString(depth + 1);
+    auto closeIndent = indentString(depth);
+
+    for (auto& c: node.children)
+    {
+        out << childIndent << c.name;
+
+        if (c.node->leaf != nullptr)
+            emitHandlerSignature(out, *c.node->leaf, resolved);
+        else
+        {
+            out << ": ";
+            emitHandlerType(out, depth + 1, *c.node, resolved);
+        }
+
+        out << ";\n";
+    }
+
+    out << closeIndent << "}";
+}
+
+void emitDispatchCases(std::ostringstream& out,
+                       const CommandNode& node,
+                       const ResolvedTypes& resolved,
+                       const std::string& accessPrefix)
+{
+    for (auto& c: node.children)
+    {
+        auto access = accessPrefix.empty() ? c.name : accessPrefix + "." + c.name;
+
+        if (c.node->leaf == nullptr)
+        {
+            emitDispatchCases(out, *c.node, resolved, access);
+            continue;
+        }
+
+        auto& cmd = *c.node->leaf;
+        auto emitParam = cmd.hasRequest && !isRequestEmpty(cmd, resolved);
+
+        out << "        case '" << cmd.name << "': return await handlers."
+            << access << "(";
+
+        if (emitParam)
+        {
+            auto reqName = resolvedNameFor(cmd.requestQualifiedName,
+                                           cmd.requestTypeName,
+                                           resolved);
+            out << "payload as T." << reqName;
+        }
+
+        out << ");\n";
+    }
+}
+
 } // namespace
 
 std::string formatBackendModule(std::span<TypeTree::TypeNode> typeRoots,
@@ -242,6 +350,45 @@ std::string formatBackendModule(std::span<TypeTree::TypeNode> typeRoots,
     out << "    return ";
     emitNode(out, 1, root, resolved);
     out << ";\n}\n";
+
+    return out.str();
+}
+
+std::string formatServerHandlersModule(std::span<TypeTree::TypeNode> typeRoots,
+                                       std::span<const CommandEntry> commands,
+                                       std::string_view baseName)
+{
+    auto resolved = resolveTypes(typeRoots);
+
+    auto root = CommandNode {};
+    for (auto& cmd: commands)
+        insertCommand(root, cmd);
+
+    auto out = std::ostringstream {};
+    out << "import type * as T from './" << baseName << "';\n\n";
+
+    out << "export type Handlers = ";
+    emitHandlerType(out, 0, root, resolved);
+    out << ";\n\n";
+
+    out << "export class UnknownCommandError extends Error\n"
+           "{\n"
+           "    httpStatus = 404;\n"
+           "    constructor(command: string)\n"
+           "    {\n"
+           "        super(`Unknown command: ${command}`);\n"
+           "    }\n"
+           "}\n\n";
+
+    out << "export async function dispatch(handlers: Handlers, "
+           "command: string, payload: unknown): Promise<unknown>\n"
+           "{\n"
+           "    switch (command)\n"
+           "    {\n";
+    emitDispatchCases(out, root, resolved, "");
+    out << "        default: throw new UnknownCommandError(command);\n"
+           "    }\n"
+           "}\n";
 
     return out.str();
 }

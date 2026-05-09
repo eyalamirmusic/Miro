@@ -29,4 +29,15 @@ std::string formatBackendModule(std::span<TypeTree::TypeNode> typeRoots,
                                 std::span<const CommandEntry> commands,
                                 std::string_view baseName);
 
+// Emits a TypeScript server-side dispatch module symmetrical to the
+// C++ `useStaticRegistry()` story: a `Handlers` interface with one
+// method per registered command (typed Req in / Res out, sync or
+// async), plus an `async dispatch(handlers, command, payload)` switch
+// keyed on the wire command name. Server transports (Node HTTP, etc.)
+// stay hand-written; this module only generates the typed dispatch
+// core. typeRoots and baseName behave identically to formatBackendModule.
+std::string formatServerHandlersModule(std::span<TypeTree::TypeNode> typeRoots,
+                                       std::span<const CommandEntry> commands,
+                                       std::string_view baseName);
+
 } // namespace Miro::CommandExport
