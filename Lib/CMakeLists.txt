@@ -1,4 +1,5 @@
 find_package(EADataStructures REQUIRED)
+find_package(ResEmbed REQUIRED)
 
 set(CMAKE_FOLDER Miro)
 
@@ -24,6 +25,11 @@ target_compile_options(Miro PUBLIC $<$<CXX_COMPILER_ID:MSVC>:/Zc:preprocessor>)
 target_link_libraries(Miro
     PUBLIC ea_data_structures
     PRIVATE miro_warnings)
+
+res_embed_add(Miro
+    FILES Miro/TypeScript/Resources/BridgeRuntime.ts
+    NAMESPACE MiroResources
+    CATEGORY MiroResources)
 
 if (MIRO_UNITY_BUILD)
     set_target_properties(Miro PROPERTIES UNITY_BUILD ON)

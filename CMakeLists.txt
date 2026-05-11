@@ -9,7 +9,7 @@ list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/CMake")
 include(Warnings)
 include(MiroTypeExport)
 
-option(MIRO_UNITY_BUILD "Enable CMake unity build for the Miro library" ON)
+option(MIRO_UNITY_BUILD "Enable CMake unity build for the Miro library" OFF)
 option(MIRO_BUILD_TESTS "Build Miro internal tests" OFF)
 
 add_subdirectory(SDKs)
