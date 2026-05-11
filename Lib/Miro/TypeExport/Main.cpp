@@ -111,6 +111,12 @@ const auto kFormats = Miro::Vector<Format> {
         },
     },
     Format {
+        "bridge",
+        ".bridge.ts",
+        [](const EntryList&, std::string_view)
+        { return Miro::TypeScript::formatBridgeRuntime(); },
+    },
+    Format {
         "jsonschema",
         ".schema.json",
         [](const EntryList& entries, std::string_view)

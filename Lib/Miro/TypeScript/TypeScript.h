@@ -25,6 +25,13 @@ std::string formatTypesModule(TypeTree::TypeNode& root);
 std::string formatZodModule(std::span<TypeTree::TypeNode> roots);
 std::string formatTypesModule(std::span<TypeTree::TypeNode> roots);
 
+// Static, schema-independent runtime emitted as the `bridge` format —
+// the transport-agnostic glue (Transport interface, makeBridge factory)
+// that command factories from <baseName>.backend bind to. Pair with a
+// transport adapter (e.g. eacp's webViewTransport, an HTTP fetch
+// transport, a WebSocket transport) to get a typed client.
+std::string formatBridgeRuntime();
+
 // Public entry points.
 template <typename T>
 std::string toZod()
