@@ -98,9 +98,8 @@ findRegistered(const std::string& name)
 {
     auto& reg = CommandExport::Detail::registry();
     auto it =
-        std::find_if(reg.begin(),
-                     reg.end(),
-                     [&](auto& e) { return e.name == name; });
+        std::ranges::find_if(reg,
+                             [&](auto& e) { return e.name == name; });
     return it == reg.end() ? nullptr : &*it;
 }
 
