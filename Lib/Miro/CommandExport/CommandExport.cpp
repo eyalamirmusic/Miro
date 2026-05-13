@@ -380,8 +380,12 @@ std::string formatServerHandlersModule(std::span<TypeTree::TypeNode> typeRoots,
            "    }\n"
            "}\n\n";
 
+    auto anyCommandUsesPayload = std::ranges::any_of(commands,
+            [&](auto& cmd) { return cmd.hasRequest && !isRequestEmpty(cmd, resolved); });
+    auto payloadParam = anyCommandUsesPayload ? "payload" : "_payload";
+
     out << "export async function dispatch(handlers: Handlers, "
-           "command: string, payload: unknown): Promise<unknown>\n"
+           "command: string, " << payloadParam << ": unknown): Promise<unknown>\n"
            "{\n"
            "    switch (command)\n"
            "    {\n";
