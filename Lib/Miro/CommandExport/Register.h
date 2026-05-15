@@ -112,7 +112,7 @@ inline void registerCommand(const char* nameToUse)
         entry.hasResponse = false;
     }
 
-    entry.thunk = [](const JSON& payload) -> JSON
+    entry.thunk = [](const JSON& payload [[maybe_unused]]) -> JSON
     {
         if constexpr (Sig::hasReq)
         {

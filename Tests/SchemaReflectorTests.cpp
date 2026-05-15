@@ -164,7 +164,10 @@ auto schemaPaintsSaveLoadStillWorks =
     test("Schema reflector does not interfere with toJSON/fromJSON") = []
 {
     // Sanity: existing JSON path still works for the same type.
-    auto user = User {.name = "ada", .age = 36, .tags = {"x"}};
+    auto user = User {};
+    user.name = "ada";
+    user.age = 36;
+    user.tags = {"x"};
     auto restored = createFromJSONString<User>(toJSONString(user));
 
     check(restored.name == "ada");

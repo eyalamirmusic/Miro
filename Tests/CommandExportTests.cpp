@@ -400,7 +400,7 @@ auto cetHandlersImports =
     check(contains(out, "export class UnknownCommandError extends Error"));
     check(contains(out,
                    "export async function dispatch(handlers: Handlers, "
-                   "command: string, payload: unknown): Promise<unknown>"));
+                   "command: string, _payload: unknown): Promise<unknown>"));
     check(contains(out, "default: throw new UnknownCommandError(command);"));
 };
 

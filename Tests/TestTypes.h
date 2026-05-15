@@ -279,7 +279,7 @@ struct User
     std::string name;
     int age = 0;
     bool active = true;
-    Address address;
+    Address address {};
     std::vector<std::string> tags;
     std::map<std::string, int> counters;
     std::optional<std::string> note;
