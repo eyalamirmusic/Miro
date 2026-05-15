@@ -87,31 +87,39 @@ std::string renderType(const TypeNode& node)
     return "auto";
 }
 
+void emitStructFields(std::ostringstream& out, const TypeNode& node)
+{
+    for (auto& field: node.fields)
+        out << "    " << renderTypeWithOptional(*field.type) << " " << field.name
+            << defaultInitFor(*field.type) << ";\n";
+}
+
+void emitReflectMacro(std::ostringstream& out, const TypeNode& node)
+{
+    if (!node.fields.empty())
+        out << "\n";
+
+    out << "    MIRO_REFLECT(";
+    auto first = true;
+    for (auto& field: node.fields)
+    {
+        if (!first)
+            out << ", ";
+        first = false;
+        out << field.name;
+    }
+    out << ")\n";
+}
+
 std::string emitStruct(const TypeNode& node, Modes mode)
 {
     auto out = std::ostringstream {};
     out << "struct " << node.typeName << "\n{\n";
 
-    for (auto& field: node.fields)
-        out << "    " << renderTypeWithOptional(*field.type) << " " << field.name
-            << defaultInitFor(*field.type) << ";\n";
+    emitStructFields(out, node);
 
     if (mode == Modes::Miro)
-    {
-        if (!node.fields.empty())
-            out << "\n";
-
-        out << "    MIRO_REFLECT(";
-        auto first = true;
-        for (auto& field: node.fields)
-        {
-            if (!first)
-                out << ", ";
-            first = false;
-            out << field.name;
-        }
-        out << ")\n";
-    }
+        emitReflectMacro(out, node);
 
     out << "};\n";
     return out.str();

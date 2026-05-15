@@ -42,8 +42,18 @@ private:
     JsonReflector(JSON& slotToUse, Options optsToUse, bool absentToUse);
 
     void commitShape();
-    Reflector&
-        spawnChild(JSON& targetSlot, Options childOpts, bool absentToUse);
+
+    void savePrimitive(PrimitiveRef ref);
+    void loadPrimitive(PrimitiveRef ref);
+
+    Reflector& atKeyForSave(std::string_view key, Options childOpts);
+    Reflector& atKeyForLoad(std::string_view key, Options childOpts);
+
+    Reflector& atIndexForSave(std::size_t index, Options childOpts);
+    Reflector& atIndexForLoad(std::size_t index, Options childOpts);
+
+    Reflector& spawnChild(JSON& targetSlot, Options childOpts, bool absentToUse);
+    Reflector& spawnMissingChild(Options childOpts);
 };
 
 } // namespace Miro

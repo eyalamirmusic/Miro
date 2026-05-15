@@ -21,7 +21,6 @@
 #include <fstream>
 #include <functional>
 #include <iostream>
-#include <set>
 #include <string>
 #include <string_view>
 
@@ -178,38 +177,55 @@ void usage(const char* exeName)
     std::cerr << "\n";
 }
 
-} // namespace
-
-int main(int argc, char** argv)
+struct Args
 {
-    auto outDir = ghc::filesystem::path {};
-    auto baseName = std::string {"schema"};
-    auto requestedFormats = std::set<std::string> {};
+    ghc::filesystem::path outDir;
+    std::string baseName = "schema";
+    Miro::Vector<std::string> requestedFormats;
+    bool valid = false;
+};
+
+Args parseArgs(int argc, char** argv)
+{
+    auto args = Args {};
 
     for (auto i = 1; i < argc; ++i)
     {
         auto arg = std::string_view {argv[i]};
 
         if (arg == "--out" && i + 1 < argc)
-            outDir = argv[++i];
+            args.outDir = argv[++i];
         else if (arg == "--name" && i + 1 < argc)
-            baseName = argv[++i];
+            args.baseName = argv[++i];
         else if (arg == "--format" && i + 1 < argc)
-            requestedFormats.insert(argv[++i]);
+            args.requestedFormats.addIfNotThere(argv[++i]);
         else
-        {
-            usage(argv[0]);
-            return 1;
-        }
+            return args;
     }
 
-    if (outDir.empty())
+    args.valid = !args.outDir.empty();
+    return args;
+}
+
+bool isFormatRequested(const Miro::Vector<std::string>& requested,
+                       std::string_view formatName)
+{
+    return requested.empty() || requested.contains(std::string {formatName});
+}
+
+} // namespace
+
+int main(int argc, char** argv)
+{
+    auto args = parseArgs(argc, argv);
+
+    if (!args.valid)
     {
         usage(argv[0]);
         return 1;
     }
 
-    ghc::filesystem::create_directories(outDir);
+    ghc::filesystem::create_directories(args.outDir);
 
     auto& entries = Miro::TypeExport::Detail::registry();
 
@@ -223,12 +239,11 @@ int main(int argc, char** argv)
 
     for (auto& fmt: kFormats)
     {
-        if (!requestedFormats.empty()
-            && !requestedFormats.contains(std::string {fmt.name}))
+        if (!isFormatRequested(args.requestedFormats, fmt.name))
             continue;
 
-        auto fileName = baseName + std::string {fmt.extension};
-        writeFile(outDir / fileName, fmt.generate(entries, baseName));
+        auto fileName = args.baseName + std::string {fmt.extension};
+        writeFile(args.outDir / fileName, fmt.generate(entries, args.baseName));
     }
 
     return 0;

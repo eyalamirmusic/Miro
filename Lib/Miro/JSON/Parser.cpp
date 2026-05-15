@@ -92,43 +92,66 @@ private:
     {
         auto start = pos;
 
-        if (*pos == '-')
+        parseNumberSign();
+        parseNumberIntegerPart();
+        parseNumberFractionPart();
+        parseNumberExponentPart();
+
+        const char* parsed = nullptr;
+        auto value = fromChars(start, parsed);
+
+        if (parsed != pos)
+            error("failed to parse number");
+
+        return {value};
+    }
+
+    void parseNumberSign()
+    {
+        if (pos < end && *pos == '-')
             ++pos;
 
         if (pos >= end)
             error("unexpected end of number");
+    }
 
+    void parseNumberIntegerPart()
+    {
         if (*pos == '0')
             ++pos;
         else if (*pos >= '1' && *pos <= '9')
             skipDigits();
         else
             error("invalid number");
+    }
 
-        if (pos < end && *pos == '.')
-        {
+    void parseNumberFractionPart()
+    {
+        if (pos >= end || *pos != '.')
+            return;
+
+        ++pos;
+
+        if (pos >= end || *pos < '0' || *pos > '9')
+            error("expected digit after decimal point");
+
+        skipDigits();
+    }
+
+    void parseNumberExponentPart()
+    {
+        if (pos >= end || (*pos != 'e' && *pos != 'E'))
+            return;
+
+        ++pos;
+
+        if (pos < end && (*pos == '+' || *pos == '-'))
             ++pos;
-            if (pos >= end || *pos < '0' || *pos > '9')
-                error("expected digit after decimal point");
-            skipDigits();
-        }
 
-        if (pos < end && (*pos == 'e' || *pos == 'E'))
-        {
-            ++pos;
-            if (pos < end && (*pos == '+' || *pos == '-'))
-                ++pos;
-            if (pos >= end || *pos < '0' || *pos > '9')
-                error("expected digit in exponent");
-            skipDigits();
-        }
+        if (pos >= end || *pos < '0' || *pos > '9')
+            error("expected digit in exponent");
 
-        const char* parsed = nullptr;
-        auto value = fromChars(start, parsed);
-        if (parsed != pos)
-            error("failed to parse number");
-
-        return {value};
+        skipDigits();
     }
 
     // --- Strings ---

@@ -7,8 +7,10 @@ add_library(Miro STATIC
     Miro/Bridge/Bridge.cpp
     Miro/CommandExport/CommandExport.cpp
     Miro/CommandExport/Register.cpp
+    Miro/CommandExport/ResolvedTypes.cpp
     Miro/Cpp/Cpp.cpp
     Miro/Cpp/CppClient.cpp
+    Miro/Detail/StringUtilities.cpp
     Miro/JSON/Json.cpp
     Miro/JSON/Parser.cpp
     Miro/JSON/Printer.cpp

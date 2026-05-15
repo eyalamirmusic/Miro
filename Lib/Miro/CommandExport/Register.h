@@ -118,8 +118,7 @@ inline void registerCommand(const char* nameToUse)
         {
             using Req = Sig::Req;
             auto req = Req {};
-            auto adjusted = payload.isNull() ? JSON {Json::Object {}} : payload;
-            Miro::fromJSON(req, adjusted);
+            Miro::fromJSON(req, Json::payloadOrEmpty(payload));
 
             if constexpr (Sig::hasRes)
                 return Miro::toJSON(Handler(req));

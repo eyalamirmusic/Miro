@@ -1,8 +1,8 @@
 #include "CppClient.h"
 
-#include "../CommandExport/CommandExport.h"
+#include "../CommandExport/ResolvedTypes.h"
+#include "../Detail/StringUtilities.h"
 
-#include <map>
 #include <sstream>
 #include <string>
 #include <string_view>
@@ -13,94 +13,30 @@ namespace Miro::Cpp
 namespace
 {
 
-// Resolved per-type info derived from the supplied TypeNode roots:
-// the final type name (post collision rewrite), and a flag for "object
-// with zero fields" so empty-request handlers can elide the parameter.
-// Keyed by raw qualified C++ name to match CommandEntry::*QualifiedName.
-struct ResolvedTypes
-{
-    std::map<std::string, std::string> finalNameByQualified;
-    std::map<std::string, bool> emptyByQualified;
-};
-
-ResolvedTypes resolveTypes(std::span<TypeTree::TypeNode> typeRoots)
-{
-    TypeTree::prepareRoots(typeRoots);
-
-    auto resolved = ResolvedTypes {};
-    for (auto& root: typeRoots)
-    {
-        if (root.qualifiedName.empty())
-            continue;
-
-        resolved.finalNameByQualified[root.qualifiedName] = root.typeName;
-        resolved.emptyByQualified[root.qualifiedName] =
-            root.shape == TypeTree::TypeNode::Shape::Object && root.fields.empty();
-    }
-    return resolved;
-}
-
 std::string flattenMethodName(std::string_view command)
 {
-    auto out = std::string {};
-    out.reserve(command.size());
-
-    auto i = std::size_t {0};
-    while (i < command.size())
-    {
-        if (i + 1 < command.size() && command[i] == ':' && command[i + 1] == ':')
-        {
-            out.push_back('_');
-            i += 2;
-        }
-        else
-        {
-            out.push_back(command[i]);
-            ++i;
-        }
-    }
-    return out;
-}
-
-std::string resolvedNameFor(const std::string& qualified,
-                            const std::string& fallback,
-                            const ResolvedTypes& resolved)
-{
-    auto it = resolved.finalNameByQualified.find(qualified);
-    if (it != resolved.finalNameByQualified.end())
-        return it->second;
-    return fallback;
-}
-
-bool requestIsEmpty(const CommandExport::CommandEntry& cmd,
-                    const ResolvedTypes& resolved)
-{
-    if (!cmd.hasRequest)
-        return true;
-    auto it = resolved.emptyByQualified.find(cmd.requestQualifiedName);
-    return it != resolved.emptyByQualified.end() && it->second;
+    return Detail::replaceAll(command, "::", "_");
 }
 
 void emitMethod(std::ostringstream& out,
                 const CommandExport::CommandEntry& cmd,
-                const ResolvedTypes& resolved)
+                const CommandExport::ResolvedTypes& resolved)
 {
     auto resType = std::string {"void"};
-    if (cmd.hasResponse)
-        resType = "::"
-                  + resolvedNameFor(
-                      cmd.responseQualifiedName, cmd.responseTypeName, resolved);
 
-    auto reqEmpty = requestIsEmpty(cmd, resolved);
+    if (cmd.hasResponse)
+        resType =
+            "::" + resolved.nameFor(cmd.responseQualifiedName, cmd.responseTypeName);
+
+    auto reqEmpty = resolved.isRequestEmpty(cmd);
     auto methodName = flattenMethodName(cmd.name);
 
     out << "    " << resType << " " << methodName << "(";
 
     if (cmd.hasRequest && !reqEmpty)
     {
-        auto reqType = "::"
-                       + resolvedNameFor(
-                           cmd.requestQualifiedName, cmd.requestTypeName, resolved);
+        auto reqType =
+            "::" + resolved.nameFor(cmd.requestQualifiedName, cmd.requestTypeName);
         out << "const " << reqType << "& req";
     }
 
@@ -133,7 +69,7 @@ std::string formatClientHeader(std::span<TypeTree::TypeNode> typeRoots,
                                std::span<const CommandExport::CommandEntry> commands,
                                std::string_view typesHeader)
 {
-    auto resolved = resolveTypes(typeRoots);
+    auto resolved = CommandExport::resolveTypes(typeRoots);
 
     auto out = std::ostringstream {};
     out << "#pragma once\n\n";

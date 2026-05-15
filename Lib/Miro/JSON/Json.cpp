@@ -196,4 +196,12 @@ const Value* find(const Object& object, std::string_view key)
     return nullptr;
 }
 
+Value payloadOrEmpty(const Value& payload)
+{
+    if (payload.isNull())
+        return Value {Object {}};
+
+    return payload;
+}
+
 } // namespace Miro::Json

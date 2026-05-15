@@ -1,8 +1,9 @@
 #include "TypeTree.h"
 
+#include "../Detail/StringUtilities.h"
+
 #include <concepts>
 #include <map>
-#include <set>
 #include <type_traits>
 #include <utility>
 
@@ -147,16 +148,13 @@ const std::string& dedupKey(const TypeNode& node)
 // post-order (deepest first). Re-encounters of the same C++ type (by
 // qualified name) become inline name references in rendered output.
 void collectNamed(const TypeNode& node,
-                  std::set<std::string>& seen,
+                  Vector<std::string>& seen,
                   Vector<const TypeNode*>& outOrdered)
 {
     if (node.shape == TypeNode::Shape::Object && !node.typeName.empty())
     {
-        auto& key = dedupKey(node);
-        if (seen.contains(key))
+        if (!seen.addIfNotThere(dedupKey(node)))
             return;
-
-        seen.insert(key);
 
         for (auto& field: node.fields)
             collectNamed(*field.type, seen, outOrdered);
@@ -167,11 +165,9 @@ void collectNamed(const TypeNode& node,
 
     if (node.shape == TypeNode::Shape::Enum && !node.typeName.empty())
     {
-        auto& key = dedupKey(node);
-        if (seen.contains(key))
+        if (!seen.addIfNotThere(dedupKey(node)))
             return;
 
-        seen.insert(key);
         outOrdered.add(&node);
         return;
     }
@@ -199,18 +195,12 @@ std::string sanitizeIdentifier(std::string_view raw)
     while (trimmed.starts_with(anonPrefix))
         trimmed.remove_prefix(anonPrefix.size());
 
-    auto isIdChar = [](char c)
-    {
-        return (c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z')
-               || (c >= '0' && c <= '9') || c == '_';
-    };
-
     auto out = std::string {};
     out.reserve(trimmed.size());
 
     for (auto c: trimmed)
     {
-        if (isIdChar(c))
+        if (Miro::Detail::isAsciiIdentPart(c))
             out += c;
         else if (!out.empty() && out.back() != '_')
             out += '_';
@@ -279,7 +269,7 @@ void applyOutputNames(TypeNode& root, const NameMap& names)
 
 Vector<const TypeNode*> prepareRoots(std::span<TypeNode> roots)
 {
-    auto seen = std::set<std::string> {};
+    auto seen = Vector<std::string> {};
     auto ordered = Vector<const TypeNode*> {};
 
     for (auto& root: roots)

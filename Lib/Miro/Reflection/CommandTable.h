@@ -36,8 +36,7 @@ public:
         return [handler](const JSON& payload) -> JSON
         {
             auto req = Req {};
-            auto adjusted = payload.isNull() ? JSON {Json::Object {}} : payload;
-            fromJSON(req, adjusted);
+            fromJSON(req, Json::payloadOrEmpty(payload));
             auto res = handler(req);
             return toJSON(res);
         };
@@ -69,9 +68,7 @@ public:
                         [handler](const JSON& payload) -> JSON
                         {
                             auto req = Req {};
-                            auto adjusted =
-                                payload.isNull() ? JSON {Json::Object {}} : payload;
-                            fromJSON(req, adjusted);
+                            fromJSON(req, Json::payloadOrEmpty(payload));
                             handler(req);
                             return JSON {};
                         });

@@ -1,12 +1,12 @@
 #include "CommandExport.h"
 
+#include "../Detail/StringUtilities.h"
+#include "ResolvedTypes.h"
+
 #include <algorithm>
-#include <cstddef>
-#include <map>
 #include <sstream>
 #include <stdexcept>
 #include <string>
-#include <utility>
 
 namespace Miro::CommandExport
 {
@@ -20,10 +20,9 @@ namespace
 // `api` and `api::ping` — is a structural error and is rejected by
 // insertCommand.
 //
-// Children go through unique_ptr so CommandNode can hold a vector of
-// itself without forcing std::pair to instantiate completeness traits
-// on the still-incomplete CommandNode (libstdc++ rejects that under
-// C++20).
+// Children go through OwningPointer so CommandNode can hold a vector of
+// itself without forcing the standard library to instantiate completeness
+// traits on the still-incomplete CommandNode.
 struct CommandNode;
 
 struct CommandChild
@@ -41,68 +40,55 @@ struct CommandNode
     Vector<CommandChild> children;
 };
 
-// Resolved per-type info derived from the supplied TypeNode roots:
-// the final TypeScript-level name (post collision rewrite), and a
-// flag for "object with zero fields" so empty-request handlers can
-// elide their parameter. Keyed by raw qualified C++ name, which
-// matches CommandEntry::*QualifiedName.
-struct ResolvedTypes
+Vector<std::string> commandPathSegments(std::string_view name)
 {
-    std::map<std::string, std::string> finalNameByQualified;
-    std::map<std::string, bool> emptyByQualified;
-};
+    auto segments = Miro::Detail::splitOn(name, "::");
 
-ResolvedTypes resolveTypes(std::span<TypeTree::TypeNode> typeRoots)
-{
-    TypeTree::prepareRoots(typeRoots);
+    // Tolerate whitespace the preprocessor preserved from the macro's
+    // stringification (e.g. MIRO_EXPORT_COMMAND( a :: b )).
+    for (auto& segment: segments)
+        segment = Miro::Detail::trimAsciiWhitespace(segment);
 
-    auto resolved = ResolvedTypes {};
-    for (auto& root: typeRoots)
-    {
-        if (root.qualifiedName.empty())
-            continue;
-
-        resolved.finalNameByQualified[root.qualifiedName] = root.typeName;
-        resolved.emptyByQualified[root.qualifiedName] =
-            root.shape == TypeTree::TypeNode::Shape::Object && root.fields.empty();
-    }
-    return resolved;
+    return segments;
 }
 
-Vector<std::string> splitOnDoubleColon(std::string_view name)
+CommandChild& findOrCreateChild(CommandNode& node, const std::string& segment)
 {
-    auto out = Vector<std::string> {};
-    auto start = std::size_t {0};
+    auto it = std::find_if(node.children.begin(),
+                           node.children.end(),
+                           [&](auto& c) { return c.name == segment; });
 
-    while (start <= name.size())
+    if (it == node.children.end())
     {
-        auto pos = name.find("::", start);
-        auto segment = std::string {pos == std::string_view::npos
-                                        ? name.substr(start)
-                                        : name.substr(start, pos - start)};
-
-        // Tolerate whitespace the preprocessor preserved from the
-        // macro's stringification (e.g. MIRO_EXPORT_COMMAND( a :: b )).
-        auto first = segment.find_first_not_of(" \t");
-        auto last = segment.find_last_not_of(" \t");
-        if (first != std::string::npos)
-            segment = segment.substr(first, last - first + 1);
-        else
-            segment.clear();
-
-        out.add(std::move(segment));
-
-        if (pos == std::string_view::npos)
-            break;
-        start = pos + 2;
+        node.children.add(CommandChild {segment, EA::makeOwned<CommandNode>()});
+        return node.children.back();
     }
 
-    return out;
+    return *it;
+}
+
+[[noreturn]] void throwPathCollision(const std::string& cmdName,
+                                     const std::string& segment,
+                                     std::string_view reason)
+{
+    throw std::runtime_error("command path collision at '" + cmdName + "': segment '"
+                             + segment + "' " + std::string {reason});
+}
+
+void assignLeaf(CommandNode& node,
+                const std::string& segment,
+                const CommandEntry& cmd)
+{
+    if (node.leaf || !node.children.empty())
+        throwPathCollision(
+            cmd.name, segment, "is used as both a function and a namespace");
+
+    node.leaf = &cmd;
 }
 
 void insertCommand(CommandNode& root, const CommandEntry& cmd)
 {
-    auto path = splitOnDoubleColon(cmd.name);
+    auto path = commandPathSegments(cmd.name);
     auto* node = &root;
 
     for (auto i = 0; i < path.size(); ++i)
@@ -110,45 +96,25 @@ void insertCommand(CommandNode& root, const CommandEntry& cmd)
         auto& segment = path[i];
         auto isLast = (i + 1 == path.size());
 
-        auto it = std::find_if(node->children.begin(),
-                               node->children.end(),
-                               [&](auto& c) { return c.name == segment; });
-
-        if (it == node->children.end())
-        {
-            node->children.add(
-                CommandChild {segment, EA::makeOwned<CommandNode>()});
-            it = std::prev(node->children.end());
-        }
-
-        auto& child = *it->node;
+        auto& child = findOrCreateChild(*node, segment);
+        auto& childNode = *child.node;
 
         if (isLast)
         {
-            if (child.leaf || !child.children.empty())
-                throw std::runtime_error("command path collision at '" + cmd.name
-                                         + "': segment '" + segment
-                                         + "' is used as both a function and a "
-                                           "namespace");
-            child.leaf = &cmd;
+            assignLeaf(childNode, segment, cmd);
+            continue;
         }
-        else
-        {
-            if (child.leaf)
-                throw std::runtime_error("command path collision at '" + cmd.name
-                                         + "': segment '" + segment
-                                         + "' is already a function");
-            node = &child;
-        }
+
+        if (childNode.leaf)
+            throwPathCollision(cmd.name, segment, "is already a function");
+
+        node = &childNode;
     }
 }
 
 std::string indentString(int depth)
 {
-    // Braced init-list would bind to initializer_list<char>, not the
-    // (size_type, char) ctor we want.
-    // NOLINTNEXTLINE(modernize-return-braced-init-list)
-    return std::string(static_cast<std::size_t>(depth) * 4, ' ');
+    return Miro::Detail::makeIndent(4, depth);
 }
 
 void emitLeaf(std::ostringstream& out,
@@ -161,29 +127,17 @@ void emitLeaf(std::ostringstream& out,
     if (cmd.hasResponse)
     {
         auto resName =
-            resolved.finalNameByQualified.count(cmd.responseQualifiedName)
-                ? resolved.finalNameByQualified.at(cmd.responseQualifiedName)
-                : cmd.responseTypeName;
+            resolved.nameFor(cmd.responseQualifiedName, cmd.responseTypeName);
         resTypeStr = "T." + resName;
     }
 
-    // Param is elided either when the C++ handler takes none, or when
-    // the request type is an empty struct (zero fields) — both produce
-    // the same JS callsite shape.
-    auto reqEmpty = cmd.hasRequest
-                    && resolved.emptyByQualified.count(cmd.requestQualifiedName)
-                    && resolved.emptyByQualified.at(cmd.requestQualifiedName);
-
-    auto emitParam = cmd.hasRequest && !reqEmpty;
-
+    auto emitParam = !resolved.isRequestEmpty(cmd);
     auto bodyIndent = indentString(depth + 1);
 
     if (emitParam)
     {
         auto reqName =
-            resolved.finalNameByQualified.count(cmd.requestQualifiedName)
-                ? resolved.finalNameByQualified.at(cmd.requestQualifiedName)
-                : cmd.requestTypeName;
+            resolved.nameFor(cmd.requestQualifiedName, cmd.requestTypeName);
 
         out << "(req: T." << reqName << "): Promise<" << resTypeStr << "> =>\n"
             << bodyIndent << "invoke('" << cmd.name << "', req) as Promise<"
@@ -222,33 +176,13 @@ void emitNode(std::ostringstream& out,
     out << closeIndent << "}";
 }
 
-bool isRequestEmpty(const CommandEntry& cmd, const ResolvedTypes& resolved)
-{
-    return cmd.hasRequest
-           && resolved.emptyByQualified.count(cmd.requestQualifiedName) != 0
-           && resolved.emptyByQualified.at(cmd.requestQualifiedName);
-}
-
-std::string resolvedNameFor(const std::string& qualified,
-                            const std::string& fallback,
-                            const ResolvedTypes& resolved)
-{
-    auto it = resolved.finalNameByQualified.find(qualified);
-    if (it != resolved.finalNameByQualified.end())
-        return it->second;
-    return fallback;
-}
-
-std::string handlerReturnType(const CommandEntry& cmd,
-                              const ResolvedTypes& resolved)
+std::string handlerReturnType(const CommandEntry& cmd, const ResolvedTypes& resolved)
 {
     if (!cmd.hasResponse)
         return "void | Promise<void>";
 
-    auto resName = "T."
-                   + resolvedNameFor(cmd.responseQualifiedName,
-                                     cmd.responseTypeName,
-                                     resolved);
+    auto resName =
+        "T." + resolved.nameFor(cmd.responseQualifiedName, cmd.responseTypeName);
     return resName + " | Promise<" + resName + ">";
 }
 
@@ -256,16 +190,17 @@ void emitHandlerSignature(std::ostringstream& out,
                           const CommandEntry& cmd,
                           const ResolvedTypes& resolved)
 {
-    auto emitParam = cmd.hasRequest && !isRequestEmpty(cmd, resolved);
+    auto emitParam = !resolved.isRequestEmpty(cmd);
 
     out << "(";
+
     if (emitParam)
     {
-        auto reqName = resolvedNameFor(cmd.requestQualifiedName,
-                                       cmd.requestTypeName,
-                                       resolved);
+        auto reqName =
+            resolved.nameFor(cmd.requestQualifiedName, cmd.requestTypeName);
         out << "req: T." << reqName;
     }
+
     out << "): " << handlerReturnType(cmd, resolved);
 }
 
@@ -313,21 +248,30 @@ void emitDispatchCases(std::ostringstream& out,
         }
 
         auto& cmd = *c.node->leaf;
-        auto emitParam = cmd.hasRequest && !isRequestEmpty(cmd, resolved);
+        auto emitParam = !resolved.isRequestEmpty(cmd);
 
-        out << "        case '" << cmd.name << "': return await handlers."
-            << access << "(";
+        out << "        case '" << cmd.name << "': return await handlers." << access
+            << "(";
 
         if (emitParam)
         {
-            auto reqName = resolvedNameFor(cmd.requestQualifiedName,
-                                           cmd.requestTypeName,
-                                           resolved);
+            auto reqName =
+                resolved.nameFor(cmd.requestQualifiedName, cmd.requestTypeName);
             out << "payload as T." << reqName;
         }
 
         out << ");\n";
     }
+}
+
+CommandNode buildCommandTree(std::span<const CommandEntry> commands)
+{
+    auto root = CommandNode {};
+
+    for (auto& cmd: commands)
+        insertCommand(root, cmd);
+
+    return root;
 }
 
 } // namespace
@@ -337,10 +281,7 @@ std::string formatBackendModule(std::span<TypeTree::TypeNode> typeRoots,
                                 std::string_view baseName)
 {
     auto resolved = resolveTypes(typeRoots);
-
-    auto root = CommandNode {};
-    for (auto& cmd: commands)
-        insertCommand(root, cmd);
+    auto root = buildCommandTree(commands);
 
     auto out = std::ostringstream {};
     out << "import type * as T from './" << baseName << "';\n\n";
@@ -359,10 +300,7 @@ std::string formatServerHandlersModule(std::span<TypeTree::TypeNode> typeRoots,
                                        std::string_view baseName)
 {
     auto resolved = resolveTypes(typeRoots);
-
-    auto root = CommandNode {};
-    for (auto& cmd: commands)
-        insertCommand(root, cmd);
+    auto root = buildCommandTree(commands);
 
     auto out = std::ostringstream {};
     out << "import type * as T from './" << baseName << "';\n\n";
@@ -380,12 +318,14 @@ std::string formatServerHandlersModule(std::span<TypeTree::TypeNode> typeRoots,
            "    }\n"
            "}\n\n";
 
-    auto anyCommandUsesPayload = std::ranges::any_of(commands,
-            [&](auto& cmd) { return cmd.hasRequest && !isRequestEmpty(cmd, resolved); });
+    auto anyCommandUsesPayload = std::ranges::any_of(
+        commands, [&](auto& cmd) { return !resolved.isRequestEmpty(cmd); });
     auto payloadParam = anyCommandUsesPayload ? "payload" : "_payload";
 
     out << "export async function dispatch(handlers: Handlers, "
-           "command: string, " << payloadParam << ": unknown): Promise<unknown>\n"
+           "command: string, "
+        << payloadParam
+        << ": unknown): Promise<unknown>\n"
            "{\n"
            "    switch (command)\n"
            "    {\n";

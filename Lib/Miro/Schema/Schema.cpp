@@ -81,80 +81,84 @@ JSON renderJsonEnumBody(const TypeNode& node)
     return out;
 }
 
-JSON renderJsonNode(const TypeNode& node)
+void markNullable(JSON& out, bool optional)
+{
+    if (optional)
+        out.asObject()["nullable"] = JSON {true};
+}
+
+JSON makeRefTo(const std::string& typeName)
 {
     auto out = JSON {Json::Object {}};
+    out.asObject()["$ref"] = JSON {std::string {"#/$defs/"} + typeName};
+    return out;
+}
 
+JSON renderJsonPrimitive(const TypeNode& node)
+{
+    auto out = JSON {Json::Object {}};
+    out.asObject()["type"] =
+        JSON {std::string {jsonSchemaPrimitive(node.primitive)}};
+    return out;
+}
+
+JSON renderJsonArrayBody(const TypeNode& node)
+{
+    auto out = JSON {Json::Object {}};
     auto& obj = out.asObject();
 
-    auto applyOptional = [&]
+    obj["type"] = JSON {std::string {"array"}};
+    obj["items"] = renderJsonNode(*node.inner);
+
+    if (node.minItems)
+        obj["minItems"] = JSON {static_cast<double>(*node.minItems)};
+    if (node.maxItems)
+        obj["maxItems"] = JSON {static_cast<double>(*node.maxItems)};
+
+    return out;
+}
+
+JSON renderJsonMapBody(const TypeNode& node)
+{
+    auto out = JSON {Json::Object {}};
+    auto& obj = out.asObject();
+
+    obj["type"] = JSON {std::string {"object"}};
+    obj["additionalProperties"] = renderJsonNode(*node.inner);
+
+    return out;
+}
+
+JSON renderJsonNode(const TypeNode& node)
+{
+    auto out = [&]
     {
-        if (node.optional)
-            obj["nullable"] = JSON {true};
-    };
-
-    switch (node.shape)
-    {
-        case TypeNode::Shape::Primitive:
+        switch (node.shape)
         {
-            obj["type"] =
-                JSON {std::string {jsonSchemaPrimitive(node.primitive)}};
+            case TypeNode::Shape::Primitive:
+                return renderJsonPrimitive(node);
 
-            applyOptional();
-            return out;
+            case TypeNode::Shape::Object:
+                return node.typeName.empty() ? renderJsonObjectBody(node)
+                                             : makeRefTo(node.typeName);
+
+            case TypeNode::Shape::Array:
+                return renderJsonArrayBody(node);
+
+            case TypeNode::Shape::Map:
+                return renderJsonMapBody(node);
+
+            case TypeNode::Shape::Enum:
+                // Anonymous enum shouldn't happen — visitEnum always sets
+                // a name — but render inline if it does.
+                return node.typeName.empty() ? renderJsonEnumBody(node)
+                                             : makeRefTo(node.typeName);
         }
 
-        case TypeNode::Shape::Object:
-        {
-            if (!node.typeName.empty())
-            {
-                obj["$ref"] = JSON {std::string {"#/$defs/"} + node.typeName};
-                applyOptional();
-                return out;
-            }
-            // Anonymous object — render inline.
-            out = renderJsonObjectBody(node);
-            applyOptional();
-            return out;
-        }
+        return JSON {Json::Object {}};
+    }();
 
-        case TypeNode::Shape::Array:
-        {
-            obj["type"] = JSON {std::string {"array"}};
-            obj["items"] = renderJsonNode(*node.inner);
-
-            if (node.minItems)
-                obj["minItems"] = JSON {static_cast<double>(*node.minItems)};
-            if (node.maxItems)
-                obj["maxItems"] = JSON {static_cast<double>(*node.maxItems)};
-            applyOptional();
-            return out;
-        }
-
-        case TypeNode::Shape::Map:
-        {
-            obj["type"] = JSON {std::string {"object"}};
-            obj["additionalProperties"] = renderJsonNode(*node.inner);
-            applyOptional();
-            return out;
-        }
-
-        case TypeNode::Shape::Enum:
-        {
-            if (!node.typeName.empty())
-            {
-                obj["$ref"] = JSON {std::string {"#/$defs/"} + node.typeName};
-                applyOptional();
-                return out;
-            }
-            // Anonymous enum (shouldn't happen — visitEnum always sets a
-            // name — but render inline if it does).
-            out = renderJsonEnumBody(node);
-            applyOptional();
-            return out;
-        }
-    }
-
+    markNullable(out, node.optional);
     return out;
 }
 

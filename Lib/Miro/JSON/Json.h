@@ -76,6 +76,11 @@ class ParseError : public std::runtime_error
 Value* find(Object& object, std::string_view key);
 const Value* find(const Object& object, std::string_view key);
 
+// Helper used at the JSON-in seam of every command thunk. Lets handlers
+// accept `null` as a stand-in for "no fields" — fromJSON would otherwise
+// reject null when loading an object-shaped Req.
+Value payloadOrEmpty(const Value& payload);
+
 Value parse(std::string_view inputToUse);
 std::string print(const Value& valueToUse, int indentToUse = 0);
 void log(const Value& valueToUse, int indentToUse = 0);
