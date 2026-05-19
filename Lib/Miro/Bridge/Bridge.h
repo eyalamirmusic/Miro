@@ -1,8 +1,9 @@
 #pragma once
 
-#include "../Containers.h"
 #include "../Reflection/CommandTable.h"
 #include "../Reflection/Serialize.h"
+
+#include <ea_data_structures/Pointers/Broadcaster.h>
 
 #include <functional>
 #include <string>
@@ -12,10 +13,10 @@ namespace Miro
 {
 
 // Bridge is the runtime primitive transports plug into. It owns a
-// CommandTable for incoming requests and a list of Broadcasters for
-// outgoing events; transports (eacp WebView, HTTP RPC, WebSocket, ...)
-// are thin adapters that route their wire format through dispatch()
-// and addBroadcaster().
+// CommandTable for incoming requests and an EA::Broadcaster (onEmit)
+// for outgoing events; transports (eacp WebView, HTTP RPC, WebSocket,
+// ...) are thin adapters that route their wire format through
+// dispatch() and an EA::Listener attached to onEmit.
 //
 // One Bridge can serve multiple transports simultaneously — a typical
 // app declares the Bridge once, calls useStaticRegistry() to pull in
@@ -76,49 +77,20 @@ public:
 
     CommandTable& commandTable() { return commands; }
 
-    using Broadcaster =
-        std::function<void(std::string_view event, const JSON& payload)>;
+    // Fires on every emit. Transports attach an EA::Listener and read
+    // the current event/payload via currentEvent()/currentPayload()
+    // inside their callback.
+    EA::Broadcaster onEmit;
 
-    // RAII handle returned by addBroadcaster. Removes the broadcaster
-    // from the bridge in its destructor; callers typically store one
-    // as a member of the transport adapter so the broadcaster lives
-    // exactly as long as the transport.
-    class Subscription
-    {
-    public:
-        Subscription() = default;
-        ~Subscription();
-
-        Subscription(const Subscription&) = delete;
-        Subscription& operator=(const Subscription&) = delete;
-
-        Subscription(Subscription&& other) noexcept;
-        Subscription& operator=(Subscription&& other) noexcept;
-
-    private:
-        friend class Bridge;
-        Subscription(Bridge& bridgeToUse, int idToUse)
-            : bridge(&bridgeToUse), id(idToUse) {}
-
-        Bridge* bridge = nullptr;
-        int id = 0;
-    };
-
-    Subscription addBroadcaster(Broadcaster broadcaster);
+    std::string_view currentEvent() const { return event; }
+    const JSON& currentPayload() const { return *payload; }
 
 private:
-    void emitJson(const std::string& event, const JSON& payload);
-    void removeBroadcaster(int id);
-
-    struct BroadcasterEntry
-    {
-        int id = 0;
-        Broadcaster broadcaster;
-    };
+    void emitJson(const std::string& eventToUse, const JSON& payloadToUse);
 
     CommandTable commands;
-    Vector<BroadcasterEntry> broadcasters;
-    int nextBroadcasterId = 0;
+    std::string_view event;
+    const JSON* payload = nullptr;
 };
 
 } // namespace Miro
