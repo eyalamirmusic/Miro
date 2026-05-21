@@ -55,4 +55,28 @@ std::string formatEventsModule(std::span<TypeTree::TypeNode> typeRoots,
                                std::span<const EventEntry> events,
                                std::string_view baseName);
 
+// Emits a TypeScript module of pre-wired React hooks per registered
+// event. The emitter picks the helper to use based on what the event
+// looks like:
+//
+//   - Keyed event with matching get command (e.g. `EACP_KEYED_STATE` +
+//     `getTodos`) → `makeKeyedStore` + `useXxx` / `useXxxIds` / `useItem`.
+//   - Plain event with matching get command (e.g. `EACP_STATE` +
+//     `getParameters`) → `makeBridgeStore` + `useXxx`.
+//   - Push-only event (`MIRO_EXPORT_EVENT` with no matching getter) →
+//     `makeNativeEvent` + `useXxx`.
+//
+// Imports `backend` from `./backend` and the helpers from `./react`.
+// Those are eacp conventions; consumers using a different layout
+// either follow the same naming or re-emit this module themselves.
+//
+// Initial values are pulled from `EventEntry::defaultPayloadJson`,
+// which the runtime captures as `toJSON(T{})` — the first render
+// always sees the type's default shape, and gets overwritten as soon
+// as the get command resolves (or the next push arrives).
+std::string formatHooksModule(std::span<TypeTree::TypeNode> typeRoots,
+                              std::span<const CommandEntry> commands,
+                              std::span<const EventEntry> events,
+                              std::string_view baseName);
+
 } // namespace Miro::CommandExport

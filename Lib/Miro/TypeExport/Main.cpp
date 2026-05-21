@@ -123,6 +123,19 @@ const auto kFormats = Miro::Vector<Format> {
         },
     },
     Format {
+        "hooks",
+        ".hooks.ts",
+        [](const EntryList& entries, std::string_view baseName)
+        {
+            auto trees = buildAllTypeTrees(entries);
+            return Miro::CommandExport::formatHooksModule(
+                std::span<Miro::TypeTree::TypeNode> {trees},
+                Miro::CommandExport::Detail::registry(),
+                Miro::CommandExport::Detail::eventRegistry(),
+                baseName);
+        },
+    },
+    Format {
         "bridge",
         ".bridge.ts",
         [](const EntryList&, std::string_view)
