@@ -77,6 +77,39 @@ bool isFormatRequested(const Miro::Vector<std::string>& requested,
     return requested.empty() || requested.contains(std::string {formatName});
 }
 
+// Removes files that *would* be emitted by formats we know about but
+// that aren't in this run's requested set. Scoped tightly:
+//
+//   - Only touches files at the exact path baseName + format.extension.
+//   - Never touches files matching a *requested* format (they'll get
+//     overwritten by the write step anyway).
+//   - Never touches files with extensions outside the format registry.
+//
+// This means dropping a format from SCHEMA_FORMATS — or flipping a
+// gate like REACT off — drops the corresponding generated file on the
+// next build, instead of leaving a stale module that imports things
+// no longer present.
+//
+// Caveat: multiple miro_export_emit() calls targeting the same dir
+// with disjoint format sets will fight each other. Use separate dirs
+// when splitting outputs (which is what the eacp helpers already do).
+void cleanOrphanedOutputs(const ghc::filesystem::path& outDir,
+                          const std::string& baseName,
+                          const Miro::Vector<std::string>& requested)
+{
+    for (auto& fmt: Miro::TypeExport::Detail::formatRegistry())
+    {
+        if (isFormatRequested(requested, fmt.name))
+            continue;
+
+        auto orphan = outDir / (baseName + fmt.extension);
+
+        std::error_code ec {};
+        if (ghc::filesystem::remove(orphan, ec))
+            std::cout << "Removed orphan " << orphan.string() << "\n";
+    }
+}
+
 } // namespace
 
 int main(int argc, char** argv)
@@ -109,6 +142,8 @@ int main(int argc, char** argv)
         auto fileName = args.baseName + fmt.extension;
         writeFile(args.outDir / fileName, fmt.generate(entries, args.baseName));
     }
+
+    cleanOrphanedOutputs(args.outDir, args.baseName, args.requestedFormats);
 
     return 0;
 }
