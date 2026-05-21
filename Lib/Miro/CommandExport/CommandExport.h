@@ -1,6 +1,7 @@
 #pragma once
 
 #include "../TypeTree/TypeTree.h"
+#include "EventRegister.h"
 #include "Register.h"
 
 #include <span>
@@ -39,5 +40,19 @@ std::string formatBackendModule(std::span<TypeTree::TypeNode> typeRoots,
 std::string formatServerHandlersModule(std::span<TypeTree::TypeNode> typeRoots,
                                        std::span<const CommandEntry> commands,
                                        std::string_view baseName);
+
+// Emits a TypeScript module declaring the `ServerEvents` interface, a
+// map from registered event name to payload type. Pair with the
+// `bridge` runtime: when the transport is typed as
+// `Transport<ServerEvents>`, `backend.on('name', handler)` enforces
+// that 'name' is a declared event and infers the handler's payload.
+//
+// Always emits the `ServerEvents` interface — even when no events have
+// been registered — so consuming templates can unconditionally import
+// it. An empty registry produces `export interface ServerEvents {}`,
+// which intentionally narrows the typed `on` to no events at all.
+std::string formatEventsModule(std::span<TypeTree::TypeNode> typeRoots,
+                               std::span<const EventEntry> events,
+                               std::string_view baseName);
 
 } // namespace Miro::CommandExport

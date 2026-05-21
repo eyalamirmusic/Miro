@@ -4,6 +4,7 @@
 
 #include "Bridge/Bridge.h"
 #include "CommandExport/CommandExport.h"
+#include "CommandExport/EventRegister.h"
 #include "CommandExport/Register.h"
 #include "Reflection/Any.h"
 #include "Reflection/CommandTable.h"

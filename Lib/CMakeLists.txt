@@ -6,6 +6,7 @@ set(CMAKE_FOLDER Miro)
 add_library(Miro STATIC
     Miro/Bridge/Bridge.cpp
     Miro/CommandExport/CommandExport.cpp
+    Miro/CommandExport/EventRegister.cpp
     Miro/CommandExport/Register.cpp
     Miro/CommandExport/ResolvedTypes.cpp
     Miro/Cpp/Cpp.cpp

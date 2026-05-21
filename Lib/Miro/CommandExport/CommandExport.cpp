@@ -295,6 +295,39 @@ std::string formatBackendModule(std::span<TypeTree::TypeNode> typeRoots,
     return out.str();
 }
 
+std::string formatEventsModule(std::span<TypeTree::TypeNode> typeRoots,
+                               std::span<const EventEntry> events,
+                               std::string_view baseName)
+{
+    auto resolved = resolveTypes(typeRoots);
+
+    auto out = std::ostringstream {};
+
+    if (!events.empty())
+        out << "import type * as T from './" << baseName << "';\n\n";
+
+    out << "export interface ServerEvents";
+
+    if (events.empty())
+    {
+        out << " {}\n";
+        return out.str();
+    }
+
+    out << "\n{\n";
+
+    for (auto& event: events)
+    {
+        auto payloadName =
+            resolved.nameFor(event.payloadQualifiedName, event.payloadTypeName);
+        out << "    " << event.name << ": T." << payloadName << ";\n";
+    }
+
+    out << "}\n";
+
+    return out.str();
+}
+
 std::string formatServerHandlersModule(std::span<TypeTree::TypeNode> typeRoots,
                                        std::span<const CommandEntry> commands,
                                        std::string_view baseName)

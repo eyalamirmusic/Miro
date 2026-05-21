@@ -7,6 +7,7 @@
 // a one-line addition to the kFormats table below.
 
 #include "../CommandExport/CommandExport.h"
+#include "../CommandExport/EventRegister.h"
 #include "../CommandExport/Register.h"
 #include "../Cpp/Cpp.h"
 #include "../Cpp/CppClient.h"
@@ -106,6 +107,18 @@ const auto kFormats = Miro::Vector<Format> {
             return Miro::CommandExport::formatServerHandlersModule(
                 std::span<Miro::TypeTree::TypeNode> {trees},
                 Miro::CommandExport::Detail::registry(),
+                baseName);
+        },
+    },
+    Format {
+        "events",
+        ".events.ts",
+        [](const EntryList& entries, std::string_view baseName)
+        {
+            auto trees = buildAllTypeTrees(entries);
+            return Miro::CommandExport::formatEventsModule(
+                std::span<Miro::TypeTree::TypeNode> {trees},
+                Miro::CommandExport::Detail::eventRegistry(),
                 baseName);
         },
     },
