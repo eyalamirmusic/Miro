@@ -16,4 +16,6 @@
 #include "Reflection/Serialize.h"
 #include "Reflection/TypeName.h"
 #include "Schema/Schema.h"
+#include "TypeExport/Format.h"
+#include "TypeExport/Register.h"
 #include "TypeScript/TypeScript.h"

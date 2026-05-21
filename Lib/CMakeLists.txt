@@ -19,6 +19,7 @@ add_library(Miro STATIC
     Miro/Reflection/JsonReflector.cpp
     Miro/Reflection/Reflector.cpp
     Miro/Schema/Schema.cpp
+    Miro/TypeExport/Format.cpp
     Miro/TypeExport/Register.cpp
     Miro/TypeTree/TypeTree.cpp
     Miro/TypeScript/TypeScript.cpp)
@@ -48,7 +49,9 @@ endif ()
 # foreign-arch executable anyway). Filesystem access goes through
 # ghc::filesystem so we don't need a macOS 10.15+ deployment target.
 if (NOT CMAKE_CROSSCOMPILING)
-    add_library(MiroTypeExportMain OBJECT Miro/TypeExport/Main.cpp)
+    add_library(MiroTypeExportMain OBJECT
+        Miro/TypeExport/BuiltinFormats.cpp
+        Miro/TypeExport/Main.cpp)
     target_link_libraries(MiroTypeExportMain
         PUBLIC Miro
         PRIVATE ghcFilesystem::ghc_filesystem)
