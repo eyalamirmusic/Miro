@@ -40,6 +40,10 @@ public:
         std::string payloadTypeName;
         std::string payloadQualifiedName;
         std::function<JSON()> defaultPayloadJson;
+
+        bool isKeyed = false;
+        std::string collectionField;
+        std::string keyField;
     };
 
     EA::Vector<CommandRecord> commands;
@@ -78,6 +82,9 @@ protected:
         record.payloadTypeName = std::string {d.payloadTypeName};
         record.payloadQualifiedName = std::string {d.payloadQualifiedName};
         record.defaultPayloadJson = d.defaultPayloadJson;
+        record.isKeyed = d.isKeyed;
+        record.collectionField = std::string {d.collectionField};
+        record.keyField = std::string {d.keyField};
         events.add(std::move(record));
 
         if (d.buildPayloadTree)

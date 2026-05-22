@@ -54,15 +54,28 @@ if (NOT CMAKE_CROSSCOMPILING)
     target_link_libraries(MiroFormats PUBLIC Miro)
 endif ()
 
-# Pre-built main() for executables created via miro_export(). Includes
-# CodegenWriter.cpp (file I/O via ghc::filesystem). Build-time only —
-# skipped when cross-compiling, since the post-build step can't run a
-# foreign-arch executable anyway.
+# File-writing pieces of the codegen pipeline (writeEmittedFiles in
+# CodegenWriter.cpp). Split out so both codegen entry points — the
+# static-init MiroTypeExportMain main() and the inversion-path stubs
+# produced by miro_export(... API ...) — can share the same writer
+# without dragging in a duplicate static-init main() definition. Both
+# entry points need this OBJECT library; tests don't.
+if (NOT CMAKE_CROSSCOMPILING)
+    add_library(MiroCodegenWriter OBJECT
+        Miro/TypeExport/CodegenWriter.cpp)
+    target_link_libraries(MiroCodegenWriter
+        PUBLIC Miro
+        PRIVATE ghcFilesystem::ghc_filesystem)
+endif ()
+
+# Pre-built main() for executables produced by the static-init variant
+# of miro_export() (legacy MIRO_EXPORT_COMMAND path). API-mode codegen
+# stubs supply their own main(), so they don't link this — they link
+# MiroCodegenWriter + MiroFormats directly.
 if (NOT CMAKE_CROSSCOMPILING)
     add_library(MiroTypeExportMain OBJECT
-        Miro/TypeExport/CodegenWriter.cpp
         Miro/TypeExport/Main.cpp)
     target_link_libraries(MiroTypeExportMain
-        PUBLIC Miro MiroFormats
+        PUBLIC Miro MiroFormats MiroCodegenWriter
         PRIVATE ghcFilesystem::ghc_filesystem)
 endif ()

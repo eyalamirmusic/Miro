@@ -97,8 +97,9 @@ Vector<EventInfo>
         info.payloadTypeName = r.payloadTypeName;
         info.payloadQualifiedName = r.payloadQualifiedName;
         info.defaultPayloadJson = r.defaultPayloadJson;
-        // isKeyed / collectionField / keyField stay default — Phase E
-        // adds ApiReflector::keyedEvent and these get populated.
+        info.isKeyed = r.isKeyed;
+        info.collectionField = r.collectionField;
+        info.keyField = r.keyField;
         infos.add(std::move(info));
     }
 

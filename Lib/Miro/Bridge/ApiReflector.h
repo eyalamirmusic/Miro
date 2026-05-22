@@ -119,6 +119,14 @@ struct EventDescriptor
     // initial value for useFoo() React hooks before the first real
     // emit arrives. Always populated.
     std::function<JSON()> defaultPayloadJson;
+
+    // Keyed-collection metadata, used by React-hook codegen to emit
+    // useXxx/useXxxIds/useXxxItem instead of a flat store. Populated
+    // only by ApiReflector::keyedEvent — plain event() leaves these
+    // empty and downstream formats treat the event as non-keyed.
+    bool isKeyed = false;
+    std::string_view collectionField;
+    std::string_view keyField;
 };
 
 } // namespace Detail
@@ -167,6 +175,41 @@ public:
     template <typename Pmd>
     void event(Pmd member, std::string_view name)
     {
+        eventImpl(makeEventDescriptor(member, name));
+    }
+
+    // Same wiring as event(), plus marks the payload as a keyed
+    // collection — `collectionField` names a vector-typed field on
+    // Payload, `keyField` names the id-like field on each item.
+    // React-hook codegen uses this metadata to emit per-id selector
+    // hooks (useXxx / useXxxIds / useXxxItem) instead of one flat
+    // store. Replaces EACP_KEYED_STATE on the static-init path.
+    template <typename Pmd>
+    void keyedEvent(Pmd member,
+                    std::string_view name,
+                    std::string_view collectionField,
+                    std::string_view keyField)
+    {
+        auto d = makeEventDescriptor(member, name);
+        d.isKeyed = true;
+        d.collectionField = collectionField;
+        d.keyField = keyField;
+        eventImpl(d);
+    }
+
+protected:
+    virtual void commandImpl(const Detail::CommandDescriptor&) = 0;
+    virtual void eventImpl(const Detail::EventDescriptor&) = 0;
+
+private:
+    // Shared construction shared between event() and keyedEvent().
+    // Captures Pmd-dependent type info via EventMemberInfo, populates
+    // every Pmd-derived field — keyed metadata is filled in by the
+    // public keyedEvent() wrapper after this returns.
+    template <typename Pmd>
+    static Detail::EventDescriptor makeEventDescriptor(Pmd member,
+                                                       std::string_view name)
+    {
         using Info = EventMemberInfo<Pmd>;
         using Payload = typename Info::Payload;
 
@@ -193,12 +236,8 @@ public:
                 EA::Listener::Modes::TriggerOnEvent);
         };
 
-        eventImpl(d);
+        return d;
     }
-
-protected:
-    virtual void commandImpl(const Detail::CommandDescriptor&) = 0;
-    virtual void eventImpl(const Detail::EventDescriptor&) = 0;
 };
 
 } // namespace Miro
