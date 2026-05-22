@@ -8,6 +8,8 @@
 // static-init time — see BuiltinFormats.cpp for Miro's own set and
 // any downstream library's codegen sources for extensions.
 
+#include "../CommandExport/Register.h"
+#include "Context.h"
 #include "Format.h"
 #include "Register.h"
 
@@ -134,13 +136,24 @@ int main(int argc, char** argv)
         return 1;
     }
 
+    auto trees = Miro::TypeExport::buildAllTypeTrees(entries);
+    auto& commands = Miro::CommandExport::Detail::registry();
+
+    auto ctx = Miro::TypeExport::Context {
+        .typeRoots = std::span<Miro::TypeTree::TypeNode> {
+            trees.data(), static_cast<std::size_t>(trees.size())},
+        .commands = std::span<const Miro::CommandExport::CommandEntry> {
+            commands.data(), static_cast<std::size_t>(commands.size())},
+        .baseName = args.baseName,
+    };
+
     for (auto& fmt: Miro::TypeExport::Detail::formatRegistry())
     {
         if (!isFormatRequested(args.requestedFormats, fmt.name))
             continue;
 
         auto fileName = args.baseName + fmt.extension;
-        writeFile(args.outDir / fileName, fmt.generate(entries, args.baseName));
+        writeFile(args.outDir / fileName, fmt.generate(ctx));
     }
 
     cleanOrphanedOutputs(args.outDir, args.baseName, args.requestedFormats);

@@ -1,6 +1,7 @@
 #pragma once
 
 #include "../TypeTree/TypeTree.h"
+#include "Context.h"
 #include "Register.h"
 
 #include <functional>
@@ -40,12 +41,11 @@ struct Format
     std::string name;       // CLI selector, e.g. "hooks"
     std::string extension;  // appended to baseName, e.g. ".hooks.ts"
 
-    // baseName is the output filename stem (e.g. "schema"). Formats
-    // that emit a self-contained module ignore it; the backend wrapper
-    // uses it to import the matching types module by relative path.
-    std::function<std::string(const EntryList& entries,
-                              std::string_view baseName)>
-        generate;
+    // Takes a Context bundling pre-built TypeNodes, registered commands,
+    // and the output basename. The same functor runs against either
+    // the static-init process-wide registries or a DescribeReflector
+    // walk — sourcing is handled by the caller, not the format.
+    std::function<std::string(const Context& ctx)> generate;
 };
 
 namespace Detail

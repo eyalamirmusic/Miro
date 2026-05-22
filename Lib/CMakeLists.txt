@@ -20,6 +20,7 @@ add_library(Miro STATIC
     Miro/Reflection/JsonReflector.cpp
     Miro/Reflection/Reflector.cpp
     Miro/Schema/Schema.cpp
+    Miro/TypeExport/CodegenMain.cpp
     Miro/TypeExport/Format.cpp
     Miro/TypeExport/Register.cpp
     Miro/TypeTree/TypeTree.cpp
@@ -39,21 +40,29 @@ if (MIRO_UNITY_BUILD)
     set_target_properties(Miro PROPERTIES UNITY_BUILD ON)
 endif ()
 
-# Pre-built main() for executables created via miro_export().
-# OBJECT (rather than STATIC) so the helper can plug it directly into
-# add_executable() as a source — sidesteps the empty-target check and
-# makes main() visible to the linker without needing WHOLE_ARCHIVE.
-#
-# This target — and the executables built from it — only run as a
-# build-time step on the developer's machine, never ship to users, so
-# we skip it when cross-compiling (the post-build step can't run a
-# foreign-arch executable anyway). Filesystem access goes through
-# ghc::filesystem so we don't need a macOS 10.15+ deployment target.
+# Built-in format registrations (zod / ts / backend / ts-server /
+# bridge / jsonschema / cpp / cpp-miro / cpp-client). Split out as its
+# own OBJECT library so it can be linked into both the codegen
+# executables AND the test runner. Plain static-library placement
+# would let the linker drop the registrations (nothing references
+# their symbols — the work happens at static init); OBJECT placement
+# splices the .o files directly into the consumer's link line so the
+# initializers always survive.
+if (NOT CMAKE_CROSSCOMPILING)
+    add_library(MiroFormats OBJECT
+        Miro/TypeExport/BuiltinFormats.cpp)
+    target_link_libraries(MiroFormats PUBLIC Miro)
+endif ()
+
+# Pre-built main() for executables created via miro_export(). Includes
+# CodegenWriter.cpp (file I/O via ghc::filesystem). Build-time only —
+# skipped when cross-compiling, since the post-build step can't run a
+# foreign-arch executable anyway.
 if (NOT CMAKE_CROSSCOMPILING)
     add_library(MiroTypeExportMain OBJECT
-        Miro/TypeExport/BuiltinFormats.cpp
+        Miro/TypeExport/CodegenWriter.cpp
         Miro/TypeExport/Main.cpp)
     target_link_libraries(MiroTypeExportMain
-        PUBLIC Miro
+        PUBLIC Miro MiroFormats
         PRIVATE ghcFilesystem::ghc_filesystem)
 endif ()

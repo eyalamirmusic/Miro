@@ -14,7 +14,6 @@
 #include "Format.h"
 
 #include "../CommandExport/CommandExport.h"
-#include "../CommandExport/Register.h"
 #include "../Cpp/Cpp.h"
 #include "../Cpp/CppClient.h"
 #include "../JSON/Json.h"
@@ -24,70 +23,56 @@
 namespace
 {
 
-using Miro::TypeExport::EntryList;
+using Miro::TypeExport::Context;
 using Miro::TypeExport::Format;
 using Miro::TypeExport::registerFormat;
 
 [[maybe_unused]] const auto zodFormat = registerFormat(Format {
     "zod",
     ".zod.ts",
-    [](const EntryList& entries, std::string_view)
-    {
-        auto trees = Miro::TypeExport::buildAllTypeTrees(entries);
-        return Miro::TypeScript::formatZodModule(trees);
-    },
+    [](const Context& ctx)
+    { return Miro::TypeScript::formatZodModule(ctx.typeRoots); },
 });
 
 [[maybe_unused]] const auto tsFormat = registerFormat(Format {
     "ts",
     ".ts",
-    [](const EntryList& entries, std::string_view)
-    {
-        auto trees = Miro::TypeExport::buildAllTypeTrees(entries);
-        return Miro::TypeScript::formatTypesModule(trees);
-    },
+    [](const Context& ctx)
+    { return Miro::TypeScript::formatTypesModule(ctx.typeRoots); },
 });
 
 [[maybe_unused]] const auto backendFormat = registerFormat(Format {
     "backend",
     ".backend.ts",
-    [](const EntryList& entries, std::string_view baseName)
+    [](const Context& ctx)
     {
-        auto trees = Miro::TypeExport::buildAllTypeTrees(entries);
         return Miro::CommandExport::formatBackendModule(
-            std::span<Miro::TypeTree::TypeNode> {trees},
-            Miro::CommandExport::Detail::registry(),
-            baseName);
+            ctx.typeRoots, ctx.commands, ctx.baseName);
     },
 });
 
 [[maybe_unused]] const auto tsServerFormat = registerFormat(Format {
     "ts-server",
     ".handlers.ts",
-    [](const EntryList& entries, std::string_view baseName)
+    [](const Context& ctx)
     {
-        auto trees = Miro::TypeExport::buildAllTypeTrees(entries);
         return Miro::CommandExport::formatServerHandlersModule(
-            std::span<Miro::TypeTree::TypeNode> {trees},
-            Miro::CommandExport::Detail::registry(),
-            baseName);
+            ctx.typeRoots, ctx.commands, ctx.baseName);
     },
 });
 
 [[maybe_unused]] const auto bridgeFormat = registerFormat(Format {
     "bridge",
     ".bridge.ts",
-    [](const EntryList&, std::string_view)
-    { return Miro::TypeScript::formatBridgeRuntime(); },
+    [](const Context&) { return Miro::TypeScript::formatBridgeRuntime(); },
 });
 
 [[maybe_unused]] const auto jsonSchemaFormat = registerFormat(Format {
     "jsonschema",
     ".schema.json",
-    [](const EntryList& entries, std::string_view)
+    [](const Context& ctx)
     {
-        auto trees = Miro::TypeExport::buildAllTypeTrees(entries);
-        auto schema = Miro::formatJsonSchema(trees);
+        auto schema = Miro::formatJsonSchema(ctx.typeRoots);
         return Miro::Json::print(schema, 2);
     },
 });
@@ -95,33 +80,25 @@ using Miro::TypeExport::registerFormat;
 [[maybe_unused]] const auto cppFormat = registerFormat(Format {
     "cpp",
     ".types.h",
-    [](const EntryList& entries, std::string_view)
-    {
-        auto trees = Miro::TypeExport::buildAllTypeTrees(entries);
-        return Miro::Cpp::formatHeader(trees, Miro::Cpp::Modes::PureCPP);
+    [](const Context& ctx) {
+        return Miro::Cpp::formatHeader(ctx.typeRoots, Miro::Cpp::Modes::PureCPP);
     },
 });
 
 [[maybe_unused]] const auto cppMiroFormat = registerFormat(Format {
     "cpp-miro",
     ".miro.h",
-    [](const EntryList& entries, std::string_view)
-    {
-        auto trees = Miro::TypeExport::buildAllTypeTrees(entries);
-        return Miro::Cpp::formatHeader(trees, Miro::Cpp::Modes::Miro);
-    },
+    [](const Context& ctx)
+    { return Miro::Cpp::formatHeader(ctx.typeRoots, Miro::Cpp::Modes::Miro); },
 });
 
 [[maybe_unused]] const auto cppClientFormat = registerFormat(Format {
     "cpp-client",
     ".client.h",
-    [](const EntryList& entries, std::string_view baseName)
+    [](const Context& ctx)
     {
-        auto trees = Miro::TypeExport::buildAllTypeTrees(entries);
         return Miro::Cpp::formatClientHeader(
-            std::span<Miro::TypeTree::TypeNode> {trees},
-            Miro::CommandExport::Detail::registry(),
-            baseName);
+            ctx.typeRoots, ctx.commands, ctx.baseName);
     },
 });
 
