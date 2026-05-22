@@ -53,6 +53,13 @@ Vector<CommandExport::CommandEntry>
     toCommandEntries(const EA::Vector<
                      Miro::Detail::DescribeReflector::CommandRecord>& records);
 
+// Translates DescribeReflector's EventRecord shape into the Miro::
+// EventInfo entries Context::events carries. Keyed metadata stays
+// default (Phase E adds ApiReflector::keyedEvent).
+Vector<EventInfo>
+    toEventInfos(const EA::Vector<
+                 Miro::Detail::DescribeReflector::EventRecord>& records);
+
 // Filename + contents pair for one emitted artifact. runFormatsToMemory
 // returns these so tests can inspect output without touching the
 // filesystem.
@@ -110,6 +117,7 @@ Vector<EmittedFile> buildCodegen(std::string_view baseName,
     Detail::describeAll<Apis...>(describe);
 
     auto commandEntries = toCommandEntries(describe.commands);
+    auto eventInfos = toEventInfos(describe.events);
 
     auto ctx = Context {
         .typeRoots = std::span<TypeTree::TypeNode> {
@@ -118,6 +126,9 @@ Vector<EmittedFile> buildCodegen(std::string_view baseName,
         .commands = std::span<const CommandExport::CommandEntry> {
             commandEntries.data(),
             static_cast<std::size_t>(commandEntries.size())},
+        .events = std::span<const EventInfo> {
+            eventInfos.data(),
+            static_cast<std::size_t>(eventInfos.size())},
         .baseName = baseName,
     };
 

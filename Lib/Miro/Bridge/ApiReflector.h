@@ -113,6 +113,12 @@ struct EventDescriptor
     // Event<T>) into the supplied node. Always populated. Same
     // in-place contract as CommandDescriptor::buildReqTree.
     std::function<void(TypeTree::TypeNode&)> buildPayloadTree;
+
+    // Returns toJSON(T{}) — i.e. the wire representation of a
+    // default-constructed payload. Hook codegen uses this as the
+    // initial value for useFoo() React hooks before the first real
+    // emit arrives. Always populated.
+    std::function<JSON()> defaultPayloadJson;
 };
 
 } // namespace Detail
@@ -170,6 +176,7 @@ public:
         d.payloadQualifiedName = Miro::Detail::qualifiedNameOf<Payload>();
         d.buildPayloadTree = [](TypeTree::TypeNode& root)
         { buildTreeInto<Payload>(root); };
+        d.defaultPayloadJson = [] { return toJSON(Payload {}); };
 
         d.makeListener =
             [member](void* apiInstance,

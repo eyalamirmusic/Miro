@@ -39,6 +39,7 @@ public:
         std::string name;
         std::string payloadTypeName;
         std::string payloadQualifiedName;
+        std::function<JSON()> defaultPayloadJson;
     };
 
     EA::Vector<CommandRecord> commands;
@@ -76,6 +77,7 @@ protected:
         record.name = std::string {d.name};
         record.payloadTypeName = std::string {d.payloadTypeName};
         record.payloadQualifiedName = std::string {d.payloadQualifiedName};
+        record.defaultPayloadJson = d.defaultPayloadJson;
         events.add(std::move(record));
 
         if (d.buildPayloadTree)

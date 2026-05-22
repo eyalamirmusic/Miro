@@ -83,6 +83,28 @@ Vector<CommandExport::CommandEntry>
     return entries;
 }
 
+Vector<EventInfo>
+    toEventInfos(const EA::Vector<Miro::Detail::DescribeReflector::EventRecord>&
+                     records)
+{
+    auto infos = Vector<EventInfo> {};
+    infos.reserve(records.size());
+
+    for (auto& r: records)
+    {
+        auto info = EventInfo {};
+        info.name = r.name;
+        info.payloadTypeName = r.payloadTypeName;
+        info.payloadQualifiedName = r.payloadQualifiedName;
+        info.defaultPayloadJson = r.defaultPayloadJson;
+        // isKeyed / collectionField / keyField stay default — Phase E
+        // adds ApiReflector::keyedEvent and these get populated.
+        infos.add(std::move(info));
+    }
+
+    return infos;
+}
+
 Vector<EmittedFile>
     runFormatsToMemory(const Context& ctx,
                        const Vector<std::string>& requestedFormats)
