@@ -1,0 +1,144 @@
+#pragma once
+
+// Callable inspection traits + the pmf-to-RawHandler factories that
+// use them. Both traits and the JSON shape-adapter live next to where
+// they're consumed (the adapter is in Reflection/CommandTable.h, since
+// RawHandler is defined there). This header pulls in the traits used
+// across the codebase plus the makePmfHandler convenience factory.
+//
+//   MethodInfo<Pmf>      — pointer-to-member-function info (Class, Req,
+//                          Res, hasReq, hasRes, isConst). Specialised
+//                          for Res(const Req&) / Res() / void(const
+//                          Req&) / void(), each in const and non-const
+//                          flavours.
+//
+//   FunctionInfo<F*>     — free-function-pointer info (Req, Res,
+//                          hasReq, hasRes). Same shape coverage.
+//
+// Both satisfy Detail::CallableInfo, so they plug into
+// Detail::makeJsonAdapter<Info>(callable) without further adapters.
+
+#include "../Reflection/CommandTable.h"
+
+#include <type_traits>
+#include <utility>
+
+namespace Miro
+{
+
+// ---------- Pointer-to-member-function (pmf) traits ----------
+
+template <typename T>
+struct MethodInfo;
+
+template <typename C, typename R, typename A>
+struct MethodInfo<R (C::*)(const A&)>
+{
+    using Class = C;
+    using Req = A;
+    using Res = R;
+    static constexpr bool hasReq = true;
+    static constexpr bool hasRes = !std::is_void_v<R>;
+    static constexpr bool isConst = false;
+};
+
+template <typename C, typename R, typename A>
+struct MethodInfo<R (C::*)(const A&) const>
+{
+    using Class = C;
+    using Req = A;
+    using Res = R;
+    static constexpr bool hasReq = true;
+    static constexpr bool hasRes = !std::is_void_v<R>;
+    static constexpr bool isConst = true;
+};
+
+template <typename C, typename R>
+struct MethodInfo<R (C::*)()>
+{
+    using Class = C;
+    using Req = void;
+    using Res = R;
+    static constexpr bool hasReq = false;
+    static constexpr bool hasRes = !std::is_void_v<R>;
+    static constexpr bool isConst = false;
+};
+
+template <typename C, typename R>
+struct MethodInfo<R (C::*)() const>
+{
+    using Class = C;
+    using Req = void;
+    using Res = R;
+    static constexpr bool hasReq = false;
+    static constexpr bool hasRes = !std::is_void_v<R>;
+    static constexpr bool isConst = true;
+};
+
+// ---------- Free-function-pointer traits ----------
+
+template <typename T>
+struct FunctionInfo;
+
+template <typename R, typename A>
+struct FunctionInfo<R (*)(const A&)>
+{
+    using Req = A;
+    using Res = R;
+    static constexpr bool hasReq = true;
+    static constexpr bool hasRes = !std::is_void_v<R>;
+};
+
+template <typename R>
+struct FunctionInfo<R (*)()>
+{
+    using Req = void;
+    using Res = R;
+    static constexpr bool hasReq = false;
+    static constexpr bool hasRes = !std::is_void_v<R>;
+};
+
+// ---------- makePmfHandler — pmf-to-RawHandler ----------
+//
+// Two overloads, identical in behaviour:
+//   makePmfHandler<&Class::method>(instance)    template-arg form
+//   makePmfHandler(&Class::method, instance)    value-arg form
+//
+// The value-arg form is what ApiReflector::command(pmf, name) calls —
+// it accepts the pmf as a regular value so the user's reflect() body
+// can pass `&Class::method` directly without `<>`, matching how
+// Miro::Reflector takes member references as values.
+//
+// Body of both is one line: a generic lambda that forwards args
+// through the pmf, wrapped in the shared makeJsonAdapter. The if-
+// constexpr ladder over hasReq/hasRes lives in makeJsonAdapter only.
+
+template <auto Method>
+CommandTable::RawHandler
+    makePmfHandler(typename MethodInfo<decltype(Method)>::Class& instance)
+{
+    using Info = MethodInfo<decltype(Method)>;
+    auto* instancePtr = &instance;
+    return Detail::makeJsonAdapter<Info>(
+        [instancePtr](auto&&... args) -> decltype(auto)
+        {
+            return ((*instancePtr).*Method)(
+                std::forward<decltype(args)>(args)...);
+        });
+}
+
+template <typename Pmf>
+CommandTable::RawHandler
+    makePmfHandler(Pmf method, typename MethodInfo<Pmf>::Class& instance)
+{
+    using Info = MethodInfo<Pmf>;
+    auto* instancePtr = &instance;
+    return Detail::makeJsonAdapter<Info>(
+        [method, instancePtr](auto&&... args) -> decltype(auto)
+        {
+            return ((*instancePtr).*method)(
+                std::forward<decltype(args)>(args)...);
+        });
+}
+
+} // namespace Miro

@@ -168,3 +168,74 @@ auto miThroughCommandTable =
 
     check(result["echoed"].asString() == "yo!");
 };
+
+// ---------- Runtime-pmf overload ----------
+//
+// Same semantics as the template-arg form, but the pmf is taken as a
+// regular value argument. This is the entry point ApiReflector::command
+// (pmf, name) will use — verifying that all four shapes produce
+// identical results without `<>` at the call site.
+
+auto miRuntimeEcho =
+    test("MethodInfo (runtime pmf): Res(Req) thunk round-trips JSON") = []
+{
+    auto api = TestApi {};
+    auto handler = makePmfHandler(&TestApi::echo, api);
+
+    auto result = handler(Json::parse(R"({"text":"hi"})"));
+
+    check(result["echoed"].asString() == "hi!");
+};
+
+auto miRuntimeStatus =
+    test("MethodInfo (runtime pmf): Res() const thunk reads instance state") = []
+{
+    auto api = TestApi {};
+    auto handler = makePmfHandler(&TestApi::status, api);
+
+    check(handler(JSON {})["echoed"].asString() == "idle");
+
+    api.lastLogged = "x";
+    check(handler(JSON {})["echoed"].asString() == "busy");
+};
+
+auto miRuntimeLog =
+    test("MethodInfo (runtime pmf): void(Req) mutates instance, returns null") = []
+{
+    auto api = TestApi {};
+    auto handler = makePmfHandler(&TestApi::log, api);
+
+    auto result = handler(Json::parse(R"({"text":"trace"})"));
+
+    check(result.isNull());
+    check(api.lastLogged == "trace");
+};
+
+auto miRuntimeTick =
+    test("MethodInfo (runtime pmf): void() mutates instance, returns null") = []
+{
+    auto api = TestApi {};
+    auto handler = makePmfHandler(&TestApi::tick, api);
+
+    handler(JSON {});
+    handler(JSON {});
+
+    check(api.ticks == 2);
+};
+
+auto miRuntimeAgreesWithTemplate =
+    test("MethodInfo (runtime pmf): result matches template-arg form") = []
+{
+    auto api = TestApi {};
+
+    auto runtimeHandler = makePmfHandler(&TestApi::echo, api);
+    auto templateHandler = makePmfHandler<&TestApi::echo>(api);
+
+    auto payload = Json::parse(R"({"text":"same"})");
+
+    auto fromRuntime = runtimeHandler(payload);
+    auto fromTemplate = templateHandler(payload);
+
+    check(fromRuntime["echoed"].asString() == fromTemplate["echoed"].asString());
+    check(api.calls == 2);
+};

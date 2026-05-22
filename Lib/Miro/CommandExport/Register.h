@@ -1,13 +1,12 @@
 #pragma once
 
+#include "../Bridge/Callable.h"
 #include "../Reflection/CommandTable.h"
 #include "../Reflection/ReflectMacro.h"
-#include "../Reflection/Serialize.h"
 #include "../Reflection/TypeName.h"
 #include "../TypeExport/Register.h"
 
 #include <string>
-#include <type_traits>
 
 namespace Miro::CommandExport
 {
@@ -44,36 +43,12 @@ namespace Detail
 // this in main(); applications walk it via registerStaticCommandsInto.
 Vector<CommandEntry>& registry();
 
-// Trait that classifies a free-function handler. Specializations cover
-// the four shapes we accept: Res/void return, with/without a const-ref
-// request argument. Req/Res are still spelled even when absent (as
-// void) so that if-constexpr discarded branches stay well-formed.
-template <typename F>
-struct CommandSignature;
-
-template <typename R, typename A>
-struct CommandSignature<R (*)(const A&)>
-{
-    using Res = R;
-    using Req = A;
-    static constexpr bool hasReq = true;
-    static constexpr bool hasRes = !std::is_void_v<R>;
-};
-
-template <typename R>
-struct CommandSignature<R (*)()>
-{
-    using Res = R;
-    using Req = void;
-    static constexpr bool hasReq = false;
-    static constexpr bool hasRes = !std::is_void_v<R>;
-};
-
 // Templated on the handler's address (passed as a non-type template
 // parameter) so we can branch on its signature with if constexpr.
 // Registers Req/Res with the type-export registry only when present,
-// and builds a thunk that adapts the four shapes to the uniform
-// JSON-in / JSON-out interface CommandTable expects.
+// and delegates thunk construction to Miro::Detail::makeJsonAdapter,
+// which carries the shared shape-adapting machinery used by
+// CommandTable::on and makePmfHandler.
 template <auto Handler>
 inline void registerCommand(const char* nameToUse)
 {
@@ -81,14 +56,14 @@ inline void registerCommand(const char* nameToUse)
     using Miro::Detail::typeNameOf;
     using TypeExport::Detail::registerOne;
 
-    using Sig = CommandSignature<decltype(Handler)>;
+    using Info = Miro::FunctionInfo<decltype(Handler)>;
 
     auto entry = CommandEntry {};
     entry.name = nameToUse;
 
-    if constexpr (Sig::hasReq)
+    if constexpr (Info::hasReq)
     {
-        using Req = Sig::Req;
+        using Req = Info::Req;
         registerOne<Req>();
         entry.hasRequest = true;
         entry.requestTypeName = typeNameOf<Req>();
@@ -99,9 +74,9 @@ inline void registerCommand(const char* nameToUse)
         entry.hasRequest = false;
     }
 
-    if constexpr (Sig::hasRes)
+    if constexpr (Info::hasRes)
     {
-        using Res = Sig::Res;
+        using Res = Info::Res;
         registerOne<Res>();
         entry.hasResponse = true;
         entry.responseTypeName = typeNameOf<Res>();
@@ -112,33 +87,7 @@ inline void registerCommand(const char* nameToUse)
         entry.hasResponse = false;
     }
 
-    entry.thunk = [](const JSON& payload [[maybe_unused]]) -> JSON
-    {
-        if constexpr (Sig::hasReq)
-        {
-            using Req = Sig::Req;
-            auto req = Req {};
-            Miro::fromJSON(req, Json::payloadOrEmpty(payload));
-
-            if constexpr (Sig::hasRes)
-                return Miro::toJSON(Handler(req));
-            else
-            {
-                Handler(req);
-                return {};
-            }
-        }
-        else
-        {
-            if constexpr (Sig::hasRes)
-                return Miro::toJSON(Handler());
-            else
-            {
-                Handler();
-                return JSON {};
-            }
-        }
-    };
+    entry.thunk = Miro::Detail::makeJsonAdapter<Info>(Handler);
 
     registry().add(std::move(entry));
 }
