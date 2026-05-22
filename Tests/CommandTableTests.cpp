@@ -142,6 +142,17 @@ auto dispatchVoidReturn =
     check(kickCount == 4);
 };
 
+struct Tester
+{
+    Tester(const std::string& testName , int& x)
+    {
+        auto myTest = test(testName) = [&]
+        {
+            ++x;
+        };
+    }
+};
+
 auto dispatchVoidNoArg = test("CommandTable dispatches void no-arg handler") = []
 {
     auto table = CommandTable {};
