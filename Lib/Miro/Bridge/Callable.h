@@ -19,6 +19,7 @@
 // Detail::makeJsonAdapter<Info>(callable) without further adapters.
 
 #include "../Reflection/CommandTable.h"
+#include "Event.h"
 
 #include <type_traits>
 #include <utility>
@@ -73,6 +74,23 @@ struct MethodInfo<R (C::*)() const>
     static constexpr bool hasReq = false;
     static constexpr bool hasRes = !std::is_void_v<R>;
     static constexpr bool isConst = true;
+};
+
+// ---------- Event-member pointer traits ----------
+//
+// For a pointer-to-data-member like &Todos::changes whose type is
+// Event<TodoState> Class::*, extracts the owning class and the
+// payload type. Used by ApiReflector::event(pmd, name) to derive
+// the subscription wiring and the codegen-side payload identity.
+
+template <typename T>
+struct EventMemberInfo;
+
+template <typename C, typename T>
+struct EventMemberInfo<Event<T> C::*>
+{
+    using Class = C;
+    using Payload = T;
 };
 
 // ---------- Free-function-pointer traits ----------

@@ -2,8 +2,11 @@
 
 #include "../Reflection/CommandTable.h"
 #include "../Reflection/Serialize.h"
+#include "BindReflector.h"
 
 #include <ea_data_structures/Pointers/Broadcaster.h>
+#include <ea_data_structures/Pointers/OwningPointer.h>
+#include <ea_data_structures/Structures/Vector.h>
 
 #include <functional>
 #include <string>
@@ -75,6 +78,45 @@ public:
 
     void useStaticRegistry();
 
+    // Walks api.reflect(...) with a BindReflector — each command lands
+    // in this bridge's CommandTable, each event subscribes a Listener
+    // owned by the bridge (so subscriptions die with the bridge, not
+    // with the API instance).
+    //
+    // ⚠ The API must outlive this Bridge. Installed handlers hold
+    // &api, and bound listeners hold pointers into the API's event
+    // broadcasters. EA::Broadcaster does not currently null-out
+    // attached listeners on destruction, so if the API destructs
+    // first, the Bridge's listener teardown will read freed memory.
+    //
+    // Practical rule: declare the API before the Bridge in your app
+    // struct, so destruction happens Bridge → API. The same rule
+    // applies in tests:
+    //
+    //     auto api    = Todos {};      // declared first → destructed last
+    //     auto bridge = Bridge {};     // declared second → destructed first
+    //     bridge.use(api);
+    template <typename Api>
+    void use(Api& api)
+    {
+        auto reflector = Detail::BindReflector {*this, &api};
+        api.reflect(reflector);
+    }
+
+    // Pre-serialized variant of emit. The templated emit<T> goes
+    // through toJSON; this one is for callers that already hold a JSON
+    // payload (e.g. the bind reflector's event subscriptions, which
+    // serialize once inside their listener body).
+    void emitJson(const std::string& eventName, const JSON& payload);
+
+    // Adopts a Listener so its subscription stays alive as long as
+    // this bridge does. Called by BindReflector::eventImpl; rarely
+    // called by user code directly.
+    void attachListener(EA::OwningPointer<EA::Listener> listener)
+    {
+        boundListeners.add(std::move(listener));
+    }
+
     CommandTable& commandTable() { return commands; }
 
     // Fires on every emit. Transports attach an EA::Listener and read
@@ -86,11 +128,10 @@ public:
     const JSON& currentPayload() const { return *payload; }
 
 private:
-    void emitJson(const std::string& eventToUse, const JSON& payloadToUse);
-
     CommandTable commands;
     std::string_view event;
     const JSON* payload = nullptr;
+    EA::Vector<EA::OwningPointer<EA::Listener>> boundListeners;
 };
 
 } // namespace Miro

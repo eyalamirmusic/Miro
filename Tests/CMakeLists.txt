@@ -9,6 +9,7 @@ nano_add_executable(MiroTests SOURCES
         CommandExportTests.cpp
         MethodInfoTests.cpp
         EventTests.cpp
+        ApiReflectorTests.cpp
         VirtualReflectorTests.cpp
         SchemaReflectorTests.cpp
         TypeScriptTests.cpp

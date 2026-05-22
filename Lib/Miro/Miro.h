@@ -2,8 +2,11 @@
 
 #include "Containers.h"
 
+#include "Bridge/ApiReflector.h"
+#include "Bridge/BindReflector.h"
 #include "Bridge/Bridge.h"
 #include "Bridge/Callable.h"
+#include "Bridge/DescribeReflector.h"
 #include "Bridge/Event.h"
 #include "CommandExport/CommandExport.h"
 #include "CommandExport/Register.h"

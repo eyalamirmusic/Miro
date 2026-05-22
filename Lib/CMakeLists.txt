@@ -4,6 +4,7 @@ find_package(ResEmbed REQUIRED)
 set(CMAKE_FOLDER Miro)
 
 add_library(Miro STATIC
+    Miro/Bridge/BindReflector.cpp
     Miro/Bridge/Bridge.cpp
     Miro/CommandExport/CommandExport.cpp
     Miro/CommandExport/Register.cpp
