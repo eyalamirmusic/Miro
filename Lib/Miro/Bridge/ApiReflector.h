@@ -219,7 +219,7 @@ private:
 
         d.makeListener = [member](void* apiInstance,
                                   std::function<void(const JSON&)> emit)
-            -> EA::OwningPointer<EA::Listener>
+            -> OwningPointer<EA::Listener>
         {
             auto& api = *static_cast<typename Info::Class*>(apiInstance);
             auto& event = api.*member;

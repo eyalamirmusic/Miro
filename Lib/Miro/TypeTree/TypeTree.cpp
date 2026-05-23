@@ -21,17 +21,17 @@ TypeReflector::TypeReflector(TypeNode& nodeToUse,
 {
     switch (opts.shape)
     {
-        case Miro::Shape::Primitive:
+        case Shape::Primitive:
             node.shape = TypeNode::Shape::Primitive;
             break;
-        case Miro::Shape::Object:
+        case Shape::Object:
             node.shape = TypeNode::Shape::Object;
             break;
-        case Miro::Shape::Array:
+        case Shape::Array:
             node.shape = TypeNode::Shape::Array;
             node.inner = EA::makeOwned<TypeNode>();
             break;
-        case Miro::Shape::Map:
+        case Shape::Map:
             node.shape = TypeNode::Shape::Map;
             node.inner = EA::makeOwned<TypeNode>();
             break;
@@ -200,7 +200,7 @@ std::string sanitizeIdentifier(std::string_view raw)
 
     for (auto c: trimmed)
     {
-        if (Miro::Detail::isAsciiIdentPart(c))
+        if (Detail::isAsciiIdentPart(c))
             out += c;
         else if (!out.empty() && out.back() != '_')
             out += '_';

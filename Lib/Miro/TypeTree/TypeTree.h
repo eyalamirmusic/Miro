@@ -108,7 +108,7 @@ public:
 
 private:
     TypeNode& node;
-    EA::OwningPointer<TypeReflector> currentChild;
+    OwningPointer<TypeReflector> currentChild;
 
     // Parent in the spawn chain; nullptr at the root. Used by
     // beginNamedType to detect a recursive descent into the same C++
@@ -127,10 +127,10 @@ template <typename T>
 TypeNode buildTree()
 {
     auto root = TypeNode {};
-    auto opts = Miro::Detail::topLevelOptions<T>(Mode::Save, /*schema=*/true);
+    auto opts = Detail::topLevelOptions<T>(Mode::Save, /*schema=*/true);
     auto reflector = TypeReflector {root, opts};
     auto value = T {};
-    Miro::Detail::reflectValue(reflector, value);
+    Detail::reflectValue(reflector, value);
     return root;
 }
 

@@ -56,15 +56,15 @@ public:
         std::string keyField;
     };
 
-    EA::Vector<CommandRecord> commands;
-    EA::Vector<EventRecord> events;
+    Vector<CommandRecord> commands;
+    Vector<EventRecord> events;
 
     // Structural TypeNodes for every Req / Res / event payload seen on
     // this walk, in declaration order. Duplicates are deliberately kept
     // — TypeTree::prepareRoots dedupes by qualifiedName at format time,
     // so the same tree built twice is harmless and avoids a hash-set
     // dependency here.
-    EA::Vector<TypeTree::TypeNode> typeRoots;
+    Vector<TypeTree::TypeNode> typeRoots;
 
 protected:
     void commandImpl(const CommandDescriptor& d) override

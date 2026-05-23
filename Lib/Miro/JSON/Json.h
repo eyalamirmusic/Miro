@@ -14,7 +14,7 @@ namespace Miro::Json
 struct Value;
 
 using Null = std::nullptr_t;
-using Array = Miro::Vector<Value>;
+using Array = Vector<Value>;
 using Object = std::map<std::string, Value>;
 
 struct Value

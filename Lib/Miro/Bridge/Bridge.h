@@ -112,7 +112,7 @@ public:
     // Adopts a Listener so its subscription stays alive as long as
     // this bridge does. Called by BindReflector::eventImpl; rarely
     // called by user code directly.
-    void attachListener(EA::OwningPointer<EA::Listener> listener)
+    void attachListener(OwningPointer<EA::Listener> listener)
     {
         boundListeners.add(std::move(listener));
     }
@@ -131,7 +131,7 @@ private:
     CommandTable commands;
     std::string_view event;
     const JSON* payload = nullptr;
-    EA::Vector<EA::OwningPointer<EA::Listener>> boundListeners;
+    Vector<OwningPointer<EA::Listener>> boundListeners;
 };
 
 } // namespace Miro

@@ -50,14 +50,14 @@ CodegenArgs parseCodegenArgs(int argc, char** argv);
 // functors consume. The runtime thunk is left empty — describe mode
 // doesn't dispatch, only emits.
 Vector<CommandExport::CommandEntry>
-    toCommandEntries(const EA::Vector<
+    toCommandEntries(const Vector<
                      Miro::Detail::DescribeReflector::CommandRecord>& records);
 
 // Translates DescribeReflector's EventRecord shape into the Miro::
 // EventInfo entries Context::events carries. Keyed metadata stays
 // default (Phase E adds ApiReflector::keyedEvent).
 Vector<EventInfo>
-    toEventInfos(const EA::Vector<
+    toEventInfos(const Vector<
                  Miro::Detail::DescribeReflector::EventRecord>& records);
 
 // Filename + contents pair for one emitted artifact. runFormatsToMemory
