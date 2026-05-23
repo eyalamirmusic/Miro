@@ -23,22 +23,32 @@ namespace Miro::Detail
 class DescribeReflector : public ApiReflector
 {
 public:
+    // Record-side mirror of Detail::TypeInfo: owns its strings (the
+    // descriptor's string_views point into static type-name buffers,
+    // safe to capture here too, but std::string keeps the record
+    // self-contained for downstream codegen). `present` reflects
+    // whether the corresponding TypeInfo was populated on the
+    // descriptor — false for elided sides (void Req/Res).
+    struct TypeInfoRecord
+    {
+        std::string name;
+        std::string qualifiedName;
+        bool present = false;
+
+        explicit operator bool() const { return present; }
+    };
+
     struct CommandRecord
     {
         std::string name;
-        bool hasReq = false;
-        bool hasRes = false;
-        std::string reqTypeName;
-        std::string reqQualifiedName;
-        std::string resTypeName;
-        std::string resQualifiedName;
+        TypeInfoRecord req;
+        TypeInfoRecord res;
     };
 
     struct EventRecord
     {
         std::string name;
-        std::string payloadTypeName;
-        std::string payloadQualifiedName;
+        TypeInfoRecord payload;
         std::function<JSON()> defaultPayloadJson;
 
         bool isKeyed = false;
@@ -61,34 +71,36 @@ protected:
     {
         auto record = CommandRecord {};
         record.name = std::string {d.name};
-        record.hasReq = d.hasReq;
-        record.hasRes = d.hasRes;
-        record.reqTypeName = std::string {d.reqTypeName};
-        record.reqQualifiedName = std::string {d.reqQualifiedName};
-        record.resTypeName = std::string {d.resTypeName};
-        record.resQualifiedName = std::string {d.resQualifiedName};
+        recordTypeInfo(d.req, record.req);
+        recordTypeInfo(d.res, record.res);
         commands.add(std::move(record));
-
-        if (d.buildReqTree)
-            d.buildReqTree(typeRoots.emplace_back());
-        if (d.buildResTree)
-            d.buildResTree(typeRoots.emplace_back());
     }
 
     void eventImpl(const EventDescriptor& d) override
     {
         auto record = EventRecord {};
         record.name = std::string {d.name};
-        record.payloadTypeName = std::string {d.payloadTypeName};
-        record.payloadQualifiedName = std::string {d.payloadQualifiedName};
+        recordTypeInfo(d.payload, record.payload);
         record.defaultPayloadJson = d.defaultPayloadJson;
         record.isKeyed = d.isKeyed;
         record.collectionField = std::string {d.collectionField};
         record.keyField = std::string {d.keyField};
         events.add(std::move(record));
+    }
 
-        if (d.buildPayloadTree)
-            d.buildPayloadTree(typeRoots.emplace_back());
+private:
+    // Copy TypeInfo → TypeInfoRecord and, if the type is present, run
+    // its in-place tree factory into a fresh typeRoots slot. Centralises
+    // the (copy strings, conditionally emplace tree) idiom so each
+    // descriptor side is one call rather than a six-line block.
+    void recordTypeInfo(const TypeInfo& src, TypeInfoRecord& dst)
+    {
+        if (!src)
+            return;
+        dst.name = std::string {src.name};
+        dst.qualifiedName = std::string {src.qualifiedName};
+        dst.present = true;
+        src.buildTree(typeRoots.emplace_back());
     }
 };
 

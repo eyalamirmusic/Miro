@@ -65,6 +65,32 @@ namespace Detail
 {
 using NodeFunc = std::function<void(TypeTree::TypeNode&)>;
 
+// One reflected type as seen from a user's reflect() body: the Req
+// side of a command, the Res side, or the payload of an Event<T>.
+// `buildTree` is empty when the type is elided (e.g. void return,
+// nullary command) — operator bool() lets consumers gate cleanly.
+struct TypeInfo
+{
+    std::string_view name;
+    std::string_view qualifiedName;
+
+    // In-place TypeNode factory; see buildTreeInto<T> for the contract.
+    // Caller controls where the node lives — TypeNode owns its
+    // children via OwningPointer<TypeNode> and is safer left in place
+    // once built.
+    NodeFunc buildTree;
+
+    explicit operator bool() const { return bool(buildTree); }
+};
+
+template <typename T>
+TypeInfo makeTypeInfo()
+{
+    return {typeNameOf<T>(),
+            qualifiedNameOf<T>(),
+            [](TypeTree::TypeNode& root) { buildTreeInto<T>(root); }};
+}
+
 // Type-erased descriptor of one command declared from a user's
 // reflect() body. Carries enough metadata for the describe-mode
 // reflector to feed codegen plus a factory closure that, given the
@@ -77,24 +103,12 @@ struct CommandDescriptor
 
     std::string_view name;
 
-    bool hasReq = false;
-    bool hasRes = false;
-    std::string_view reqTypeName;
-    std::string_view reqQualifiedName;
-    std::string_view resTypeName;
-    std::string_view resQualifiedName;
+    // Empty TypeInfo (operator bool == false) when the shape elides
+    // that side: Res() / void(Req) / void().
+    TypeInfo req;
+    TypeInfo res;
 
     HandlerFunc makeHandler;
-
-    // Walk a structural TypeNode for Req / Res into the supplied node
-    // when the corresponding side is present. Empty std::function when
-    // the shape elides that side (Res() / void(Req) / void()). The
-    // caller controls where the node lives — mirrors the existing
-    // buildAllTypeTrees pattern, which constructs roots in place rather
-    // than moving them around (TypeNode owns its children via
-    // OwningPointer<TypeNode>; safer to never move it after build).
-    NodeFunc buildReqTree;
-    NodeFunc buildResTree;
 };
 
 // Sibling descriptor for an Event<T> member. `makeListener` builds an
@@ -108,15 +122,11 @@ struct EventDescriptor
         std::function<OwningPointer<EA::Listener>(void*, PayloadFunc)>;
 
     std::string_view name;
-    std::string_view payloadTypeName;
-    std::string_view payloadQualifiedName;
+
+    // Always populated — Event<T> always has a payload type.
+    TypeInfo payload;
 
     ListenerFunc makeListener;
-
-    // Walks a structural TypeNode for the payload type T (from
-    // Event<T>) into the supplied node. Always populated. Same
-    // in-place contract as CommandDescriptor::buildReqTree.
-    NodeFunc buildPayloadTree;
 
     // Returns toJSON(T{}) — i.e. the wire representation of a
     // default-constructed payload. Hook codegen uses this as the
@@ -146,23 +156,11 @@ public:
 
         auto d = Detail::CommandDescriptor {};
         d.name = name;
-        d.hasReq = Info::hasReq;
-        d.hasRes = Info::hasRes;
 
         if constexpr (Info::hasReq)
-        {
-            d.reqTypeName = Detail::typeNameOf<typename Info::Req>();
-            d.reqQualifiedName = Detail::qualifiedNameOf<typename Info::Req>();
-            d.buildReqTree = [](TypeTree::TypeNode& root)
-            { buildTreeInto<typename Info::Req>(root); };
-        }
+            d.req = Detail::makeTypeInfo<typename Info::Req>();
         if constexpr (Info::hasRes)
-        {
-            d.resTypeName = Detail::typeNameOf<typename Info::Res>();
-            d.resQualifiedName = Detail::qualifiedNameOf<typename Info::Res>();
-            d.buildResTree = [](TypeTree::TypeNode& root)
-            { buildTreeInto<typename Info::Res>(root); };
-        }
+            d.res = Detail::makeTypeInfo<typename Info::Res>();
 
         d.makeHandler = [method](void* apiInstance) -> CommandTable::RawHandler
         {
@@ -216,10 +214,7 @@ private:
 
         auto d = Detail::EventDescriptor {};
         d.name = name;
-        d.payloadTypeName = Miro::Detail::typeNameOf<Payload>();
-        d.payloadQualifiedName = Miro::Detail::qualifiedNameOf<Payload>();
-        d.buildPayloadTree = [](TypeTree::TypeNode& root)
-        { buildTreeInto<Payload>(root); };
+        d.payload = Detail::makeTypeInfo<Payload>();
         d.defaultPayloadJson = [] { return toJSON(Payload {}); };
 
         d.makeListener = [member](void* apiInstance,

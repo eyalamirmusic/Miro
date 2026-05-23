@@ -59,9 +59,8 @@ CodegenArgs parseCodegenArgs(int argc, char** argv)
     return args;
 }
 
-Vector<CommandExport::CommandEntry>
-    toCommandEntries(const EA::Vector<Miro::Detail::DescribeReflector::CommandRecord>&
-                         records)
+Vector<CommandExport::CommandEntry> toCommandEntries(
+    const Vector<Miro::Detail::DescribeReflector::CommandRecord>& records)
 {
     auto entries = Vector<CommandExport::CommandEntry> {};
     entries.reserve(records.size());
@@ -70,12 +69,12 @@ Vector<CommandExport::CommandEntry>
     {
         auto entry = CommandExport::CommandEntry {};
         entry.name = r.name;
-        entry.hasRequest = r.hasReq;
-        entry.requestTypeName = r.reqTypeName;
-        entry.requestQualifiedName = r.reqQualifiedName;
-        entry.hasResponse = r.hasRes;
-        entry.responseTypeName = r.resTypeName;
-        entry.responseQualifiedName = r.resQualifiedName;
+        entry.hasRequest = bool(r.req);
+        entry.requestTypeName = r.req.name;
+        entry.requestQualifiedName = r.req.qualifiedName;
+        entry.hasResponse = bool(r.res);
+        entry.responseTypeName = r.res.name;
+        entry.responseQualifiedName = r.res.qualifiedName;
         // thunk left empty: codegen path doesn't dispatch.
         entries.add(std::move(entry));
     }
@@ -84,8 +83,7 @@ Vector<CommandExport::CommandEntry>
 }
 
 Vector<EventInfo>
-    toEventInfos(const EA::Vector<Miro::Detail::DescribeReflector::EventRecord>&
-                     records)
+    toEventInfos(const Vector<Miro::Detail::DescribeReflector::EventRecord>& records)
 {
     auto infos = Vector<EventInfo> {};
     infos.reserve(records.size());
@@ -94,8 +92,8 @@ Vector<EventInfo>
     {
         auto info = EventInfo {};
         info.name = r.name;
-        info.payloadTypeName = r.payloadTypeName;
-        info.payloadQualifiedName = r.payloadQualifiedName;
+        info.payloadTypeName = r.payload.name;
+        info.payloadQualifiedName = r.payload.qualifiedName;
         info.defaultPayloadJson = r.defaultPayloadJson;
         info.isKeyed = r.isKeyed;
         info.collectionField = r.collectionField;
@@ -106,9 +104,8 @@ Vector<EventInfo>
     return infos;
 }
 
-Vector<EmittedFile>
-    runFormatsToMemory(const Context& ctx,
-                       const Vector<std::string>& requestedFormats)
+Vector<EmittedFile> runFormatsToMemory(const Context& ctx,
+                                       const Vector<std::string>& requestedFormats)
 {
     auto out = Vector<EmittedFile> {};
 
