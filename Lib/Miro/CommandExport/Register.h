@@ -32,7 +32,7 @@ struct CommandEntry
     std::string responseTypeName;
     std::string responseQualifiedName;
 
-    Miro::CommandTable::RawHandler thunk;
+    CommandTable::RawHandler thunk;
 };
 
 namespace Detail
@@ -50,13 +50,13 @@ Vector<CommandEntry>& registry();
 // which carries the shared shape-adapting machinery used by
 // CommandTable::on and makePmfHandler.
 template <auto Handler>
-inline void registerCommand(const char* nameToUse)
+void registerCommand(const char* nameToUse)
 {
     using Miro::Detail::qualifiedNameOf;
     using Miro::Detail::typeNameOf;
     using TypeExport::Detail::registerOne;
 
-    using Info = Miro::FunctionInfo<decltype(Handler)>;
+    using Info = FunctionInfo<decltype(Handler)>;
 
     auto entry = CommandEntry {};
     entry.name = nameToUse;
@@ -135,8 +135,7 @@ void registerStaticCommandsInto(CommandTable& table);
 #define MIRO_EXPORT_COMMANDS(...)                                                   \
     namespace                                                                       \
     {                                                                               \
-    [[maybe_unused]] const auto MIRO_EXPORT_COMMAND_CAT(miroCommandRegistry_,       \
-                                                        __LINE__) = []              \
+    const auto MIRO_EXPORT_COMMAND_CAT(miroCommandRegistry_, __LINE__) = []         \
     {                                                                               \
         MIRO_FOR_EACH(MIRO_EXPORT_COMMAND_ITEM, __VA_ARGS__)                        \
         return 0;                                                                   \

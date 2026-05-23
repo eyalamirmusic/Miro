@@ -95,7 +95,7 @@ auto evMultipleListeners = test("Event: each listener fires on publish") = []
 };
 
 auto evListenerDetachOnDestroy =
-    test("Event: listener detaches on destruction; later publish does not fire it") = []
+    test("Event: listener detaches on destruction - later publish does not fire it") = []
 {
     auto e = Event<int> {};
 

@@ -55,14 +55,15 @@ class Bridge;
 template <typename T>
 void buildTreeInto(TypeTree::TypeNode& root)
 {
-    auto opts = Miro::Detail::topLevelOptions<T>(Mode::Save, /*schema=*/true);
+    auto opts = Detail::topLevelOptions<T>(Mode::Save, /*schema=*/true);
     auto reflector = TypeTree::TypeReflector {root, opts};
     auto value = T {};
-    Miro::Detail::reflectValue(reflector, value);
+    Detail::reflectValue(reflector, value);
 }
 
 namespace Detail
 {
+using NodeFunc = std::function<void(TypeTree::TypeNode&)>;
 
 // Type-erased descriptor of one command declared from a user's
 // reflect() body. Carries enough metadata for the describe-mode
@@ -72,6 +73,8 @@ namespace Detail
 // the descriptor stays POD-like.
 struct CommandDescriptor
 {
+    using HandlerFunc = std::function<CommandTable::RawHandler(void* apiInstance)>;
+
     std::string_view name;
 
     bool hasReq = false;
@@ -81,7 +84,7 @@ struct CommandDescriptor
     std::string_view resTypeName;
     std::string_view resQualifiedName;
 
-    std::function<CommandTable::RawHandler(void* apiInstance)> makeHandler;
+    HandlerFunc makeHandler;
 
     // Walk a structural TypeNode for Req / Res into the supplied node
     // when the corresponding side is present. Empty std::function when
@@ -90,8 +93,8 @@ struct CommandDescriptor
     // buildAllTypeTrees pattern, which constructs roots in place rather
     // than moving them around (TypeNode owns its children via
     // OwningPointer<TypeNode>; safer to never move it after build).
-    std::function<void(TypeTree::TypeNode&)> buildReqTree;
-    std::function<void(TypeTree::TypeNode&)> buildResTree;
+    NodeFunc buildReqTree;
+    NodeFunc buildResTree;
 };
 
 // Sibling descriptor for an Event<T> member. `makeListener` builds an
@@ -100,19 +103,20 @@ struct CommandDescriptor
 // wires to its bridge's emit channel.
 struct EventDescriptor
 {
+    using PayloadFunc = std::function<void(const JSON& payload)>;
+    using ListenerFunc =
+        std::function<OwningPointer<EA::Listener>(void*, PayloadFunc)>;
+
     std::string_view name;
     std::string_view payloadTypeName;
     std::string_view payloadQualifiedName;
 
-    std::function<EA::OwningPointer<EA::Listener>(
-        void* apiInstance,
-        std::function<void(const JSON& payload)> emit)>
-        makeListener;
+    ListenerFunc makeListener;
 
     // Walks a structural TypeNode for the payload type T (from
     // Event<T>) into the supplied node. Always populated. Same
     // in-place contract as CommandDescriptor::buildReqTree.
-    std::function<void(TypeTree::TypeNode&)> buildPayloadTree;
+    NodeFunc buildPayloadTree;
 
     // Returns toJSON(T{}) — i.e. the wire representation of a
     // default-constructed payload. Hook codegen uses this as the
@@ -128,7 +132,6 @@ struct EventDescriptor
     std::string_view collectionField;
     std::string_view keyField;
 };
-
 } // namespace Detail
 
 class ApiReflector
@@ -148,17 +151,15 @@ public:
 
         if constexpr (Info::hasReq)
         {
-            d.reqTypeName = Miro::Detail::typeNameOf<typename Info::Req>();
-            d.reqQualifiedName =
-                Miro::Detail::qualifiedNameOf<typename Info::Req>();
+            d.reqTypeName = Detail::typeNameOf<typename Info::Req>();
+            d.reqQualifiedName = Detail::qualifiedNameOf<typename Info::Req>();
             d.buildReqTree = [](TypeTree::TypeNode& root)
             { buildTreeInto<typename Info::Req>(root); };
         }
         if constexpr (Info::hasRes)
         {
-            d.resTypeName = Miro::Detail::typeNameOf<typename Info::Res>();
-            d.resQualifiedName =
-                Miro::Detail::qualifiedNameOf<typename Info::Res>();
+            d.resTypeName = Detail::typeNameOf<typename Info::Res>();
+            d.resQualifiedName = Detail::qualifiedNameOf<typename Info::Res>();
             d.buildResTree = [](TypeTree::TypeNode& root)
             { buildTreeInto<typename Info::Res>(root); };
         }
@@ -221,9 +222,8 @@ private:
         { buildTreeInto<Payload>(root); };
         d.defaultPayloadJson = [] { return toJSON(Payload {}); };
 
-        d.makeListener =
-            [member](void* apiInstance,
-                     std::function<void(const JSON&)> emit)
+        d.makeListener = [member](void* apiInstance,
+                                  std::function<void(const JSON&)> emit)
             -> EA::OwningPointer<EA::Listener>
         {
             auto& api = *static_cast<typename Info::Class*>(apiInstance);
@@ -231,8 +231,7 @@ private:
 
             return EA::makeOwned<EA::Listener>(
                 event.broadcaster(),
-                [&event, emit = std::move(emit)]
-                { emit(toJSON(event.snapshot())); },
+                [&event, emit = std::move(emit)] { emit(toJSON(event.snapshot())); },
                 EA::Listener::Modes::TriggerOnEvent);
         };
 

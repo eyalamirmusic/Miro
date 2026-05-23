@@ -54,15 +54,11 @@ Vector<std::string> commandPathSegments(std::string_view name)
 
 CommandChild& findOrCreateChild(CommandNode& node, const std::string& segment)
 {
-    auto it = std::find_if(node.children.begin(),
-                           node.children.end(),
-                           [&](auto& c) { return c.name == segment; });
+    auto it = std::ranges::find_if(node.children,
+                                   [&](auto& c) { return c.name == segment; });
 
     if (it == node.children.end())
-    {
-        node.children.add(CommandChild {segment, EA::makeOwned<CommandNode>()});
-        return node.children.back();
-    }
+        return node.children.create(segment, EA::makeOwned<CommandNode>());
 
     return *it;
 }
