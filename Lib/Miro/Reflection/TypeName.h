@@ -83,6 +83,69 @@ constexpr std::string_view typeNameOf()
     return name;
 }
 
+// Compile-time extraction of a pointer-to-member's short name from
+// __PRETTY_FUNCTION__ / __FUNCSIG__. Same trick as enumNameRaw, but
+// with the NTTP rendered as a qualified `&Class::name` (or
+// `&Class<T>::name`). Used by ApiReflector to derive command / event
+// names from `&Foo::bar`-style template arguments so the user doesn't
+// have to repeat the name as a string.
+template <auto Member>
+constexpr std::string_view memberNameOf()
+{
+#if defined(__clang__) || defined(__GNUC__)
+    constexpr auto prefix = std::string_view {"Member = "};
+    constexpr auto terminators = std::string_view {";]"};
+    auto sig = std::string_view {__PRETTY_FUNCTION__};
+    auto start = sig.find(prefix) + prefix.size();
+    auto end = sig.find_first_of(terminators, start);
+#elif defined(_MSC_VER)
+    constexpr auto prefix = std::string_view {"memberNameOf<"};
+    constexpr auto terminator = std::string_view {">("};
+    auto sig = std::string_view {__FUNCSIG__};
+    auto start = sig.find(prefix) + prefix.size();
+    auto end = sig.find(terminator, start);
+#else
+    auto sig = std::string_view {};
+    auto start = std::size_t {};
+    auto end = std::size_t {};
+#endif
+
+    auto name = sig.substr(start, end - start);
+
+    // Drop the leading '&' that compilers prepend for pmf / pmd NTTPs.
+    if (!name.empty() && name.front() == '&')
+        name.remove_prefix(1);
+
+    // Find the rightmost "::" at zero depth (ignoring template-argument
+    // angle brackets in the class qualifier and parens that wrap
+    // "(anonymous namespace)") — that separates the class qualifier
+    // from the actual member name.
+    auto angleDepth = 0;
+    auto parenDepth = 0;
+    auto lastColon = std::string_view::npos;
+
+    for (auto i = std::size_t {0}; i + 1 < name.size(); ++i)
+    {
+        auto c = name[i];
+        if (c == '<')
+            ++angleDepth;
+        else if (c == '>' && angleDepth > 0)
+            --angleDepth;
+        else if (c == '(')
+            ++parenDepth;
+        else if (c == ')' && parenDepth > 0)
+            --parenDepth;
+        else if (angleDepth == 0 && parenDepth == 0 && c == ':'
+                 && name[i + 1] == ':')
+            lastColon = i;
+    }
+
+    if (lastColon != std::string_view::npos)
+        name.remove_prefix(lastColon + 2);
+
+    return name;
+}
+
 // True if T is a "named" user-defined type — i.e. not a template
 // instantiation and not in the std namespace. Used by the TypeScript
 // exporter to decide whether to register T as a reusable type or

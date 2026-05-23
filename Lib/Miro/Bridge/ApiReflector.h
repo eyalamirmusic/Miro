@@ -13,9 +13,9 @@
 //   public:
 //       void reflect(Miro::ApiReflector& r)
 //       {
-//           r.command(&Todos::getTodos,       "getTodos");
-//           r.command(&Todos::addTodo,        "addTodo");
-//           r.event  (&Todos::changes,        "todos");
+//           using T = Todos;
+//           r.commands<&T::getTodos, &T::addTodo>();
+//           r.events<&T::changes>();
 //       }
 //
 //       TodoState getTodos() const;
@@ -24,11 +24,20 @@
 //       Miro::Event<TodoState> changes;
 //   };
 //
-// The templated `command` / `event` entry points sit on this base
-// (non-virtual). They use MethodInfo / EventMemberInfo to extract types,
-// pack a type-erased descriptor, and dispatch through a virtual hook
-// the concrete reflectors override. Same trick CommandTable already
-// uses to route typed handlers through a runtime RawHandler.
+// Names default to the unqualified member identifier — derived from the
+// pmf itself via Detail::memberNameOf, so renames in the C++ source
+// automatically rename on the wire. When the wire name must differ from
+// the C++ identifier, drop back to the explicit overloads in the same
+// reflect() body:
+//
+//       r.command(&T::oldName, "newWireName");
+//       r.event  (&T::changes, "otherWireName");
+//
+// The templated entry points sit on this base (non-virtual). They use
+// MethodInfo / EventMemberInfo to extract types, pack a type-erased
+// descriptor, and dispatch through a virtual hook the concrete
+// reflectors override. Same trick CommandTable already uses to route
+// typed handlers through a runtime RawHandler.
 
 #include "../Reflection/CommandTable.h"
 #include "../Reflection/TypeName.h"
@@ -171,10 +180,43 @@ public:
         commandImpl(d);
     }
 
+    // Name-free overload: derives the command name from the pmf itself
+    // via Detail::memberNameOf<Pmf>(). Prefer this in fresh reflect()
+    // bodies — the string overload above stays available for renames.
+    template <auto Pmf>
+    void command()
+    {
+        command(Pmf, Detail::memberNameOf<Pmf>());
+    }
+
+    // Variadic sugar so a whole API can be declared in one statement:
+    //   r.commands<&Clock::getCurrentTick, &Clock::reset>();
+    template <auto... Pmfs>
+        requires(sizeof...(Pmfs) > 0)
+    void commands()
+    {
+        (command<Pmfs>(), ...);
+    }
+
     template <typename Pmd>
     void event(Pmd member, std::string_view name)
     {
         eventImpl(makeEventDescriptor(member, name));
+    }
+
+    // Name-free overload: derives the event name from the pmd itself.
+    template <auto Pmd>
+    void event()
+    {
+        event(Pmd, Detail::memberNameOf<Pmd>());
+    }
+
+    // Variadic sugar — see commands<...>().
+    template <auto... Pmds>
+        requires(sizeof...(Pmds) > 0)
+    void events()
+    {
+        (event<Pmds>(), ...);
     }
 
     // Same wiring as event(), plus marks the payload as a keyed

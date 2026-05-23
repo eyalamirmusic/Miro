@@ -50,11 +50,9 @@ public:
     // NOLINTNEXTLINE(readability-convert-member-functions-to-static)
     void reflect(ApiReflector& r)
     {
-        r.command(&TodosTestApi::echo, "echo");
-        r.command(&TodosTestApi::status, "status");
-        r.command(&TodosTestApi::log, "log");
-        r.command(&TodosTestApi::tick, "tick");
-        r.event(&TodosTestApi::changes, "changes");
+        using T = TodosTestApi;
+        r.commands<&T::echo, &T::status, &T::log, &T::tick>();
+        r.event<&T::changes>();
     }
 
     ARRes echo(const ARReq& req)
@@ -373,6 +371,78 @@ auto arDescribeTypeRootsAreStructural =
 // formatBackendModule the static-init path uses. If the output text
 // has all the typed signatures we'd expect from the test API, the
 // reflector-to-formatter integration is wired.
+
+// ---------- NTTP form: explicit-name overload still works for renames ----------
+//
+// The string overload remains available for cases where the wire name
+// must differ from the C++ member name. This class declares both a
+// renamed command and a renamed event to confirm the legacy path is
+// untouched by the new NTTP defaults.
+
+namespace
+{
+class RenameTestApi
+{
+public:
+    // NOLINTNEXTLINE(readability-convert-member-functions-to-static)
+    void reflect(ApiReflector& r)
+    {
+        r.command(&RenameTestApi::ping, "ping_v2");
+        r.event(&RenameTestApi::pulses, "pulse");
+    }
+
+    // NOLINTNEXTLINE(readability-convert-member-functions-to-static)
+    ARRes ping() const { return ARRes {"pong"}; }
+
+    Event<ARRes> pulses;
+};
+} // namespace
+
+auto arRenameStringOverloadStillWorks = test(
+    "ApiReflector: string overload renames command and event independently") = []
+{
+    auto describe = Detail::DescribeReflector {};
+    auto api = RenameTestApi {};
+    api.reflect(describe);
+
+    check(describe.commands.size() == 1);
+    check(describe.commands[0].name == "ping_v2");
+    check(describe.events.size() == 1);
+    check(describe.events[0].name == "pulse");
+};
+
+// ---------- NTTP form: events<...> variadic ----------
+//
+// TodosTestApi covers the commands<...> fan-out and the singular event<>
+// form; this case verifies that events<...> walks multiple pmds.
+
+namespace
+{
+class TwoEventsApi
+{
+public:
+    // NOLINTNEXTLINE(readability-convert-member-functions-to-static)
+    void reflect(ApiReflector& r)
+    {
+        r.events<&TwoEventsApi::alpha, &TwoEventsApi::beta>();
+    }
+
+    Event<ARRes> alpha;
+    Event<ARRes> beta;
+};
+} // namespace
+
+auto arEventsVariadicDerivesNames = test(
+    "ApiReflector: events<...> fans out and derives each name from the pmd") = []
+{
+    auto describe = Detail::DescribeReflector {};
+    auto api = TwoEventsApi {};
+    api.reflect(describe);
+
+    check(describe.events.size() == 2);
+    check(findEvt(describe.events, "alpha") != nullptr);
+    check(findEvt(describe.events, "beta") != nullptr);
+};
 
 auto arDescribeDrivesBackendFormat =
     test("ApiReflector: DescribeReflector output feeds formatBackendModule") = []
