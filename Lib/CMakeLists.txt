@@ -48,11 +48,13 @@ endif ()
 # their symbols — the work happens at static init); OBJECT placement
 # splices the .o files directly into the consumer's link line so the
 # initializers always survive.
-if (NOT CMAKE_CROSSCOMPILING)
-    add_library(MiroFormats OBJECT
-        Miro/TypeExport/BuiltinFormats.cpp)
-    target_link_libraries(MiroFormats PUBLIC Miro)
-endif ()
+#
+# Built unconditionally — BuiltinFormats.cpp is pure C++ (no
+# filesystem I/O, no host-only deps) and MiroTests links it on every
+# platform, including cross-compiled iOS.
+add_library(MiroFormats OBJECT
+    Miro/TypeExport/BuiltinFormats.cpp)
+target_link_libraries(MiroFormats PUBLIC Miro)
 
 # File-writing pieces of the codegen pipeline (writeEmittedFiles in
 # CodegenWriter.cpp). Split out so both codegen entry points — the
