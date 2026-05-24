@@ -93,6 +93,13 @@ struct EventMemberInfo<Event<T> C::*>
     using Payload = T;
 };
 
+template <typename C, typename T>
+struct EventMemberInfo<RefEvent<T> C::*>
+{
+    using Class = C;
+    using Payload = T;
+};
+
 // ---------- Free-function-pointer traits ----------
 
 template <typename T>
@@ -139,24 +146,18 @@ CommandTable::RawHandler
     auto* instancePtr = &instance;
     return Detail::makeJsonAdapter<Info>(
         [instancePtr](auto&&... args) -> decltype(auto)
-        {
-            return ((*instancePtr).*Method)(
-                std::forward<decltype(args)>(args)...);
-        });
+        { return ((*instancePtr).*Method)(std::forward<decltype(args)>(args)...); });
 }
 
 template <typename Pmf>
-CommandTable::RawHandler
-    makePmfHandler(Pmf method, typename MethodInfo<Pmf>::Class& instance)
+CommandTable::RawHandler makePmfHandler(Pmf method,
+                                        typename MethodInfo<Pmf>::Class& instance)
 {
     using Info = MethodInfo<Pmf>;
     auto* instancePtr = &instance;
     return Detail::makeJsonAdapter<Info>(
         [method, instancePtr](auto&&... args) -> decltype(auto)
-        {
-            return ((*instancePtr).*method)(
-                std::forward<decltype(args)>(args)...);
-        });
+        { return ((*instancePtr).*method)(std::forward<decltype(args)>(args)...); });
 }
 
 } // namespace Miro

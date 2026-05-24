@@ -1,7 +1,9 @@
-// Tests for Miro::Event<T> — the typed event source that API classes
-// declare as members and call .publish(payload) on. Verifies snapshot
-// semantics, default construction, listener attachment, and the no-arg
-// publish() that only triggers (without mutating the snapshot).
+// Tests for Miro::Event<T> and Miro::RefEvent<T> — the typed event
+// sources API classes declare as members. Event<T> owns its payload
+// (.publish(payload) copies in and triggers); RefEvent<T> holds a T&
+// to externally owned state (.publish() only triggers, the owner has
+// already mutated the referenced T). Both satisfy the EventLike
+// concept so the reflector consumes them interchangeably.
 
 #include <Miro/Miro.h>
 #include <NanoTest/NanoTest.h>
@@ -26,14 +28,16 @@ struct EventTestPayload
 
 } // namespace
 
-auto evDefaultSnapshot = test("Event: default-constructs with value-initialized payload") = []
+auto evDefaultSnapshot =
+    test("Event: default-constructs with value-initialized payload") = []
 {
     auto e = Event<EventTestPayload> {};
     check(e.snapshot().n == 0);
     check(e.snapshot().s.empty());
 };
 
-auto evInitialPayload = test("Event: initial-value constructor seeds the snapshot") = []
+auto evInitialPayload =
+    test("Event: initial-value constructor seeds the snapshot") = []
 {
     auto e = Event<EventTestPayload> {EventTestPayload {.n = 7, .s = "seed"}};
     check(e.snapshot().n == 7);
@@ -63,9 +67,8 @@ auto evPublishNoArg =
     auto e = Event<EventTestPayload> {EventTestPayload {.n = 5}};
 
     auto fired = 0;
-    auto listener = EA::Listener {e.broadcaster(),
-                                  [&] { fired++; },
-                                  EA::Listener::Modes::TriggerOnEvent};
+    auto listener = EA::Listener {
+        e.broadcaster(), [&] { fired++; }, EA::Listener::Modes::TriggerOnEvent};
 
     e.publish();
     e.publish();
@@ -94,16 +97,15 @@ auto evMultipleListeners = test("Event: each listener fires on publish") = []
     check(b == 6);
 };
 
-auto evListenerDetachOnDestroy =
-    test("Event: listener detaches on destruction - later publish does not fire it") = []
+auto evListenerDetachOnDestroy = test(
+    "Event: listener detaches on destruction - later publish does not fire it") = []
 {
     auto e = Event<int> {};
 
     auto fired = 0;
     {
-        auto listener = EA::Listener {e.broadcaster(),
-                                      [&] { fired++; },
-                                      EA::Listener::Modes::TriggerOnEvent};
+        auto listener = EA::Listener {
+            e.broadcaster(), [&] { fired++; }, EA::Listener::Modes::TriggerOnEvent};
         e.publish(1);
         check(fired == 1);
     }
@@ -111,3 +113,66 @@ auto evListenerDetachOnDestroy =
     e.publish(2);
     check(fired == 1);
 };
+
+// ---------- RefEvent<T> ----------
+
+auto refEvSnapshotReadsThroughRef =
+    test("RefEvent: snapshot() reads through the referenced T") = []
+{
+    auto state = EventTestPayload {.n = 11, .s = "ref-init"};
+    auto e = RefEvent<EventTestPayload> {state};
+
+    check(e.snapshot().n == 11);
+    check(e.snapshot().s == "ref-init");
+
+    state.n = 99;
+    state.s = "mutated";
+
+    // No publish() yet — snapshot still reflects current ref state
+    // because there's only ever one source of truth (the ref'd T).
+    check(e.snapshot().n == 99);
+    check(e.snapshot().s == "mutated");
+};
+
+auto refEvPublishFiresWithCurrentRef = test(
+    "RefEvent: publish() triggers listeners, which observe the ref'd value") = []
+{
+    auto state = EventTestPayload {.n = 0};
+    auto e = RefEvent<EventTestPayload> {state};
+
+    auto observed = EventTestPayload {};
+    auto listener = EA::Listener {e.broadcaster(),
+                                  [&] { observed = e.snapshot(); },
+                                  EA::Listener::Modes::TriggerOnEvent};
+
+    state.n = 17;
+    state.s = "external";
+    e.publish();
+
+    check(observed.n == 17);
+    check(observed.s == "external");
+};
+
+auto refEvDetachOnDestroy = test("RefEvent: listener detaches on destruction") = []
+{
+    auto state = 0;
+    auto e = RefEvent<int> {state};
+
+    auto fired = 0;
+    {
+        auto listener = EA::Listener {
+            e.broadcaster(), [&] { fired++; }, EA::Listener::Modes::TriggerOnEvent};
+        state = 1;
+        e.publish();
+        check(fired == 1);
+    }
+
+    state = 2;
+    e.publish();
+    check(fired == 1);
+};
+
+// EventLike contract — both flavours must satisfy it; new flavours
+// added later are caught at compile time if they don't.
+static_assert(EventLike<Event<int>>);
+static_assert(EventLike<RefEvent<int>>);

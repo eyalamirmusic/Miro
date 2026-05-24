@@ -372,6 +372,66 @@ auto arDescribeTypeRootsAreStructural =
 // has all the typed signatures we'd expect from the test API, the
 // reflector-to-formatter integration is wired.
 
+// ---------- RefEvent<T>: non-owning event member, bound end-to-end ----------
+//
+// The API class owns the state; RefEvent refers to it. Bridge::use
+// should attach a listener exactly as for Event<T>, and publish() on
+// the RefEvent should route the externally-mutated snapshot through
+// bridge.onEmit. EventMemberInfo's RefEvent specialization is what
+// makes this work without any change to ApiReflector.
+
+namespace
+{
+class RefEventApi
+{
+public:
+    RefEventApi()
+        : changes(state)
+    {
+    }
+
+    // NOLINTNEXTLINE(readability-convert-member-functions-to-static)
+    void reflect(ApiReflector& r)
+    {
+        using T = RefEventApi;
+        r.event<&T::changes>();
+    }
+
+    ARRes state {"initial"};
+    RefEvent<ARRes> changes;
+};
+} // namespace
+
+auto arRefEventEmitsOnPublish =
+    test("ApiReflector: RefEvent<T> member is bound and emits on publish()") = []
+{
+    auto api = RefEventApi {};
+    auto bridge = Bridge {};
+    bridge.use(api);
+
+    auto capture = EmitCapture {bridge};
+
+    api.state.echoed = "after-mutate";
+    api.changes.publish();
+
+    check(capture.lastEvent == "changes");
+    check(capture.lastPayload["echoed"].asString() == "after-mutate");
+};
+
+auto arRefEventDescribeMatchesEvent = test(
+    "ApiReflector: DescribeReflector records RefEvent<T> with same shape as Event<T>") =
+    []
+{
+    auto describe = Detail::DescribeReflector {};
+    auto api = RefEventApi {};
+    api.reflect(describe);
+
+    check(describe.events.size() == 1);
+    auto* changes = findEvt(describe.events, "changes");
+    check(changes != nullptr);
+    check(changes->payload.name == "ARRes");
+};
+
 // ---------- NTTP form: explicit-name overload still works for renames ----------
 //
 // The string overload remains available for cases where the wire name
