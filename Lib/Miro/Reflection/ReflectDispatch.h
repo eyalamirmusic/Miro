@@ -277,20 +277,29 @@ void reflectValue(Reflector& ref, T& value)
 namespace Miro
 {
 
+// Property/Element dispatch the value through an unqualified call to
+// `reflectValue`, with `using Detail::reflectValue` bringing the built-in
+// overloads into scope. Two-phase lookup for unqualified dependent calls
+// re-runs ADL at instantiation on the argument types, so users can teach
+// Miro about a new primitive (e.g. juce::String) by adding a free
+// `reflectValue(Reflector&, T&)` overload in namespace `Miro` or in `T`'s
+// own namespace, even after <Miro/Miro.h> has been included.
 template <typename T>
 void Property::operator()(T& value)
 {
-    Detail::reflectValue(
-        reflector.atKey(key, Detail::childOptionsFor<T>(reflector.options())),
-        value);
+    using Detail::reflectValue;
+    reflectValue(reflector.atKey(key,
+                                 Detail::childOptionsFor<T>(reflector.options())),
+                 value);
 }
 
 template <typename T>
 void Element::operator()(T& value)
 {
-    Detail::reflectValue(
-        reflector.atIndex(index, Detail::childOptionsFor<T>(reflector.options())),
-        value);
+    using Detail::reflectValue;
+    reflectValue(reflector.atIndex(index,
+                                   Detail::childOptionsFor<T>(reflector.options())),
+                 value);
 }
 
 } // namespace Miro
