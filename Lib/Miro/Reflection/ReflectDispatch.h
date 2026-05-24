@@ -62,8 +62,25 @@ struct InnerOf<OwningPointer<T>>
     using type = T;
 };
 
+// Detects whether T derives (directly or indirectly) from some
+// EA::Vector<U, A>. Used so anything inheriting from EA::Vector — e.g.
+// EA::OwnedVector or a user's own subclass — is classified as array-
+// shaped without each one needing its own IsArrayLike specialization.
+template <typename U, typename A>
+auto vectorDerivedProbe(const Vector<U, A>*) -> std::true_type;
+auto vectorDerivedProbe(...) -> std::false_type;
+
 template <typename T>
+constexpr bool inheritsFromVector =
+    decltype(vectorDerivedProbe(std::declval<T*>()))::value;
+
+template <typename T, typename = void>
 struct IsArrayLike : std::false_type
+{
+};
+
+template <typename T>
+struct IsArrayLike<T, std::enable_if_t<inheritsFromVector<T>>> : std::true_type
 {
 };
 
@@ -74,11 +91,6 @@ struct IsArrayLike<std::vector<T>> : std::true_type
 
 template <typename T, std::size_t N>
 struct IsArrayLike<std::array<T, N>> : std::true_type
-{
-};
-
-template <typename T, typename Allocator>
-struct IsArrayLike<Vector<T, Allocator>> : std::true_type
 {
 };
 
@@ -146,9 +158,6 @@ constexpr Options topLevelOptions(Mode mode, bool schema = false)
         .schema = schema,
     };
 }
-
-template <typename T>
-void reflectValue(Reflector& ref, T& value);
 
 // Forward declarations for container, optional and enum overloads. The
 // definitions live in ReflectContainers.h / ReflectEnum.h, but the

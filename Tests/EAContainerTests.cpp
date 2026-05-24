@@ -47,6 +47,29 @@ struct WithEAOwningPointer
     MIRO_REFLECT(child)
 };
 
+struct WithEAOwnedVector
+{
+    OwnedVector<Inner> items;
+
+    MIRO_REFLECT(items)
+};
+
+// A user-defined class inheriting from EA::Vector<T>. The dispatch and
+// shape trait should recognize it as an array via its base class without
+// any per-subclass registration.
+class IntList : public Vector<int>
+{
+public:
+    using Vector::Vector;
+};
+
+struct WithUserVectorSubclass
+{
+    IntList numbers;
+
+    MIRO_REFLECT(numbers)
+};
+
 } // namespace
 
 auto eaVectorRoundtrip = test("EA::Vector<int> round-trip") = []
@@ -114,8 +137,7 @@ auto eaOwningPointerSetRoundtrip =
     check(loaded.child->label == "ready");
 };
 
-auto eaOwningPointerNullRoundtrip =
-    test("EA::OwningPointer<T> null round-trip") = []
+auto eaOwningPointerNullRoundtrip = test("EA::OwningPointer<T> null round-trip") = []
 {
     auto original = WithEAOwningPointer {};
     auto loaded = createFromJSON<WithEAOwningPointer>(toJSON(original));
@@ -133,4 +155,63 @@ auto eaOwningPointerLoadFromNull =
     fromJSONString(val, R"({"child": null})");
 
     check(val.child.get() == nullptr);
+};
+
+auto eaOwnedVectorRoundtrip = test("EA::OwnedVector<T> round-trip") = []
+{
+    auto original = WithEAOwnedVector {};
+    original.items.createNew().count = 1;
+    original.items.back()->label = "first";
+    original.items.createNew().count = 2;
+    original.items.back()->label = "second";
+
+    auto loaded = createFromJSON<WithEAOwnedVector>(toJSON(original));
+
+    check(loaded.items.size() == 2);
+    check(loaded.items[0].get() != nullptr);
+    check(loaded.items[0]->count == 1);
+    check(loaded.items[0]->label == "first");
+    check(loaded.items[1].get() != nullptr);
+    check(loaded.items[1]->count == 2);
+    check(loaded.items[1]->label == "second");
+};
+
+auto eaOwnedVectorEmptyRoundtrip = test("EA::OwnedVector empty round-trip") = []
+{
+    auto original = WithEAOwnedVector {};
+    auto loaded = createFromJSON<WithEAOwnedVector>(toJSON(original));
+
+    check(loaded.items.empty());
+};
+
+auto eaOwnedVectorWithNullSlot =
+    test("EA::OwnedVector loads null slots as empty entries") = []
+{
+    auto val = WithEAOwnedVector {};
+    fromJSONString(val, R"({"items": [null, {"count": 5, "label": "ok"}]})");
+
+    check(val.items.size() == 2);
+    check(val.items[0].get() == nullptr);
+    check(val.items[1].get() != nullptr);
+    check(val.items[1]->count == 5);
+    check(val.items[1]->label == "ok");
+};
+
+auto userVectorSubclassRoundtrip =
+    test("class derived from EA::Vector<T> round-trips as an array") = []
+{
+    auto original = WithUserVectorSubclass {};
+    original.numbers.add(10);
+    original.numbers.add(20);
+    original.numbers.add(30);
+
+    auto json = toJSONString(original);
+    check(json.find("[10,20,30]") != std::string::npos);
+
+    auto loaded = createFromJSON<WithUserVectorSubclass>(toJSON(original));
+
+    check(loaded.numbers.size() == 3);
+    check(loaded.numbers[0] == 10);
+    check(loaded.numbers[1] == 20);
+    check(loaded.numbers[2] == 30);
 };
