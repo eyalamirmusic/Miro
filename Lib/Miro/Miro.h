@@ -13,6 +13,8 @@
 #include "Reflection/Any.h"
 #include "Reflection/CommandTable.h"
 #include "Reflection/JsonReflector.h"
+#include "Reflection/XmlReflector.h"
+#include "XML/Xml.h"
 #include "Reflection/ReflectContainers.h"
 #include "Reflection/ReflectDispatch.h"
 #include "Reflection/ReflectEnum.h"

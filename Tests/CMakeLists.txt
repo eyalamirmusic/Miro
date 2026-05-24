@@ -4,7 +4,9 @@ find_package(NanoTest REQUIRED)
 
 nano_add_executable(MiroTests SOURCES
         JsonTests.cpp
+        XmlTests.cpp
         ReflectorTests.cpp
+        XmlReflectorTests.cpp
         CommandTableTests.cpp
         CommandExportTests.cpp
         MethodInfoTests.cpp
