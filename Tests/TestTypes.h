@@ -134,6 +134,37 @@ struct MacroEmpty
     MIRO_REFLECT()
 };
 
+struct InlineFieldsType
+{
+    int x = 1;
+    std::string name = "hi";
+    int reflectCallCount = 0;
+
+    void reflect(Miro::Reflector& ref)
+    {
+        ++reflectCallCount;
+        MIRO_FIELDS(ref, x, name)
+    }
+};
+
+struct InlineFieldsEmpty
+{
+    int reflectCallCount = 0;
+
+    void reflect([[maybe_unused]] Miro::Reflector& ref)
+    {
+        ++reflectCallCount;
+        MIRO_FIELDS(ref)
+    }
+};
+
+struct InlineFieldsRenamedRef
+{
+    int value = 7;
+
+    void reflect(Miro::Reflector& myRef) { MIRO_FIELDS(myRef, value) }
+};
+
 // Types intentionally without any reflect() method — to be reflected via
 // MIRO_REFLECT_EXTERNAL below, simulating a third-party type.
 struct ExternalPoint

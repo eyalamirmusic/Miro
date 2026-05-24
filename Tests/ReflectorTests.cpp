@@ -394,6 +394,51 @@ auto macroEmpty = test("MIRO_REFLECT with no fields") = []
     check(json.asObject().empty());
 };
 
+// --- MIRO_FIELDS (inline-in-reflect) macro tests ---
+
+auto inlineFieldsSave = test("MIRO_FIELDS saves alongside custom logic") = []
+{
+    auto val = InlineFieldsType {};
+    auto json = toJSON(val);
+
+    check(json["x"].asNumber() == 1.0);
+    check(json["name"].asString() == "hi");
+    check(val.reflectCallCount == 1);
+};
+
+auto inlineFieldsLoad = test("MIRO_FIELDS loads alongside custom logic") = []
+{
+    auto val = createFromJSONString<InlineFieldsType>(
+        R"({"x": 42, "name": "world"})");
+
+    check(val.x == 42);
+    check(val.name == "world");
+    check(val.reflectCallCount == 1);
+};
+
+auto inlineFieldsEmpty = test("MIRO_FIELDS with no fields") = []
+{
+    auto val = InlineFieldsEmpty {};
+    auto json = toJSON(val);
+
+    check(json.isObject());
+    check(json.asObject().empty());
+    check(val.reflectCallCount == 1);
+};
+
+auto inlineFieldsRenamedRef =
+    test("MIRO_FIELDS works with non-default ref parameter name") = []
+{
+    auto val = InlineFieldsRenamedRef {};
+    auto json = toJSON(val);
+
+    check(json["value"].asNumber() == 7.0);
+
+    auto loaded =
+        createFromJSONString<InlineFieldsRenamedRef>(R"({"value": 99})");
+    check(loaded.value == 99);
+};
+
 // --- MIRO_REFLECT_EXTERNAL macro tests ---
 
 auto saveExternalReflected = test("Save MIRO_REFLECT_EXTERNAL struct") = []

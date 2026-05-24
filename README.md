@@ -176,6 +176,27 @@ The external-type variant with custom key strings:
 MIRO_REFLECT_EXTERNAL_MEMBERS(ThirdParty::Point, x, "X Coord", y, "Y Coord")
 ```
 
+#### `MIRO_FIELDS` — inside a hand-written `reflect()` body
+
+The four macros above each generate a complete `reflect()` method. When you need custom logic alongside the field list — running a broadcaster, branching on `ref.isLoading()`, reading a version field before the rest — write `reflect()` by hand and drop `MIRO_FIELDS(ref, ...)` in to list the routine fields without repeating each name as a string:
+
+```cpp
+struct Settings
+{
+    void reflect(Miro::Reflector& ref)
+    {
+        MIRO_FIELDS(ref, name, count)
+
+        if (ref.isLoading())
+            onLoaded.trigger();
+    }
+
+    std::string name;
+    int count = 0;
+    Broadcaster onLoaded;
+};
+```
+
 ## Exporting types to other languages
 
 Once your types are reflected, Miro can generate matching definitions for other languages and tools. The supported formats are:
