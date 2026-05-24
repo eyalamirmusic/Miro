@@ -28,6 +28,8 @@ public:
     void resizeArray(std::size_t newSize) override;
     Vector<std::string> mapKeys() const override;
 
+    void requirePolymorphicSupport(std::string_view) override {}
+
 private:
     JSON& slot;
     bool absent = false;

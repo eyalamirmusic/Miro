@@ -74,8 +74,8 @@
 #define MIRO_FOR_EACH_WITH(macro, extra, ...)                                       \
     __VA_OPT__(MIRO_EXPAND(MIRO_FOR_EACH_WITH_HELPER(macro, extra, __VA_ARGS__)))
 #define MIRO_FOR_EACH_WITH_HELPER(macro, extra, a, ...)                             \
-    macro(extra, a) __VA_OPT__(                                                     \
-        MIRO_FOR_EACH_WITH_AGAIN MIRO_PARENS(macro, extra, __VA_ARGS__))
+    macro(extra, a)                                                                 \
+        __VA_OPT__(MIRO_FOR_EACH_WITH_AGAIN MIRO_PARENS(macro, extra, __VA_ARGS__))
 #define MIRO_FOR_EACH_WITH_AGAIN() MIRO_FOR_EACH_WITH_HELPER
 
 #define MIRO_FIELDS_FIELD(refExpr, field) refExpr[#field](field);
@@ -121,5 +121,44 @@
                         [[maybe_unused]] Type& valueToUse)                          \
     {                                                                               \
         MIRO_FOR_EACH_PAIR(MIRO_REFLECT_EXTERNAL_NAMED_FIELD, __VA_ARGS__)          \
+    }                                                                               \
+    }
+
+// Polymorphic reflect: `field` is a std::variant or OwningPointer<Base>
+// holder; pairs are (DerivedType, "tag") sequences. Generates a reflect()
+// body that delegates to Miro::reflectPolymorphic with the listed
+// alternatives. The lambda captures `d` from its enclosing scope, so
+// the per-pair expansion doesn't need to thread it.
+//
+// Usage:
+//   struct Shape
+//   {
+//       std::variant<Circle, Square> value;
+//       MIRO_REFLECT_POLY(value, Circle, "circle", Square, "square")
+//   };
+
+#define MIRO_POLY_ALT_PAIR(type, tag) d.template alt<type>(tag);
+
+#define MIRO_REFLECT_POLY(field, ...)                                               \
+    void reflect([[maybe_unused]] Miro::Reflector& ref)                             \
+    {                                                                               \
+        Miro::reflectPolymorphic(                                                   \
+            ref,                                                                    \
+            field,                                                                  \
+            [&]([[maybe_unused]] auto& d)                                           \
+            { MIRO_FOR_EACH_PAIR(MIRO_POLY_ALT_PAIR, __VA_ARGS__) });               \
+    }
+
+#define MIRO_REFLECT_EXTERNAL_POLY(Type, field, ...)                                \
+    namespace Miro                                                                  \
+    {                                                                               \
+    inline void reflect([[maybe_unused]] Miro::Reflector& ref,                      \
+                        [[maybe_unused]] Type& valueToUse)                          \
+    {                                                                               \
+        Miro::reflectPolymorphic(                                                   \
+            ref,                                                                    \
+            valueToUse.field,                                                       \
+            [&]([[maybe_unused]] auto& d)                                           \
+            { MIRO_FOR_EACH_PAIR(MIRO_POLY_ALT_PAIR, __VA_ARGS__) });               \
     }                                                                               \
     }

@@ -11,6 +11,7 @@
 #include <optional>
 #include <string>
 #include <type_traits>
+#include <variant>
 #include <vector>
 
 namespace Miro::Detail
@@ -114,6 +115,20 @@ struct IsMapLike<EA::MapVector<std::string, V>> : std::true_type
 {
 };
 
+// Variant slots serialize as externally-tagged objects: `{"Tag": {...}}`,
+// one property whose key is the active alternative's tag. The slot is
+// genuinely Object-shaped, so the JsonReflector commits ensureObject()
+// before reflectPolymorphic writes the tag.
+template <typename T>
+struct IsVariant : std::false_type
+{
+};
+
+template <typename... Ts>
+struct IsVariant<std::variant<Ts...>> : std::true_type
+{
+};
+
 template <typename T>
 constexpr bool isOptional()
 {
@@ -129,8 +144,9 @@ consteval Shape shapeOf()
         return Shape::Array;
     else if constexpr (IsMapLike<U>::value)
         return Shape::Map;
-    else if constexpr (Reflectable<U> && !std::is_arithmetic_v<U>
-                       && !std::is_enum_v<U>)
+    else if constexpr (IsVariant<U>::value
+                       || (Reflectable<U> && !std::is_arithmetic_v<U>
+                           && !std::is_enum_v<U>) )
         return Shape::Object;
     else
         return Shape::Primitive;
@@ -186,6 +202,9 @@ void reflectValue(Reflector& ref, EA::MapVector<std::string, V>& value);
 
 template <typename T>
 void reflectValue(Reflector& ref, OwningPointer<T>& value);
+
+template <typename... Ts>
+void reflectValue(Reflector& ref, std::variant<Ts...>& value);
 
 template <typename T>
     requires std::is_enum_v<T>

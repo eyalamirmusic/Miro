@@ -48,6 +48,8 @@ public:
     void resizeArray(std::size_t newSize) override;
     Vector<std::string> mapKeys() const override;
 
+    void requirePolymorphicSupport(std::string_view) override {}
+
 private:
     struct ElementSlot
     {
@@ -70,8 +72,7 @@ private:
     {
     };
 
-    using Slot =
-        std::variant<ElementSlot, AttributeSlot, ArraySlot, MissingSlot>;
+    using Slot = std::variant<ElementSlot, AttributeSlot, ArraySlot, MissingSlot>;
 
     Slot slot;
     OwningPointer<XmlReflector> currentChild;
@@ -79,17 +80,13 @@ private:
     XmlReflector(Slot slotToUse, Options optsToUse);
 
     Reflector& spawnElement(Xml::Node& node, Options childOpts);
-    Reflector& spawnAttribute(Xml::Node& parent,
-                              std::string name,
-                              Options childOpts);
-    Reflector& spawnArray(Xml::Node& parent,
-                          std::string name,
-                          Options childOpts);
+    Reflector&
+        spawnAttribute(Xml::Node& parent, std::string name, Options childOpts);
+    Reflector& spawnArray(Xml::Node& parent, std::string name, Options childOpts);
     Reflector& spawnMissing(Options childOpts);
 
-    Reflector& atKeyOnElement(Xml::Node& parent,
-                              std::string_view key,
-                              Options childOpts);
+    Reflector&
+        atKeyOnElement(Xml::Node& parent, std::string_view key, Options childOpts);
     Reflector& atIndexOnArray(Xml::Node& parent,
                               const std::string& elementName,
                               std::size_t index,

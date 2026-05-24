@@ -159,8 +159,7 @@ public:
     // Reflectors that want first-class enum output (e.g. the TypeScript
     // exporter) override this. The default falls back to a string slot,
     // which is what the JSON-Schema reflector has historically emitted.
-    virtual void visitEnum(TypeId /*id*/,
-                           const Vector<std::string_view>& /*names*/)
+    virtual void visitEnum(TypeId /*id*/, const Vector<std::string_view>& /*names*/)
     {
         auto placeholder = std::string {"enum"};
         visit(placeholder);
@@ -186,6 +185,15 @@ public:
     // Reflectors that don't care (the JSON reflector) keep the no-op
     // default; the schema reflector translates this into minItems/maxItems.
     virtual void setArrayBounds(std::size_t /*min*/, std::size_t /*max*/) {}
+
+    // Gate called by reflectPolymorphic before it starts dispatching.
+    // Data-walking reflectors (Json, Xml) override with a no-op; schema-
+    // mode walkers (TypeReflector for Schema/TypeScript) keep the
+    // default, which throws — emitting a partial shape from a default-
+    // constructed polymorphic value would silently mislead callers, so
+    // we surface the misuse immediately. `context` identifies the call
+    // site for the error message.
+    virtual void requirePolymorphicSupport(std::string_view context);
 
 protected:
     Options opts;

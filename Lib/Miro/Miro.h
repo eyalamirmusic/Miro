@@ -19,6 +19,7 @@
 #include "Reflection/ReflectDispatch.h"
 #include "Reflection/ReflectEnum.h"
 #include "Reflection/ReflectMacro.h"
+#include "Reflection/ReflectPolymorphic.h"
 #include "Reflection/Reflector.h"
 #include "Reflection/Serialize.h"
 #include "Reflection/TypeName.h"

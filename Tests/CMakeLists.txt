@@ -19,6 +19,7 @@ nano_add_executable(MiroTests SOURCES
         CppExportTests.cpp
         CppClientTests.cpp
         EAContainerTests.cpp
+        PolymorphicTests.cpp
         TARGETS Miro)
 
 # MiroFormats is an OBJECT library carrying the static-init format
