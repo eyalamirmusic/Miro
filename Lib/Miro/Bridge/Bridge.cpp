@@ -5,9 +5,9 @@
 namespace Miro
 {
 
-JSON Bridge::dispatch(std::string_view command, const JSON& payload) const
+JSON Bridge::dispatch(std::string_view command, const JSON& payloadToUse) const
 {
-    return commands.dispatch(command, payload);
+    return commands.dispatch(command, payloadToUse);
 }
 
 void Bridge::useStaticRegistry()
