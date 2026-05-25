@@ -88,7 +88,7 @@ namespace
 struct Drawing
 {
     std::string name;
-    Polymorphic<ShapeBase, CircleShape, SquareShape> shape;
+    Polymorphic<ShapeBase, CircleShape, SquareShape> shape {};
 
     MIRO_REFLECT(name, shape)
 };

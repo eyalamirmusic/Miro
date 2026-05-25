@@ -23,9 +23,9 @@ namespace Miro::Xml
 struct Node
 {
     std::string name;
-    std::map<std::string, std::string> attributes;
-    Vector<Node> children;
-    std::string text;
+    std::map<std::string, std::string> attributes {};
+    Vector<Node> children {};
+    std::string text {};
 
     bool operator==(const Node& otherToUse) const = default;
 };

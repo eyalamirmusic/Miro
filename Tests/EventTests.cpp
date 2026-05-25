@@ -21,7 +21,7 @@ namespace
 struct EventTestPayload
 {
     int n = 0;
-    std::string s;
+    std::string s {};
 
     MIRO_REFLECT(n, s)
 };
