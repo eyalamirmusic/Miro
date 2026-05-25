@@ -143,6 +143,13 @@ constexpr std::string_view memberNameOf()
     if (lastColon != std::string_view::npos)
         name.remove_prefix(lastColon + 2);
 
+    // MSVC renders a pmf NTTP as the full function signature, so what
+    // remains after trimming the qualifier is "method(paramList) cv".
+    // Strip the parameter list (and any trailing cv-quals) so the result
+    // is just the unqualified member name, matching the GCC/Clang output.
+    if (auto paren = name.find('('); paren != std::string_view::npos)
+        name = name.substr(0, paren);
+
     return name;
 }
 

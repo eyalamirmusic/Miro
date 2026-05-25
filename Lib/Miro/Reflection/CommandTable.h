@@ -61,7 +61,8 @@ concept CallableInfo = requires {
 template <CallableInfo Info, typename Callable>
 std::function<JSON(const JSON&)> makeJsonAdapter(Callable callable)
 {
-    return [callable = std::move(callable)](const JSON& payload) -> JSON
+    return [callable =
+                std::move(callable)]([[maybe_unused]] const JSON& payload) -> JSON
     {
         if constexpr (Info::hasReq && Info::hasRes)
         {
@@ -113,8 +114,8 @@ public:
     template <typename Req, typename Res>
     void on(const std::string& command, Res (*handler)(const Req&))
     {
-        registerHandler(
-            command, Detail::makeJsonAdapter<Detail::InfoFor<Req, Res>>(handler));
+        registerHandler(command,
+                        Detail::makeJsonAdapter<Detail::InfoFor<Req, Res>>(handler));
     }
 
     template <typename Res>

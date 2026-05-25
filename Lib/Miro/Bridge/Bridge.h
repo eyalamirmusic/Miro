@@ -67,14 +67,14 @@ public:
     }
 
     template <typename T>
-    void emit(const std::string& event, const T& payload)
+    void emit(const std::string& eventToUse, const T& payloadToUse)
     {
-        emitJson(event, toJSON(payload));
+        emitJson(eventToUse, toJSON(payloadToUse));
     }
 
-    void emit(const std::string& event) { emitJson(event, JSON {}); }
+    void emit(const std::string& eventToUse) { emitJson(eventToUse, JSON {}); }
 
-    JSON dispatch(std::string_view command, const JSON& payload) const;
+    JSON dispatch(std::string_view command, const JSON& payloadToUse) const;
 
     void useStaticRegistry();
 
