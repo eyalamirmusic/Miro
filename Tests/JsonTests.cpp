@@ -116,6 +116,71 @@ auto parseNestedObjects = test("Parse nested objects") = []
     check(value["a"]["b"]["c"].asNumber() == 42.0);
 };
 
+auto parseLineComment = test("Parse line comment") = []
+{
+    auto value = parse(R"({
+        // leading comment
+        "a": 1, // trailing comment
+        "b": 2
+        // dangling comment
+    })");
+    check(value["a"].asNumber() == 1.0);
+    check(value["b"].asNumber() == 2.0);
+};
+
+auto parseBlockComment = test("Parse block comment") = []
+{
+    auto value = parse(R"(/* header */ [
+        1, /* inline */ 2,
+        /* multi
+           line */ 3
+    ])");
+    check(value[0].asNumber() == 1.0);
+    check(value[1].asNumber() == 2.0);
+    check(value[2].asNumber() == 3.0);
+};
+
+auto parseCommentAtRoot = test("Parse comment before root value") = []
+{
+    auto value = parse("// hello\n42");
+    check(value.asNumber() == 42.0);
+};
+
+auto parseCommentTrailing = test("Parse comment after root value") = []
+{
+    auto value = parse("42 // trailing\n");
+    check(value.asNumber() == 42.0);
+};
+
+auto parseUnterminatedBlockComment =
+    test("Parse unterminated block comment throws") = []
+{
+    auto threw = false;
+    try
+    {
+        parse("/* never closes");
+    }
+    catch (const ParseError&)
+    {
+        threw = true;
+    }
+    check(threw);
+};
+
+auto parseLoneSlashThrows = test("Parse lone slash throws") = []
+{
+    auto threw = false;
+    try
+    {
+        parse("/ 42");
+    }
+    catch (const ParseError&)
+    {
+        threw = true;
+    }
+    check(threw);
+};
+
 auto valueEquality = test("Value equality") = []
 {
     check(parse("42") == parse("42"));

@@ -26,7 +26,7 @@ public:
 
     Value parseValue()
     {
-        skipWhitespace();
+        skipWhitespaceAndComments();
 
         if (atEnd())
             error("unexpected end of input");
@@ -51,13 +51,57 @@ public:
 
     bool atEnd() const { return pos >= end; }
 
-    void skipWhitespace()
+    void skipWhitespaceAndComments()
     {
-        while (pos < end
-               && (*pos == ' ' || *pos == '\t' || *pos == '\n' || *pos == '\r'))
+        while (pos < end)
         {
+            auto c = *pos;
+
+            if (c == ' ' || c == '\t' || c == '\n' || c == '\r')
+                ++pos;
+            else if (c == '/')
+                skipComment();
+            else
+                break;
+        }
+    }
+
+    void skipComment()
+    {
+        if (remaining() < 2 || (pos[1] != '/' && pos[1] != '*'))
+            error("unexpected character '/'");
+
+        if (pos[1] == '/')
+            skipLineComment();
+        else
+            skipBlockComment();
+    }
+
+    void skipLineComment()
+    {
+        pos += 2;
+
+        while (pos < end && *pos != '\n' && *pos != '\r')
+            ++pos;
+    }
+
+    void skipBlockComment()
+    {
+        auto start = pos;
+        pos += 2;
+
+        while (pos + 1 < end)
+        {
+            if (pos[0] == '*' && pos[1] == '/')
+            {
+                pos += 2;
+                return;
+            }
             ++pos;
         }
+
+        pos = start;
+        error("unterminated block comment");
     }
 
     [[noreturn]] void error(const std::string& messageToUse) const
@@ -266,7 +310,7 @@ private:
     Value parseArray()
     {
         expect('[');
-        skipWhitespace();
+        skipWhitespaceAndComments();
 
         auto elements = Array {};
 
@@ -274,13 +318,13 @@ private:
         {
             elements.reserve(16);
             elements.add(parseValue());
-            skipWhitespace();
+            skipWhitespaceAndComments();
 
             while (pos < end && *pos == ',')
             {
                 ++pos;
                 elements.add(parseValue());
-                skipWhitespace();
+                skipWhitespaceAndComments();
             }
         }
 
@@ -291,7 +335,7 @@ private:
     Value parseObject()
     {
         expect('{');
-        skipWhitespace();
+        skipWhitespaceAndComments();
 
         auto entries = Object {};
 
@@ -312,13 +356,13 @@ private:
 
     void parseKeyValueInto(Object& entries)
     {
-        skipWhitespace();
+        skipWhitespaceAndComments();
         auto key = parseStringRaw();
-        skipWhitespace();
+        skipWhitespaceAndComments();
         expect(':');
         auto value = parseValue();
         entries.emplace(std::move(key), std::move(value));
-        skipWhitespace();
+        skipWhitespaceAndComments();
     }
 
     // --- Helpers ---
@@ -390,7 +434,7 @@ Value parse(std::string_view inputToUse)
 {
     auto parser = Parser(inputToUse);
     auto result = parser.parseValue();
-    parser.skipWhitespace();
+    parser.skipWhitespaceAndComments();
 
     if (!parser.atEnd())
         parser.error("unexpected trailing content");
