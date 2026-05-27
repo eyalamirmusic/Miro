@@ -197,77 +197,168 @@ struct Settings
 };
 ```
 
-## Exporting types to other languages
+## The API reflection layer
 
-Once your types are reflected, Miro can generate matching definitions for other languages and tools. The supported formats are:
+Beyond serializing types, Miro can describe an entire API surface — its **commands** (request/response methods) and **events** (typed push notifications) — via a `reflect(Miro::ApiReflector&)` method on an API class. The same declaration both binds the API to a runtime `Miro::Bridge` and feeds codegen for typed TypeScript clients, server-side handlers, event subscriptions, and matching C++ headers.
 
-| Format       | Output extension | What it produces                                  |
-| ------------ | ---------------- | ------------------------------------------------- |
-| `ts`         | `.ts`            | TypeScript interfaces                             |
-| `zod`        | `.zod.ts`        | Zod schemas (TypeScript runtime validators)       |
-| `jsonschema` | `.schema.json`   | JSON Schema (Draft 2020-12)                       |
-| `cpp`        | `.types.h`       | Plain C++ structs (no Miro dependency)            |
-| `cpp-miro`   | `.miro.h`        | C++ structs with `MIRO_REFLECT(...)` baked in     |
+```cpp
+#include <Miro/Miro.h>
 
-The pipeline is wired through CMake: a small helper builds a tiny executable that links your reflected types, runs it as a post-build step, and writes one bundled file per requested format.
+class Todos
+{
+public:
+    TodoState getTodos() const;
+    void addTodo(const AddRequest& req);
+    Miro::Event<TodoState> changes;
+
+    MIRO_REFLECT_API(getTodos, addTodo, changes)
+};
+```
+
+`MIRO_REFLECT_API` classifies each listed member at compile time:
+
+- **Method** → registered as a command. The request type, response type, and shape (`Res(Req)` / `Res()` / `void(Req)` / `void()`) are inferred from the signature.
+- **`Event<T>` / `RefEvent<T>` data member** → registered as an event with payload type `T`.
+- **Data member of a type that itself has `reflect(ApiReflector&)`** → recursively walked as a sub-API, prefixed by the field identifier on the wire.
+
+Each command's request/response payload and each event's payload type must already have data-reflection (one of the `MIRO_REFLECT*` macros or a hand-written `reflect()`).
+
+### Sub-APIs and prefixed naming
+
+A reflect body can defer to a member API; every command and event the sub declares is namespaced under the field identifier:
+
+```cpp
+class FilesSubApi
+{
+public:
+    FileList list() const;
+    Miro::Event<FileList> changed;
+
+    MIRO_REFLECT_API(list, changed)
+};
+
+class App
+{
+public:
+    FilesSubApi files;
+    UsersSubApi users;
+
+    MIRO_REFLECT_API(files, users)
+};
+```
+
+Wire names become `files.list`, `files.changed`, `users.<name>`, and so on. Prefixes accumulate when sub-APIs nest further (`outer.inner.deepCmd`).
+
+For sub-APIs you don't own (third-party types), define a free `reflect(ApiReflector&, T&)` overload — picked up via ADL when a parent reflects the field:
+
+```cpp
+namespace Miro {
+inline void reflect(ApiReflector& r, ThirdParty::Service& obj)
+{
+    r.api<&ThirdParty::Service::query>(obj);
+}
+}
+```
+
+### Free functions and lambdas
+
+When a command isn't a method on the API class, hand-write the reflect body and reach for the per-callable overloads:
+
+```cpp
+ARRes pure(const ARReq& req);  // free function
+
+class App
+{
+public:
+    Miro::Event<ARRes> beat;
+
+    void reflect(Miro::ApiReflector& r)
+    {
+        r.api<&App::beat>(*this);
+
+        // Free function — name auto-derived from the pointer
+        r.command<&pure>();
+
+        // Lambda — name supplied explicitly (no source-derived name)
+        r.command(
+            [](const ARReq& req) -> ARRes { return {"lambda:" + req.text}; },
+            "lambdaCmd");
+    }
+};
+```
+
+`r.command(callable, name)` accepts capturing lambdas, captureless lambdas, free functions, and `std::function` — the request/response shape is recovered from the callable's `operator()`.
+
+### Binding to a Bridge
+
+`Miro::Bridge` is a transport-agnostic command + event hub. `bridge.use(api)` walks `api.reflect(...)` once, installing each command on the bridge's command table and a listener on each event:
+
+```cpp
+auto bridge = Miro::Bridge {};
+bridge.use(api);
+
+// Request/response dispatch
+auto response = bridge.dispatch("addTodo", payloadJson);
+
+// Publish-side emit — bridge.onEmit fires under the wire name "changes"
+api.changes.publish({/* ... */});
+```
+
+`bridge.onEmit` is a broadcaster; subscribe a transport listener to it and forward the (name, payload) pair to your wire of choice. The same API class drives both ends — there is no separate "schema" file.
+
+## Exporting to other languages
+
+Once an API class is declared, Miro can emit matching definitions for other languages and tools. The supported formats are:
+
+| Format       | Output extension | What it produces                                                |
+| ------------ | ---------------- | --------------------------------------------------------------- |
+| `ts`         | `.ts`            | TypeScript interfaces for every reflected payload               |
+| `zod`        | `.zod.ts`        | Zod runtime validators (TypeScript)                             |
+| `backend`    | `.backend.ts`    | Typed client — `makeBackend(invoke)` factory, one fn per command |
+| `ts-server`  | `.handlers.ts`   | Server-side `Handlers` interface + `dispatch(handlers, …)`      |
+| `bridge`     | `.bridge.ts`     | Transport-agnostic bridge runtime (Transport interface, glue)   |
+| `events`     | `.events.ts`     | Typed `Events` map + `EventBus { subscribe<K extends … > … }`   |
+| `jsonschema` | `.schema.json`   | JSON Schema (Draft 2020-12)                                     |
+| `cpp`        | `.types.h`       | Plain C++ structs (no Miro dependency)                          |
+| `cpp-miro`   | `.miro.h`        | C++ structs with `MIRO_REFLECT(...)` baked in                   |
+| `cpp-client` | `.client.h`      | Typed C++ client header                                         |
 
 ### Setting up an export target
 
 ```cmake
-miro_add_type_export(
-    NAME       MySchema
-    SOURCES    Registrations.cpp
+miro_export(MySchema
+    API_HEADER Api/Todos.h               # header(s) declaring the API class(es)
+    API        Api::Todos                # fully-qualified API class name(s)
     OUTPUT_DIR ${CMAKE_CURRENT_BINARY_DIR}/generated
-    FORMATS    ts zod jsonschema cpp cpp-miro   # optional; defaults to all
+    FORMATS    ts backend ts-server events  # optional; defaults to all
 )
 ```
 
-The `miro_add_type_export()` function is registered by Miro's top-level `CMakeLists.txt`, so it is available anywhere downstream of `FetchContent_MakeAvailable(Miro)` — no extra `include()` needed.
+`miro_export()` is registered by Miro's top-level `CMakeLists.txt`, so it is available anywhere downstream of `FetchContent_MakeAvailable(Miro)` — no extra `include()` needed.
 
 Arguments:
 
-- **`NAME`** (required) — name of the executable target. Also the default output basename.
-- **`SOURCES`** — `.cpp` files (relative to the caller's `CMakeLists.txt`) that contain `MIRO_EXPORT_TYPES(...)` registrations. Compiled directly into the executable.
-- **`LIBRARIES`** — extra libraries to link. Static libraries are linked with `WHOLE_ARCHIVE` so the registrations' static initializers survive linking; `INTERFACE` libraries are linked plainly.
-- **`OUTPUT_DIR`** (required) — directory the generated files are written to.
+- **`NAME`** (positional, required) — name of the schema target. Also the default output basename. An `INTERFACE` library with this name carries the generated header include directory.
+- **`API_HEADER`** (required) — header file(s) declaring the API class(es). The generated stub `#include`s each one verbatim before calling into Miro's codegen entry point.
+- **`API`** (required) — fully-qualified API class name(s). Each must have a `void reflect(Miro::ApiReflector&)` method.
+- **`OUTPUT_DIR`** — directory the generated files are written to. Omit to declare the schema without an initial emit; call `miro_export_emit(NAME ...)` afterwards for one or more emits.
 - **`OUTPUT_NAME`** — output filename stem (defaults to `NAME`).
 - **`FORMATS`** — subset of the table above (defaults to all).
 
-At least one of `SOURCES` or `LIBRARIES` must be provided.
-
-### Registering types
-
-In one of the `SOURCES` files (or in a library passed via `LIBRARIES`), include `<Miro/TypeExport/Register.h>` and list the reflected types to export:
-
-```cpp
-#include "Types.h"
-
-#include <Miro/TypeExport/Register.h>
-
-MIRO_EXPORT_TYPES(User, Address, Role)
-```
-
-Every listed type must already have reflection — either an intrusive `reflect()` method, one of the `MIRO_REFLECT*` macros, or an `MIRO_REFLECT_EXTERNAL*` declaration. Enums work too (declared via `MIRO_REFLECT_ENUM(...)`).
+For additional emits (e.g. the TypeScript bundle into your web app's source tree *and* `cpp-client` into your C++ tree), call `miro_export_emit(NAME OUTPUT_DIR ... FORMATS ...)` after `miro_export(...)`.
 
 ### What happens at build time
 
-Each time the export target is rebuilt, CMake runs the executable as a `POST_BUILD` step. The runner walks the registry once per requested format and writes one bundled file per format to `OUTPUT_DIR`, named `<OUTPUT_NAME>.<extension>`.
+Each `miro_export_emit(...)` attaches a `POST_BUILD` step to the schema's codegen executable. When the executable is rebuilt — i.e. whenever the API class or any reflected payload changes — every emit reruns and writes one file per requested format to `OUTPUT_DIR`, named `<OUTPUT_NAME>.<extension>`.
 
-With `NAME=MySchema` and the default formats, the output directory ends up with:
+Consumers link the `${NAME}` INTERFACE library (which carries the include directory) and add a dependency on `${NAME}_Codegen` so the generated files exist before the consumer compiles:
 
-```
-MySchema.ts
-MySchema.zod.ts
-MySchema.schema.json
-MySchema.types.h
-MySchema.miro.h
+```cmake
+target_link_libraries(MyApp PRIVATE MySchema)
+add_dependencies(MyApp MySchema_Codegen)
 ```
 
-You can then `target_sources()` or otherwise consume those files from another target — they regenerate automatically whenever the reflected types change.
-
-### A complete example
-
-`Examples/MiroTypesExport/` is a working end-to-end example: three reflected types (`User`, `Address`, `Role`) wired up through `miro_add_type_export(...)`. Build with `-DMIRO_BUILD_EXAMPLES=ON` (or as the top-level project) and inspect the generated files under `build/Examples/MiroTypesExport/`.
+When cross-compiling, `miro_export()` creates the INTERFACE library but skips the codegen executable (a foreign-arch binary can't run on the build host). Consumers continue to consume committed generated files.
 
 ## License
 
