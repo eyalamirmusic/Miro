@@ -34,7 +34,6 @@ struct CMRes
 class CMTestApi
 {
 public:
-    // NOLINTNEXTLINE(readability-convert-member-functions-to-static)
     void reflect(ApiReflector& r)
     {
         r.command(&CMTestApi::echo, "echo");
@@ -49,7 +48,6 @@ public:
         calls++;
         return CMRes {req.text + "!"};
     }
-    // NOLINTNEXTLINE(readability-convert-member-functions-to-static)
     CMRes status() const { return CMRes {"ok"}; }
     void log(const CMReq& req) { lastLogged = req.text; }
     void quit() { quitCalls++; }
@@ -172,9 +170,7 @@ auto cmMultipleApis =
     // collects everything into one Context.
     struct CMOtherApi
     {
-        // NOLINTNEXTLINE(readability-convert-member-functions-to-static)
         void reflect(ApiReflector& r) { r.command(&CMOtherApi::other, "other"); }
-        // NOLINTNEXTLINE(readability-convert-member-functions-to-static)
         CMRes other() const { return CMRes {"other"}; }
     };
 

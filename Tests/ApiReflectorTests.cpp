@@ -47,7 +47,6 @@ struct ARRes
 class TodosTestApi
 {
 public:
-    // NOLINTNEXTLINE(readability-convert-member-functions-to-static)
     void reflect(ApiReflector& r)
     {
         using T = TodosTestApi;
@@ -390,7 +389,6 @@ public:
     {
     }
 
-    // NOLINTNEXTLINE(readability-convert-member-functions-to-static)
     void reflect(ApiReflector& r)
     {
         using T = RefEventApi;
@@ -444,14 +442,12 @@ namespace
 class RenameTestApi
 {
 public:
-    // NOLINTNEXTLINE(readability-convert-member-functions-to-static)
     void reflect(ApiReflector& r)
     {
         r.command(&RenameTestApi::ping, "ping_v2");
         r.event(&RenameTestApi::pulses, "pulse");
     }
 
-    // NOLINTNEXTLINE(readability-convert-member-functions-to-static)
     ARRes ping() const { return ARRes {"pong"}; }
 
     Event<ARRes> pulses;
@@ -481,7 +477,6 @@ namespace
 class TwoEventsApi
 {
 public:
-    // NOLINTNEXTLINE(readability-convert-member-functions-to-static)
     void reflect(ApiReflector& r)
     {
         r.events<&TwoEventsApi::alpha, &TwoEventsApi::beta>();
@@ -552,7 +547,6 @@ namespace
 class FilesSubApi
 {
 public:
-    // NOLINTNEXTLINE(readability-convert-member-functions-to-static)
     void reflect(ApiReflector& r)
     {
         using T = FilesSubApi;
@@ -580,17 +574,14 @@ public:
 class UsersSubApi
 {
 public:
-    // NOLINTNEXTLINE(readability-convert-member-functions-to-static)
     void reflect(ApiReflector& r) { r.commands<&UsersSubApi::list>(); }
 
-    // NOLINTNEXTLINE(readability-convert-member-functions-to-static)
     ARRes list() const { return ARRes {"alice,bob"}; }
 };
 
 class CompositeApi
 {
 public:
-    // NOLINTNEXTLINE(readability-convert-member-functions-to-static)
     void reflect(ApiReflector& r)
     {
         r.commands<&CompositeApi::topPing>();
@@ -598,7 +589,6 @@ public:
         r.use("users", users);
     }
 
-    // NOLINTNEXTLINE(readability-convert-member-functions-to-static)
     ARRes topPing() const { return ARRes {"pong"}; }
 
     FilesSubApi files;
@@ -702,17 +692,14 @@ namespace
 class InnerLeafApi
 {
 public:
-    // NOLINTNEXTLINE(readability-convert-member-functions-to-static)
     void reflect(ApiReflector& r) { r.commands<&InnerLeafApi::ping>(); }
 
-    // NOLINTNEXTLINE(readability-convert-member-functions-to-static)
     ARRes ping() const { return ARRes {"deep-pong"}; }
 };
 
 class MiddleApi
 {
 public:
-    // NOLINTNEXTLINE(readability-convert-member-functions-to-static)
     void reflect(ApiReflector& r) { r.use("inner", leaf); }
 
     InnerLeafApi leaf;
@@ -721,7 +708,6 @@ public:
 class OuterNestedApi
 {
 public:
-    // NOLINTNEXTLINE(readability-convert-member-functions-to-static)
     void reflect(ApiReflector& r) { r.use("outer", middle); }
 
     MiddleApi middle;
@@ -762,7 +748,6 @@ namespace
 class ExternalSubApi
 {
 public:
-    // NOLINTNEXTLINE(readability-convert-member-functions-to-static)
     ARRes hello() const { return ARRes {"external"}; }
 };
 
@@ -779,7 +764,6 @@ public:
 class HostApi
 {
 public:
-    // NOLINTNEXTLINE(readability-convert-member-functions-to-static)
     void reflect(ApiReflector& r) { r.use("ext", sub); }
 
     ExternalSubApi sub;
@@ -803,24 +787,20 @@ namespace
 class HelperBlock
 {
 public:
-    // NOLINTNEXTLINE(readability-convert-member-functions-to-static)
     void reflect(ApiReflector& r) { r.commands<&HelperBlock::helperCmd>(); }
 
-    // NOLINTNEXTLINE(readability-convert-member-functions-to-static)
     ARRes helperCmd() const { return ARRes {"helper"}; }
 };
 
 class FlatSplitApi
 {
 public:
-    // NOLINTNEXTLINE(readability-convert-member-functions-to-static)
     void reflect(ApiReflector& r)
     {
         r.commands<&FlatSplitApi::ownCmd>();
         r.use(helper);
     }
 
-    // NOLINTNEXTLINE(readability-convert-member-functions-to-static)
     ARRes ownCmd() const { return ARRes {"own"}; }
 
     HelperBlock helper;
@@ -863,14 +843,12 @@ namespace
 class MacroCompositeApi
 {
 public:
-    // NOLINTNEXTLINE(readability-convert-member-functions-to-static)
     void reflect(ApiReflector& r)
     {
         r.commands<&MacroCompositeApi::topPing>();
         MIRO_API(r, files, users)
     }
 
-    // NOLINTNEXTLINE(readability-convert-member-functions-to-static)
     ARRes topPing() const { return ARRes {"macro-pong"}; }
 
     FilesSubApi files;
