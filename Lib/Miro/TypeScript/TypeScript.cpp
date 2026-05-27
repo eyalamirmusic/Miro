@@ -1,5 +1,6 @@
 #include "TypeScript.h"
 
+#include "../CommandExport/ResolvedTypes.h"
 #include "../Detail/StringUtilities.h"
 
 #include <ResEmbed/ResEmbed.h>
@@ -320,6 +321,37 @@ std::string formatTypesModule(TypeNode& root)
 std::string formatBridgeRuntime()
 {
     return ResEmbed::get("BridgeRuntime.ts", "MiroResources").toString();
+}
+
+std::string formatEventsModule(std::span<TypeNode> typeRoots,
+                               std::span<const TypeExport::EventInfo> events,
+                               std::string_view baseName)
+{
+    auto resolved = CommandExport::resolveTypes(typeRoots);
+
+    auto out = std::ostringstream {};
+    out << "import type * as T from './" << baseName << "';\n\n";
+
+    out << "export interface Events\n{\n";
+    for (auto& ev: events)
+    {
+        auto payload =
+            resolved.nameFor(ev.payloadQualifiedName, ev.payloadTypeName);
+        out << "    '" << ev.name << "': T." << payload << ";\n";
+    }
+    out << "}\n\n";
+
+    out << "export type EventName = keyof Events;\n\n";
+
+    out << "export interface EventBus\n"
+           "{\n"
+           "    subscribe<K extends EventName>(\n"
+           "        name: K,\n"
+           "        handler: (payload: Events[K]) => void,\n"
+           "    ): () => void;\n"
+           "}\n";
+
+    return out.str();
 }
 
 } // namespace Miro::TypeScript

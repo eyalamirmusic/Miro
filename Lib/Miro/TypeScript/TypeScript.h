@@ -1,9 +1,11 @@
 #pragma once
 
+#include "../TypeExport/Context.h"
 #include "../TypeTree/TypeTree.h"
 
 #include <span>
 #include <string>
+#include <string_view>
 
 namespace Miro::TypeScript
 {
@@ -31,6 +33,16 @@ std::string formatTypesModule(std::span<TypeTree::TypeNode> roots);
 // transport adapter (e.g. eacp's webViewTransport, an HTTP fetch
 // transport, a WebSocket transport) to get a typed client.
 std::string formatBridgeRuntime();
+
+// Emits a typed event-subscription module: an `Events` interface
+// mapping each wire event name to its payload type, plus an `EventBus`
+// interface whose `subscribe<K extends EventName>` method auto-types
+// the handler payload. Sub-API events arrive here under the same
+// dotted prefix the DescribeReflector recorded (e.g. "files.changed").
+// typeRoots and baseName behave identically to formatBackendModule.
+std::string formatEventsModule(std::span<TypeTree::TypeNode> typeRoots,
+                               std::span<const TypeExport::EventInfo> events,
+                               std::string_view baseName);
 
 // Public entry points.
 template <typename T>

@@ -66,6 +66,16 @@ using Miro::TypeExport::registerFormat;
     [](const Context&) { return Miro::TypeScript::formatBridgeRuntime(); },
 });
 
+[[maybe_unused]] const auto eventsFormat = registerFormat(Format {
+    "events",
+    ".events.ts",
+    [](const Context& ctx)
+    {
+        return Miro::TypeScript::formatEventsModule(
+            ctx.typeRoots, ctx.events, ctx.baseName);
+    },
+});
+
 [[maybe_unused]] const auto jsonSchemaFormat = registerFormat(Format {
     "jsonschema",
     ".schema.json",

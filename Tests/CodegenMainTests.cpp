@@ -58,6 +58,28 @@ public:
     int quitCalls = 0;
 };
 
+// Sub-API + composite parent for the prefixed-event codegen tests.
+class CMFilesSub
+{
+public:
+    void reflect(ApiReflector& r) { r.event(&CMFilesSub::changed, "changed"); }
+
+    Event<CMRes> changed;
+};
+
+class CMCompositeApi
+{
+public:
+    void reflect(ApiReflector& r)
+    {
+        r.event(&CMCompositeApi::topEvt, "topEvt");
+        r.use("files", files);
+    }
+
+    Event<CMRes> topEvt;
+    CMFilesSub files;
+};
+
 const EmittedFile* findFile(const EA::Vector<EmittedFile>& files,
                             std::string_view suffix)
 {
@@ -181,6 +203,40 @@ auto cmMultipleApis =
     check(backend != nullptr);
     check(backend->contents.find("echo:") != std::string::npos);
     check(backend->contents.find("other:") != std::string::npos);
+};
+
+auto cmEventsModule = test(
+    "codegenMain: events format emits typed Events + EventBus interfaces") = []
+{
+    auto files =
+        buildCodegen<CMTestApi>("schema", EA::Vector<std::string> {"events"});
+
+    auto* events = findFile(files, ".events.ts");
+    check(events != nullptr);
+    check(events->contents.find("import type * as T from './schema';")
+          != std::string::npos);
+    check(events->contents.find("export interface Events") != std::string::npos);
+    check(events->contents.find("'changes': T.CMRes") != std::string::npos);
+    check(events->contents.find("export type EventName = keyof Events;")
+          != std::string::npos);
+    check(events->contents.find("export interface EventBus") != std::string::npos);
+    check(events->contents.find("subscribe<K extends EventName>")
+          != std::string::npos);
+};
+
+auto cmEventsModuleSubApi = test(
+    "codegenMain: events format emits sub-API events under the use() prefix") = []
+{
+    auto files =
+        buildCodegen<CMCompositeApi>("schema", EA::Vector<std::string> {"events"});
+
+    auto* events = findFile(files, ".events.ts");
+    check(events != nullptr);
+    check(events->contents.find("'topEvt': T.CMRes") != std::string::npos);
+    check(events->contents.find("'files.changed': T.CMRes") != std::string::npos);
+
+    // The unprefixed sub-API name must not leak through.
+    check(events->contents.find("'changed': T.CMRes") == std::string::npos);
 };
 
 auto cmCommandTranslation =
