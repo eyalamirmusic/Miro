@@ -849,3 +849,62 @@ auto arSubApiFlatDescribeNoPrefix = test(
     check(findCmd(describe.commands, "ownCmd") != nullptr);
     check(findCmd(describe.commands, "helperCmd") != nullptr);
 };
+
+// ---------- MIRO_API macro: identifier-as-prefix shortcut ----------
+//
+// MIRO_API(r, a, b) expands to r.use("a", a); r.use("b", b); — same
+// expansion machinery as MIRO_FIELDS, just calling use() instead of
+// the bracket dispatcher. Verifies the macro's name lifting matches
+// the hand-written r.use("files", files) / r.use("users", users)
+// pairs in the CompositeApi tests above.
+
+namespace
+{
+class MacroCompositeApi
+{
+public:
+    // NOLINTNEXTLINE(readability-convert-member-functions-to-static)
+    void reflect(ApiReflector& r)
+    {
+        r.commands<&MacroCompositeApi::topPing>();
+        MIRO_API(r, files, users)
+    }
+
+    // NOLINTNEXTLINE(readability-convert-member-functions-to-static)
+    ARRes topPing() const { return ARRes {"macro-pong"}; }
+
+    FilesSubApi files;
+    UsersSubApi users;
+};
+} // namespace
+
+auto arSubApiMacroBindsPrefixed = test(
+    "ApiReflector: MIRO_API(r, a, b) installs sub commands under a.<name> / b.<name>") =
+    []
+{
+    auto api = MacroCompositeApi {};
+    auto bridge = Bridge {};
+    bridge.use(api);
+
+    check(bridge.dispatch("topPing", JSON {})["echoed"].asString() == "macro-pong");
+    check(bridge.dispatch("files.read", Json::parse(R"({"text":"q"})"))["echoed"]
+              .asString()
+          == "read:q");
+    check(bridge.dispatch("users.list", JSON {})["echoed"].asString()
+          == "alice,bob");
+};
+
+auto arSubApiMacroDescribePrefixed = test(
+    "ApiReflector: MIRO_API feeds DescribeReflector with the same prefixed names") =
+    []
+{
+    auto describe = Detail::DescribeReflector {};
+    auto api = MacroCompositeApi {};
+    api.reflect(describe);
+
+    check(findCmd(describe.commands, "topPing") != nullptr);
+    check(findCmd(describe.commands, "files.read") != nullptr);
+    check(findCmd(describe.commands, "files.write") != nullptr);
+    check(findCmd(describe.commands, "users.list") != nullptr);
+    check(findEvt(describe.events, "files.changed") != nullptr);
+};

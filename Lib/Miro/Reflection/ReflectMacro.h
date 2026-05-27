@@ -86,6 +86,19 @@
 #define MIRO_FIELDS(refExpr, ...)                                                   \
     MIRO_FOR_EACH_WITH(MIRO_FIELDS_FIELD, refExpr, __VA_ARGS__)
 
+#define MIRO_API_FIELD(refExpr, field) refExpr.use(#field, field);
+
+// ApiReflector sibling of MIRO_FIELDS: inside an ApiReflector reflect()
+// body, defer to a list of sub-API members using each one's identifier
+// as the wire-name prefix. Expands `MIRO_API(r, files, users)` to
+// `r.use("files", files); r.use("users", users);` — each sub's
+// commands/events land under "files.<name>" and "users.<name>".
+//
+// Requires <Miro/Miro.h> (or Bridge/ApiReflector.h directly) in scope
+// at expansion — the macro does not include it.
+#define MIRO_API(refExpr, ...)                                                      \
+    MIRO_FOR_EACH_WITH(MIRO_API_FIELD, refExpr, __VA_ARGS__)
+
 #define MIRO_REFLECT(...)                                                           \
     void reflect([[maybe_unused]] Miro::Reflector& ref)                             \
     {                                                                               \
