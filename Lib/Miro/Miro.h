@@ -1,6 +1,7 @@
 #pragma once
 
 #include "Containers.h"
+#include "IgnoreUnused.h"
 
 #include "Bridge/ApiReflector.h"
 #include "Bridge/BindReflector.h"

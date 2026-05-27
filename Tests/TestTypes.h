@@ -151,7 +151,7 @@ struct InlineFieldsEmpty
 {
     int reflectCallCount = 0;
 
-    void reflect([[maybe_unused]] Miro::Reflector& ref)
+    void reflect(Miro::Reflector&)
     {
         ++reflectCallCount;
         MIRO_FIELDS(ref)

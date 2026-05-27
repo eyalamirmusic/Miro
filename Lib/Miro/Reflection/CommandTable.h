@@ -1,5 +1,6 @@
 #pragma once
 
+#include "../IgnoreUnused.h"
 #include "Reflector.h"
 #include "Serialize.h"
 
@@ -61,9 +62,9 @@ concept CallableInfo = requires {
 template <CallableInfo Info, typename Callable>
 std::function<JSON(const JSON&)> makeJsonAdapter(Callable callable)
 {
-    return [callable =
-                std::move(callable)]([[maybe_unused]] const JSON& payload) -> JSON
+    return [callable = std::move(callable)](const JSON& payload) -> JSON
     {
+        ignoreUnused(payload);
         if constexpr (Info::hasReq && Info::hasRes)
         {
             auto req = typename Info::Req {};
