@@ -1,18 +1,11 @@
 #include "Bridge.h"
 
-#include "../CommandExport/Register.h"
-
 namespace Miro
 {
 
 JSON Bridge::dispatch(std::string_view command, const JSON& payloadToUse) const
 {
     return commands.dispatch(command, payloadToUse);
-}
-
-void Bridge::useStaticRegistry()
-{
-    CommandExport::registerStaticCommandsInto(commands);
 }
 
 void Bridge::emitJson(const std::string& eventToUse, const JSON& payloadToUse)

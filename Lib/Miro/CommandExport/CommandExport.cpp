@@ -44,8 +44,9 @@ Vector<std::string> commandPathSegments(std::string_view name)
 {
     auto segments = Miro::Detail::splitOn(name, "::");
 
-    // Tolerate whitespace the preprocessor preserved from the macro's
-    // stringification (e.g. MIRO_EXPORT_COMMAND( a :: b )).
+    // Tolerate whitespace around the separator so a command name like
+    // "a :: b" (whether handwritten or produced by a name-derivation
+    // path that preserves it) still splits cleanly into ["a", "b"].
     for (auto& segment: segments)
         segment = Miro::Detail::trimAsciiWhitespace(segment);
 

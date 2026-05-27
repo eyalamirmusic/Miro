@@ -1,7 +1,7 @@
-// File-writing half of CodegenMain. Lives in the MiroTypeExportMain
-// OBJECT library (next to Main.cpp + BuiltinFormats.cpp), not in the
-// Miro static lib, so the ghc::filesystem dependency stays scoped to
-// codegen executables and doesn't leak into runtime consumers.
+// File-writing half of CodegenMain. Lives in the MiroCodegenWriter
+// OBJECT library, not in the Miro static lib, so the ghc::filesystem
+// dependency stays scoped to codegen executables and doesn't leak
+// into runtime consumers.
 //
 // The in-memory half (parseCodegenArgs, runFormatsToMemory,
 // toCommandEntries) lives in CodegenMain.cpp in Miro proper, so tests
@@ -30,8 +30,7 @@ void writeFile(const ghc::filesystem::path& path, const std::string& contents)
     std::cout << "Wrote " << path.string() << "\n";
 }
 
-bool isRequested(const Vector<std::string>& requested,
-                 std::string_view formatName)
+bool isRequested(const Vector<std::string>& requested, std::string_view formatName)
 {
     return requested.empty() || requested.contains(std::string {formatName});
 }

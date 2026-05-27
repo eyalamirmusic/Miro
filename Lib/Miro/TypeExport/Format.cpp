@@ -20,20 +20,4 @@ int registerFormat(Format format)
     return 0;
 }
 
-Vector<TypeTree::TypeNode> buildAllTypeTrees(const EntryList& entries)
-{
-    auto roots = Vector<TypeTree::TypeNode> {};
-    roots.reserve(entries.size());
-
-    for (auto& entry: entries)
-    {
-        auto opts = entry->topLevelOptions(Mode::Save, /*schema=*/true);
-        auto& root = roots.emplace_back();
-        auto refl = TypeTree::TypeReflector {root, opts};
-        entry->reflect(refl);
-    }
-
-    return roots;
-}
-
 } // namespace Miro::TypeExport

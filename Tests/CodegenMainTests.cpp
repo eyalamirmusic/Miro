@@ -1,11 +1,9 @@
-// Tests for the inversion-driven codegen entrypoint:
+// Tests for the codegen entrypoint:
 //   buildCodegen<Apis...>(baseName, formats) -> EmittedFile list
 //
 // The test exercises the full pipeline — DescribeReflector walk over
 // the listed APIs, format pipeline run against the resulting Context,
-// EmittedFile contents inspected directly (no filesystem). Proves the
-// new path produces the same shape of TS modules the static-init main
-// has always produced, without any MIRO_EXPORT_COMMAND macro.
+// EmittedFile contents inspected directly (no filesystem).
 
 #include <Miro/Miro.h>
 #include <NanoTest/NanoTest.h>
@@ -46,7 +44,11 @@ public:
         r.event(&CMTestApi::changes, "changes");
     }
 
-    CMRes echo(const CMReq& req) { calls++; return CMRes {req.text + "!"}; }
+    CMRes echo(const CMReq& req)
+    {
+        calls++;
+        return CMRes {req.text + "!"};
+    }
     // NOLINTNEXTLINE(readability-convert-member-functions-to-static)
     CMRes status() const { return CMRes {"ok"}; }
     void log(const CMReq& req) { lastLogged = req.text; }
@@ -64,9 +66,9 @@ const EmittedFile* findFile(const EA::Vector<EmittedFile>& files,
     for (auto& f: files)
     {
         if (f.filename.size() >= suffix.size()
-            && std::string_view {f.filename}.substr(
-                   f.filename.size() - suffix.size())
-                == suffix)
+            && std::string_view {f.filename}.substr(f.filename.size()
+                                                    - suffix.size())
+                   == suffix)
             return &f;
     }
     return nullptr;
@@ -74,11 +76,10 @@ const EmittedFile* findFile(const EA::Vector<EmittedFile>& files,
 
 } // namespace
 
-auto cmTypesModule =
-    test("codegenMain: ts format emits typed interfaces for all reachable payloads") = []
+auto cmTypesModule = test(
+    "codegenMain: ts format emits typed interfaces for all reachable payloads") = []
 {
-    auto files =
-        buildCodegen<CMTestApi>("schema", EA::Vector<std::string> {"ts"});
+    auto files = buildCodegen<CMTestApi>("schema", EA::Vector<std::string> {"ts"});
 
     auto* ts = findFile(files, ".ts");
     check(ts != nullptr);
@@ -122,11 +123,9 @@ auto cmHandlersModule =
     check(handlers->contents.find("case 'quit':") != std::string::npos);
 };
 
-auto cmZodModule =
-    test("codegenMain: zod format emits z.object() schemas") = []
+auto cmZodModule = test("codegenMain: zod format emits z.object() schemas") = []
 {
-    auto files =
-        buildCodegen<CMTestApi>("schema", EA::Vector<std::string> {"zod"});
+    auto files = buildCodegen<CMTestApi>("schema", EA::Vector<std::string> {"zod"});
 
     auto* zod = findFile(files, ".zod.ts");
     check(zod != nullptr);
@@ -151,8 +150,8 @@ auto cmDefaultsToAllFormats =
 auto cmCustomBasename =
     test("codegenMain: baseName threads through to emitted filenames") = []
 {
-    auto files = buildCodegen<CMTestApi>("api",
-                                         EA::Vector<std::string> {"ts", "backend"});
+    auto files =
+        buildCodegen<CMTestApi>("api", EA::Vector<std::string> {"ts", "backend"});
 
     auto* ts = findFile(files, ".ts");
     check(ts != nullptr);
@@ -199,8 +198,8 @@ auto cmCommandTranslation =
 
     check(entries.size() == 4);
 
-    auto findEntry = [&](const std::string& name)
-        -> const CommandExport::CommandEntry*
+    auto findEntry =
+        [&](const std::string& name) -> const CommandExport::CommandEntry*
     {
         for (auto& e: entries)
             if (e.name == name)

@@ -1,7 +1,7 @@
 #pragma once
 
 #include "../TypeTree/TypeTree.h"
-#include "Register.h"
+#include "CommandEntry.h"
 
 #include <map>
 #include <span>

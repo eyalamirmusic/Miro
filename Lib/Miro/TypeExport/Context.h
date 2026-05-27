@@ -11,7 +11,7 @@
 // typeName during the disambiguation pass (matches the existing
 // formatZodModule / formatTypesModule contract).
 
-#include "../CommandExport/Register.h"
+#include "../CommandExport/CommandEntry.h"
 #include "../JSON/Json.h"
 #include "../TypeTree/TypeTree.h"
 

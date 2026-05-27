@@ -1,10 +1,9 @@
 #pragma once
 
-// Templated main() body for codegen executables that drive output
-// through the inversion-of-control path: each API class is default-
-// constructed, walked via its reflect(ApiReflector&) into a local
-// DescribeReflector, and the resulting commands + TypeNodes feed the
-// same Format pipeline the static-init main uses.
+// Templated main() body for codegen executables. Each API class is
+// default-constructed, walked via its reflect(ApiReflector&) into a
+// local DescribeReflector, and the resulting commands + events +
+// TypeNodes feed the Format pipeline.
 //
 // A consumer's codegen TU is typically two lines:
 //
@@ -16,11 +15,11 @@
 //       return Miro::TypeExport::codegenMain<Api::Todos>(argc, argv);
 //   }
 //
-// No static-init registries, no WHOLE_ARCHIVE, no MIRO_EXPORT_COMMAND.
-// The API class's reflect() body is the single source of truth.
+// The API class's reflect() body is the single source of truth — no
+// static-init registries, no WHOLE_ARCHIVE.
 
 #include "../Bridge/DescribeReflector.h"
-#include "../CommandExport/Register.h"
+#include "../CommandExport/CommandEntry.h"
 #include "Context.h"
 
 #include <ea_data_structures/Structures/Vector.h>
@@ -49,16 +48,14 @@ CodegenArgs parseCodegenArgs(int argc, char** argv);
 // into CommandExport::CommandEntry, the shape the existing Format
 // functors consume. The runtime thunk is left empty — describe mode
 // doesn't dispatch, only emits.
-Vector<CommandExport::CommandEntry>
-    toCommandEntries(const Vector<
-                     Miro::Detail::DescribeReflector::CommandRecord>& records);
+Vector<CommandExport::CommandEntry> toCommandEntries(
+    const Vector<Miro::Detail::DescribeReflector::CommandRecord>& records);
 
 // Translates DescribeReflector's EventRecord shape into the Miro::
 // EventInfo entries Context::events carries. Keyed metadata stays
 // default (Phase E adds ApiReflector::keyedEvent).
-Vector<EventInfo>
-    toEventInfos(const Vector<
-                 Miro::Detail::DescribeReflector::EventRecord>& records);
+Vector<EventInfo> toEventInfos(
+    const Vector<Miro::Detail::DescribeReflector::EventRecord>& records);
 
 // Filename + contents pair for one emitted artifact. runFormatsToMemory
 // returns these so tests can inspect output without touching the
@@ -120,15 +117,16 @@ Vector<EmittedFile> buildCodegen(std::string_view baseName,
     auto eventInfos = toEventInfos(describe.events);
 
     auto ctx = Context {
-        .typeRoots = std::span<TypeTree::TypeNode> {
-            describe.typeRoots.data(),
-            static_cast<std::size_t>(describe.typeRoots.size())},
-        .commands = std::span<const CommandExport::CommandEntry> {
-            commandEntries.data(),
-            static_cast<std::size_t>(commandEntries.size())},
-        .events = std::span<const EventInfo> {
-            eventInfos.data(),
-            static_cast<std::size_t>(eventInfos.size())},
+        .typeRoots = std::span<TypeTree::TypeNode> {describe.typeRoots.data(),
+                                                    static_cast<std::size_t>(
+                                                        describe.typeRoots.size())},
+        .commands =
+            std::span<const CommandExport::CommandEntry> {
+                commandEntries.data(),
+                static_cast<std::size_t>(commandEntries.size())},
+        .events =
+            std::span<const EventInfo> {eventInfos.data(),
+                                        static_cast<std::size_t>(eventInfos.size())},
         .baseName = baseName,
     };
 

@@ -1,6 +1,6 @@
 #pragma once
 
-#include "../CommandExport/Register.h"
+#include "../CommandExport/CommandEntry.h"
 #include "../TypeTree/TypeTree.h"
 
 #include <span>

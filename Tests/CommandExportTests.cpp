@@ -1,15 +1,15 @@
-// Tests for the CommandExport machinery: the four handler shapes
-// (Res(Req) / Res() / void(Req) / void()), namespace nesting in the
-// emitted module, empty-request elision, registerCommand thunk
-// behaviour, and the static-init registration flow driven by the
-// MIRO_EXPORT_COMMAND(S) macros.
+// Tests for the CommandExport formatters: backend module and server-
+// handlers module. Covers the four handler shapes (Res(Req) / Res() /
+// void(Req) / void()), empty-request elision, and namespace nesting in
+// the emitted module. Entries are hand-built — the runtime dispatch
+// path is exercised by ApiReflectorTests (Bridge::use installs the
+// pmf-based handlers end-to-end).
 
 #include "TestHelpers.h"
 
 #include <Miro/Miro.h>
 #include <NanoTest/NanoTest.h>
 
-#include <algorithm>
 #include <span>
 #include <string>
 
@@ -40,47 +40,15 @@ struct CETEchoResponse
     MIRO_REFLECT(echoed)
 };
 
-// One handler per shape. They're at namespace scope (rather than in
-// an anonymous namespace) so MIRO_EXPORT_COMMAND can take their
-// address as a non-type template argument and the qualified-name
-// stringification matches the JS-side expectation.
-CETPingResponse cetWithReqAndRes(const EmptyValue&)
-{
-    return CETPingResponse {.ok = true};
-}
-
-CETPingResponse cetWithResOnly()
-{
-    return CETPingResponse {.ok = true};
-}
-
-void cetWithReqOnly(const CETEchoRequest&) {}
-
-void cetWithNeither() {}
-
-CETEchoResponse cetEcho(const CETEchoRequest& req)
-{
-    return CETEchoResponse {.echoed = req.text + "!"};
-}
-
-namespace api
-{
-CETEchoResponse cetNamespaced(const CETEchoRequest& req)
-{
-    return CETEchoResponse {.echoed = "(api)" + req.text};
-}
-} // namespace api
-
-// Helpers for hand-building CommandEntry without touching the global
-// registry — keeps formatBackendModule tests deterministic regardless
-// of static-init order.
+// Helper for hand-building CommandEntry — formatter tests don't care
+// about thunks, they only consume the (name, type identity, shape) bits.
 CommandExport::CommandEntry makeEntry(std::string name,
-                                            bool hasReq,
-                                            std::string reqType,
-                                            std::string reqQual,
-                                            bool hasRes,
-                                            std::string resType,
-                                            std::string resQual)
+                                      bool hasReq,
+                                      std::string reqType,
+                                      std::string reqQual,
+                                      bool hasRes,
+                                      std::string resType,
+                                      std::string resQual)
 {
     auto entry = CommandExport::CommandEntry {};
     entry.name = std::move(name);
@@ -93,147 +61,7 @@ CommandExport::CommandEntry makeEntry(std::string name,
     return entry;
 }
 
-const CommandExport::CommandEntry*
-findRegistered(const std::string& name)
-{
-    auto& reg = CommandExport::Detail::registry();
-    auto it =
-        std::ranges::find_if(reg,
-                             [&](auto& e) { return e.name == name; });
-    return it == reg.end() ? nullptr : &*it;
-}
-
 } // namespace
-
-// All four handler shapes are wired up at static-init via the macros,
-// so the tests below can look them up by name and exercise their
-// thunks directly.
-MIRO_EXPORT_COMMANDS(cetWithReqAndRes,
-                    cetWithResOnly,
-                    cetWithReqOnly,
-                    cetWithNeither,
-                    cetEcho,
-                    api::cetNamespaced)
-
-// ---------- Static-init registration ----------
-
-auto cetMacroRegistersAll =
-    test("CommandExport: MIRO_EXPORT_COMMANDS registers each handler") = []
-{
-    check(findRegistered("cetWithReqAndRes") != nullptr);
-    check(findRegistered("cetWithResOnly") != nullptr);
-    check(findRegistered("cetWithReqOnly") != nullptr);
-    check(findRegistered("cetWithNeither") != nullptr);
-    check(findRegistered("cetEcho") != nullptr);
-    check(findRegistered("api::cetNamespaced") != nullptr);
-};
-
-auto cetSigResAndReq =
-    test("CommandExport: Res(Req) records both type identities") = []
-{
-    auto* e = findRegistered("cetWithReqAndRes");
-    check(e != nullptr);
-    check(e->hasRequest);
-    check(e->hasResponse);
-    check(e->requestTypeName == "EmptyValue");
-    check(e->responseTypeName == "CETPingResponse");
-};
-
-auto cetSigResOnly =
-    test("CommandExport: Res() leaves request side empty") = []
-{
-    auto* e = findRegistered("cetWithResOnly");
-    check(e != nullptr);
-    check(!e->hasRequest);
-    check(e->hasResponse);
-    check(e->requestTypeName.empty());
-    check(e->responseTypeName == "CETPingResponse");
-};
-
-auto cetSigReqOnly =
-    test("CommandExport: void(Req) leaves response side empty") = []
-{
-    auto* e = findRegistered("cetWithReqOnly");
-    check(e != nullptr);
-    check(e->hasRequest);
-    check(!e->hasResponse);
-    check(e->requestTypeName == "CETEchoRequest");
-    check(e->responseTypeName.empty());
-};
-
-auto cetSigNeither =
-    test("CommandExport: void() leaves both sides empty") = []
-{
-    auto* e = findRegistered("cetWithNeither");
-    check(e != nullptr);
-    check(!e->hasRequest);
-    check(!e->hasResponse);
-    check(e->requestTypeName.empty());
-    check(e->responseTypeName.empty());
-};
-
-// ---------- Thunk behaviour ----------
-
-auto cetThunkResAndReq = test("CommandExport: thunk for Res(Req) round-trips") = []
-{
-    auto* e = findRegistered("cetEcho");
-    check(e != nullptr);
-
-    auto payload = Json::parse(R"({"text":"hi"})");
-    auto result = e->thunk(payload);
-
-    check(result.isObject());
-    check(result["echoed"].asString() == "hi!");
-};
-
-auto cetThunkResOnly = test("CommandExport: thunk for Res() ignores payload") = []
-{
-    auto* e = findRegistered("cetWithResOnly");
-    check(e != nullptr);
-
-    auto result = e->thunk(JSON {});
-
-    check(result.isObject());
-    check(result["ok"].asBool() == true);
-};
-
-auto cetThunkReqOnly = test("CommandExport: thunk for void(Req) returns null") = []
-{
-    auto* e = findRegistered("cetWithReqOnly");
-    check(e != nullptr);
-
-    auto payload = Json::parse(R"({"text":"hi"})");
-    auto result = e->thunk(payload);
-
-    check(result.isNull());
-};
-
-auto cetThunkNeither = test("CommandExport: thunk for void() returns null") = []
-{
-    auto* e = findRegistered("cetWithNeither");
-    check(e != nullptr);
-
-    auto result = e->thunk(JSON {});
-
-    check(result.isNull());
-};
-
-// ---------- registerStaticCommandsInto ----------
-
-auto cetWiresIntoTable =
-    test("CommandExport: registerStaticCommandsInto exposes each command") = []
-{
-    auto table = CommandTable {};
-    CommandExport::registerStaticCommandsInto(table);
-
-    check(table.has("cetEcho"));
-    check(table.has("cetWithNeither"));
-    check(table.has("api::cetNamespaced"));
-
-    auto payload = Json::parse(R"({"text":"yo"})");
-    auto result = table.dispatch("cetEcho", payload);
-    check(result["echoed"].asString() == "yo!");
-};
 
 // ---------- formatBackendModule output ----------
 
@@ -269,7 +97,8 @@ auto cetBackendResAndReq =
     auto out = CommandExport::formatBackendModule(
         std::span<TypeTree::TypeNode> {roots}, entries, "schema");
 
-    check(contains(out, "echo: (req: T.CETEchoRequest): Promise<T.CETEchoResponse>"));
+    check(
+        contains(out, "echo: (req: T.CETEchoRequest): Promise<T.CETEchoResponse>"));
     check(contains(out, "invoke('echo', req) as Promise<T.CETEchoResponse>"));
 };
 
@@ -297,8 +126,7 @@ auto cetBackendEmptyRequestElided =
     check(contains(out, "invoke('ping', {}) as Promise<T.CETPingResponse>"));
 };
 
-auto cetBackendResOnly =
-    test("CommandExport: Res() emits no-arg signature") = []
+auto cetBackendResOnly = test("CommandExport: Res() emits no-arg signature") = []
 {
     auto roots = std::vector<TypeTree::TypeNode> {};
     roots.push_back(TypeTree::buildTree<CETPingResponse>());
@@ -319,8 +147,7 @@ auto cetBackendResOnly =
     check(contains(out, "status: (): Promise<T.CETPingResponse>"));
 };
 
-auto cetBackendVoidReq =
-    test("CommandExport: void(Req) emits Promise<void>") = []
+auto cetBackendVoidReq = test("CommandExport: void(Req) emits Promise<void>") = []
 {
     auto roots = std::vector<TypeTree::TypeNode> {};
     roots.push_back(TypeTree::buildTree<CETEchoRequest>());
@@ -404,8 +231,8 @@ auto cetHandlersImports =
     check(contains(out, "default: throw new UnknownCommandError(command);"));
 };
 
-auto cetHandlersResAndReq =
-    test("CommandExport (handlers): Res(Req) emits typed param and union return") = []
+auto cetHandlersResAndReq = test(
+    "CommandExport (handlers): Res(Req) emits typed param and union return") = []
 {
     auto roots = std::vector<TypeTree::TypeNode> {};
     roots.push_back(TypeTree::buildTree<CETEchoRequest>());
@@ -452,8 +279,7 @@ auto cetHandlersEmptyRequestElided =
     auto out = CommandExport::formatServerHandlersModule(
         std::span<TypeTree::TypeNode> {roots}, entries, "schema");
 
-    check(contains(out,
-                   "ping(): T.CETPingResponse | Promise<T.CETPingResponse>;"));
+    check(contains(out, "ping(): T.CETPingResponse | Promise<T.CETPingResponse>;"));
     check(contains(out, "case 'ping': return await handlers.ping();"));
 };
 
@@ -476,8 +302,8 @@ auto cetHandlersResOnly =
     auto out = CommandExport::formatServerHandlersModule(
         std::span<TypeTree::TypeNode> {roots}, entries, "schema");
 
-    check(contains(out,
-                   "status(): T.CETPingResponse | Promise<T.CETPingResponse>;"));
+    check(
+        contains(out, "status(): T.CETPingResponse | Promise<T.CETPingResponse>;"));
     check(contains(out, "case 'status': return await handlers.status();"));
 };
 

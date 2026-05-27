@@ -2,14 +2,13 @@
 //
 // Each registerFormat() call lands in a [[maybe_unused]] constant whose
 // initialization runs at program startup, populating the format
-// registry that main() walks. Downstream libraries plug in additional
-// formats from their own TUs using the same Format.h API.
+// registry that codegenMain<Apis...> walks. Downstream libraries plug
+// in additional formats from their own TUs using the same Format.h API.
 //
-// This TU lives in the MiroTypeExportMain OBJECT library (alongside
-// Main.cpp), not in the Miro static library — OBJECT-library TUs are
-// always linked into the final executable in full, so the static-init
-// registrations are guaranteed to run without needing a force-link
-// anchor.
+// This TU lives in the MiroFormats OBJECT library, not in the Miro
+// static library — OBJECT-library TUs are always linked into the final
+// executable in full, so the static-init format registrations are
+// guaranteed to run without needing a force-link anchor.
 
 #include "Format.h"
 
@@ -80,9 +79,8 @@ using Miro::TypeExport::registerFormat;
 [[maybe_unused]] const auto cppFormat = registerFormat(Format {
     "cpp",
     ".types.h",
-    [](const Context& ctx) {
-        return Miro::Cpp::formatHeader(ctx.typeRoots, Miro::Cpp::Modes::PureCPP);
-    },
+    [](const Context& ctx)
+    { return Miro::Cpp::formatHeader(ctx.typeRoots, Miro::Cpp::Modes::PureCPP); },
 });
 
 [[maybe_unused]] const auto cppMiroFormat = registerFormat(Format {

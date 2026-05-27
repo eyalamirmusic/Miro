@@ -1,12 +1,9 @@
 #pragma once
 
-#include "../TypeTree/TypeTree.h"
 #include "Context.h"
-#include "Register.h"
 
 #include <functional>
 #include <string>
-#include <string_view>
 
 // Format extension hook for the Miro codegen runner.
 //
@@ -22,29 +19,25 @@
 //   [[maybe_unused]] const auto _ = Miro::TypeExport::registerFormat({
 //       "hooks",
 //       ".hooks.ts",
-//       [](const auto& entries, std::string_view baseName) -> std::string
-//       { ... },
+//       [](const Context& ctx) -> std::string { ... },
 //   });
 //   }
 //
 // The registering TU must be linked into the codegen executable —
-// either by being part of Miro itself, or by being placed in an
-// OBJECT library that's spliced into the executable alongside
-// MiroTypeExportMain (see CMake/MiroTypeExport.cmake).
+// either by being part of MiroFormats (Miro's own set), or by being
+// placed in an OBJECT library that's spliced into the executable
+// alongside MiroFormats and MiroCodegenWriter (see
+// CMake/MiroTypeExport.cmake).
 namespace Miro::TypeExport
 {
 
-using EntryList = OwnedVector<TypeEntry>;
-
 struct Format
 {
-    std::string name;       // CLI selector, e.g. "hooks"
-    std::string extension;  // appended to baseName, e.g. ".hooks.ts"
+    std::string name; // CLI selector, e.g. "hooks"
+    std::string extension; // appended to baseName, e.g. ".hooks.ts"
 
     // Takes a Context bundling pre-built TypeNodes, registered commands,
-    // and the output basename. The same functor runs against either
-    // the static-init process-wide registries or a DescribeReflector
-    // walk — sourcing is handled by the caller, not the format.
+    // and the output basename.
     std::function<std::string(const Context& ctx)> generate;
 };
 
@@ -60,10 +53,5 @@ Vector<Format>& formatRegistry();
 // Adds a Format to the process-wide registry. Returns 0 so the call
 // can sit in a static-init expression without needing a struct wrapper.
 int registerFormat(Format format);
-
-// Shared helper most formats need: reflect every registered type into
-// its own TypeNode tree. Exposed here so downstream formats don't have
-// to reach into the reflection internals.
-Vector<TypeTree::TypeNode> buildAllTypeTrees(const EntryList& entries);
 
 } // namespace Miro::TypeExport

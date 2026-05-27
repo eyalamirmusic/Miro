@@ -22,9 +22,8 @@ namespace Miro
 // dispatch() and an EA::Listener attached to onEmit.
 //
 // One Bridge can serve multiple transports simultaneously — a typical
-// app declares the Bridge once, calls useStaticRegistry() to pull in
-// MIRO_EXPORT_COMMAND-registered handlers, and hands a reference to
-// each transport's constructor.
+// app declares the Bridge once, binds its APIs via use(api), and hands
+// a reference to each transport's constructor.
 class Bridge
 {
 public:
@@ -76,8 +75,6 @@ public:
 
     JSON dispatch(std::string_view command, const JSON& payloadToUse) const;
 
-    void useStaticRegistry();
-
     // Walks api.reflect(...) with a BindReflector — each command lands
     // in this bridge's CommandTable, each event subscribes a Listener
     // owned by the bridge (so subscriptions die with the bridge, not
@@ -107,7 +104,7 @@ public:
     // through toJSON; this one is for callers that already hold a JSON
     // payload (e.g. the bind reflector's event subscriptions, which
     // serialize once inside their listener body).
-    void emitJson(const std::string& eventName, const JSON& payload);
+    void emitJson(const std::string& eventToUse, const JSON& payloadToUse);
 
     // Adopts a Listener so its subscription stays alive as long as
     // this bridge does. Called by BindReflector::eventImpl; rarely
