@@ -23,7 +23,7 @@ struct EchoResponse
 
 EchoResponse handleEcho(const EchoRequest& req)
 {
-    return EchoResponse {.echoed = req.text + "!"};
+    return {.echoed = req.text + "!"};
 }
 
 struct PingResponse
@@ -35,12 +35,12 @@ struct PingResponse
 
 PingResponse handlePing(const EmptyValue&)
 {
-    return PingResponse {.pong = true};
+    return {.pong = true};
 }
 
 PingResponse handlePingNoArg()
 {
-    return PingResponse {.pong = true};
+    return {.pong = true};
 }
 
 int kickCount = 0;
@@ -73,7 +73,7 @@ auto dispatchEmpty = test("CommandTable handles EmptyValue input") = []
     auto table = CommandTable {};
     table.on("ping", handlePing);
 
-    auto result = table.dispatch("ping", JSON {});
+    auto result = table.dispatch("ping", {});
 
     check(result.isObject());
     check(result["pong"].asBool() == true);
@@ -86,7 +86,7 @@ auto dispatchUnknown = test("CommandTable throws on unknown command") = []
 
     try
     {
-        table.dispatch("missing", JSON {});
+        table.dispatch("missing", {});
     }
     catch (const UnknownCommandError&)
     {
@@ -110,7 +110,7 @@ auto dispatchNoArg = test("CommandTable dispatches no-arg handler") = []
     auto table = CommandTable {};
     table.on("ping", handlePingNoArg);
 
-    auto result = table.dispatch("ping", JSON {});
+    auto result = table.dispatch("ping", {});
 
     check(result.isObject());
     check(result["pong"].asBool() == true);
@@ -148,7 +148,7 @@ auto dispatchVoidNoArg = test("CommandTable dispatches void no-arg handler") = [
     table.on("kick", handleKick);
 
     kickCount = 0;
-    auto result = table.dispatch("kick", JSON {});
+    auto result = table.dispatch("kick", {});
 
     check(result.isNull());
     check(kickCount == 1);

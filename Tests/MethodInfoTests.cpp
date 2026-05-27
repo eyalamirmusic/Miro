@@ -37,12 +37,12 @@ public:
     MIRes echo(const MIReq& req)
     {
         calls++;
-        return MIRes {req.text + "!"};
+        return {req.text + "!"};
     }
 
     MIRes status() const
     {
-        return MIRes {lastLogged.empty() ? "idle" : "busy"};
+        return {lastLogged.empty() ? "idle" : "busy"};
     }
 
     void log(const MIReq& req) { lastLogged = req.text; }

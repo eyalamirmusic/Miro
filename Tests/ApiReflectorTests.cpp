@@ -57,21 +57,21 @@ public:
     ARRes echo(const ARReq& req)
     {
         calls++;
-        return ARRes {req.text + "!"};
+        return {req.text + "!"};
     }
 
-    ARRes status() const { return ARRes {lastLogged.empty() ? "idle" : "busy"}; }
+    ARRes status() const { return {lastLogged.empty() ? "idle" : "busy"}; }
 
     void log(const ARReq& req)
     {
         lastLogged = req.text;
-        changes.publish(ARRes {"logged:" + req.text});
+        changes.publish({"logged:" + req.text});
     }
 
     void tick()
     {
         ticks++;
-        changes.publish(ARRes {"tick:" + std::to_string(ticks)});
+        changes.publish({"tick:" + std::to_string(ticks)});
     }
 
     Event<ARRes> changes;
@@ -126,10 +126,10 @@ auto arBindDispatchesStatus = test(
     auto bridge = Bridge {};
     bridge.use(api);
 
-    check(bridge.dispatch("status", JSON {})["echoed"].asString() == "idle");
+    check(bridge.dispatch("status", {})["echoed"].asString() == "idle");
 
     api.lastLogged = "x";
-    check(bridge.dispatch("status", JSON {})["echoed"].asString() == "busy");
+    check(bridge.dispatch("status", {})["echoed"].asString() == "busy");
 };
 
 auto arBindDispatchesLog = test(
@@ -152,8 +152,8 @@ auto arBindDispatchesTick =
     auto bridge = Bridge {};
     bridge.use(api);
 
-    bridge.dispatch("tick", JSON {});
-    bridge.dispatch("tick", JSON {});
+    bridge.dispatch("tick", {});
+    bridge.dispatch("tick", {});
 
     check(api.ticks == 2);
 };
@@ -169,7 +169,7 @@ auto arBindEventEmitsOnPublish = test(
 
     auto capture = EmitCapture {bridge};
 
-    api.changes.publish(ARRes {"hello"});
+    api.changes.publish({"hello"});
 
     check(capture.lastEvent == "changes");
     check(capture.lastPayload["echoed"].asString() == "hello");
@@ -201,7 +201,7 @@ auto arBindListenerSurvivesUseCall =
 
     auto capture = EmitCapture {bridge};
 
-    api.changes.publish(ARRes {"still alive"});
+    api.changes.publish({"still alive"});
 
     check(capture.lastEvent == "changes");
     check(capture.lastPayload["echoed"].asString() == "still alive");
@@ -448,7 +448,7 @@ public:
         r.event(&RenameTestApi::pulses, "pulse");
     }
 
-    ARRes ping() const { return ARRes {"pong"}; }
+    ARRes ping() const { return {"pong"}; }
 
     Event<ARRes> pulses;
 };
@@ -557,13 +557,13 @@ public:
     ARRes read(const ARReq& req)
     {
         reads++;
-        return ARRes {"read:" + req.text};
+        return {"read:" + req.text};
     }
 
     void write(const ARReq& req)
     {
         lastWritten = req.text;
-        changed.publish(ARRes {"wrote:" + req.text});
+        changed.publish({"wrote:" + req.text});
     }
 
     Event<ARRes> changed;
@@ -576,7 +576,7 @@ class UsersSubApi
 public:
     void reflect(ApiReflector& r) { r.commands<&UsersSubApi::list>(); }
 
-    ARRes list() const { return ARRes {"alice,bob"}; }
+    ARRes list() const { return {"alice,bob"}; }
 };
 
 class CompositeApi
@@ -589,7 +589,7 @@ public:
         r.use("users", users);
     }
 
-    ARRes topPing() const { return ARRes {"pong"}; }
+    ARRes topPing() const { return {"pong"}; }
 
     FilesSubApi files;
     UsersSubApi users;
@@ -616,7 +616,7 @@ auto arSubApiTopLevelStillFlat =
     auto bridge = Bridge {};
     bridge.use(api);
 
-    auto result = bridge.dispatch("topPing", JSON {});
+    auto result = bridge.dispatch("topPing", {});
     check(result["echoed"].asString() == "pong");
 };
 
@@ -629,7 +629,7 @@ auto arSubApiEventPrefixed = test(
 
     auto capture = EmitCapture {bridge};
 
-    api.files.changed.publish(ARRes {"hello"});
+    api.files.changed.publish({"hello"});
 
     check(capture.lastEvent == "files.changed");
     check(capture.lastPayload["echoed"].asString() == "hello");
@@ -655,7 +655,7 @@ auto arSubApiMultipleSiblings =
     auto bridge = Bridge {};
     bridge.use(api);
 
-    check(bridge.dispatch("users.list", JSON {})["echoed"].asString()
+    check(bridge.dispatch("users.list", {})["echoed"].asString()
           == "alice,bob");
 
     check(bridge.dispatch("files.read", Json::parse(R"({"text":"y"})"))["echoed"]
@@ -694,7 +694,7 @@ class InnerLeafApi
 public:
     void reflect(ApiReflector& r) { r.commands<&InnerLeafApi::ping>(); }
 
-    ARRes ping() const { return ARRes {"deep-pong"}; }
+    ARRes ping() const { return {"deep-pong"}; }
 };
 
 class MiddleApi
@@ -721,7 +721,7 @@ auto arSubApiNestedPrefixAccumulates =
     auto bridge = Bridge {};
     bridge.use(api);
 
-    auto result = bridge.dispatch("outer.inner.ping", JSON {});
+    auto result = bridge.dispatch("outer.inner.ping", {});
     check(result["echoed"].asString() == "deep-pong");
 };
 
@@ -748,7 +748,7 @@ namespace
 class ExternalSubApi
 {
 public:
-    ARRes hello() const { return ARRes {"external"}; }
+    ARRes hello() const { return {"external"}; }
 };
 
 // Free function in the same namespace, found via ADL from
@@ -777,7 +777,7 @@ auto arSubApiFreeFunctionDispatch = test(
     auto bridge = Bridge {};
     bridge.use(api);
 
-    check(bridge.dispatch("ext.hello", JSON {})["echoed"].asString() == "external");
+    check(bridge.dispatch("ext.hello", {})["echoed"].asString() == "external");
 };
 
 // ---------- Flat use(sub): split one API across helpers, no prefix ----------
@@ -789,7 +789,7 @@ class HelperBlock
 public:
     void reflect(ApiReflector& r) { r.commands<&HelperBlock::helperCmd>(); }
 
-    ARRes helperCmd() const { return ARRes {"helper"}; }
+    ARRes helperCmd() const { return {"helper"}; }
 };
 
 class FlatSplitApi
@@ -801,7 +801,7 @@ public:
         r.use(helper);
     }
 
-    ARRes ownCmd() const { return ARRes {"own"}; }
+    ARRes ownCmd() const { return {"own"}; }
 
     HelperBlock helper;
 };
@@ -814,8 +814,8 @@ auto arSubApiFlatUseNoPrefix = test(
     auto bridge = Bridge {};
     bridge.use(api);
 
-    check(bridge.dispatch("ownCmd", JSON {})["echoed"].asString() == "own");
-    check(bridge.dispatch("helperCmd", JSON {})["echoed"].asString() == "helper");
+    check(bridge.dispatch("ownCmd", {})["echoed"].asString() == "own");
+    check(bridge.dispatch("helperCmd", {})["echoed"].asString() == "helper");
 };
 
 auto arSubApiFlatDescribeNoPrefix = test(
@@ -849,7 +849,7 @@ public:
         MIRO_API(r, files, users)
     }
 
-    ARRes topPing() const { return ARRes {"macro-pong"}; }
+    ARRes topPing() const { return {"macro-pong"}; }
 
     FilesSubApi files;
     UsersSubApi users;
@@ -864,11 +864,11 @@ auto arSubApiMacroBindsPrefixed = test(
     auto bridge = Bridge {};
     bridge.use(api);
 
-    check(bridge.dispatch("topPing", JSON {})["echoed"].asString() == "macro-pong");
+    check(bridge.dispatch("topPing", {})["echoed"].asString() == "macro-pong");
     check(bridge.dispatch("files.read", Json::parse(R"({"text":"q"})"))["echoed"]
               .asString()
           == "read:q");
-    check(bridge.dispatch("users.list", JSON {})["echoed"].asString()
+    check(bridge.dispatch("users.list", {})["echoed"].asString()
           == "alice,bob");
 };
 
@@ -901,7 +901,7 @@ namespace
 class UnifiedFilesSub
 {
 public:
-    ARRes read() const { return ARRes {"unified-read"}; }
+    ARRes read() const { return {"unified-read"}; }
 
     Event<ARRes> changed;
 
@@ -911,7 +911,7 @@ public:
 class UnifiedHostApi
 {
 public:
-    ARRes ping() const { return ARRes {"unified-pong"}; }
+    ARRes ping() const { return {"unified-pong"}; }
 
     Event<ARRes> beat;
     UnifiedFilesSub files;
@@ -928,7 +928,7 @@ auto unifiedApiInstallsCommand =
     auto bridge = Bridge {};
     bridge.use(api);
 
-    check(bridge.dispatch("ping", JSON {})["echoed"].asString() == "unified-pong");
+    check(bridge.dispatch("ping", {})["echoed"].asString() == "unified-pong");
 };
 
 auto unifiedApiInstallsEvent = test(
@@ -939,7 +939,7 @@ auto unifiedApiInstallsEvent = test(
     bridge.use(api);
 
     auto capture = EmitCapture {bridge};
-    api.beat.publish(ARRes {"tick"});
+    api.beat.publish({"tick"});
 
     check(capture.lastEvent == "beat");
     check(capture.lastPayload["echoed"].asString() == "tick");
@@ -953,11 +953,11 @@ auto unifiedApiInstallsSubApi =
     auto bridge = Bridge {};
     bridge.use(api);
 
-    check(bridge.dispatch("files.read", JSON {})["echoed"].asString()
+    check(bridge.dispatch("files.read", {})["echoed"].asString()
           == "unified-read");
 
     auto capture = EmitCapture {bridge};
-    api.files.changed.publish(ARRes {"file-change"});
+    api.files.changed.publish({"file-change"});
 
     check(capture.lastEvent == "files.changed");
 };
@@ -981,7 +981,7 @@ auto unifiedApiDirectVariadic = test(
 {
     struct DirectApi
     {
-        ARRes hello() const { return ARRes {"direct"}; }
+        ARRes hello() const { return {"direct"}; }
         Event<ARRes> beep;
 
         void reflect(ApiReflector& r)
@@ -994,10 +994,10 @@ auto unifiedApiDirectVariadic = test(
     auto bridge = Bridge {};
     bridge.use(api);
 
-    check(bridge.dispatch("hello", JSON {})["echoed"].asString() == "direct");
+    check(bridge.dispatch("hello", {})["echoed"].asString() == "direct");
 
     auto capture = EmitCapture {bridge};
-    api.beep.publish(ARRes {"boop"});
+    api.beep.publish({"boop"});
     check(capture.lastEvent == "beep");
 };
 
@@ -1013,7 +1013,7 @@ namespace
 {
 ARRes freeEcho(const ARReq& req)
 {
-    return ARRes {"free:" + req.text};
+    return {"free:" + req.text};
 }
 
 int freeTickCalls = 0;
@@ -1042,14 +1042,14 @@ public:
             [this](const ARReq& req) -> ARRes
             {
                 captures++;
-                return ARRes {"lambda:" + req.text + ":" + std::to_string(captures)};
+                return {"lambda:" + req.text + ":" + std::to_string(captures)};
             },
             "lambdaCmd");
 
         // Captureless lambda — implicitly convertible to fn ptr but
         // value form should accept it directly.
         r.command([](const ARReq& req) -> ARRes
-                  { return ARRes {"clean:" + req.text}; },
+                  { return {"clean:" + req.text}; },
                   "cleanCmd");
     }
 };
@@ -1067,7 +1067,7 @@ auto freeFnCommandDispatch =
     auto r1 = bridge.dispatch("freeEcho", Json::parse(R"({"text":"hi"})"));
     check(r1["echoed"].asString() == "free:hi");
 
-    bridge.dispatch("freeTick", JSON {});
+    bridge.dispatch("freeTick", {});
     check(freeTickCalls == 1);
 };
 
@@ -1136,6 +1136,6 @@ auto freeFnApiDispatcher =
     check(r1["echoed"].asString() == "free:q");
 
     auto capture = EmitCapture {bridge};
-    api.tick.publish(ARRes {"t"});
+    api.tick.publish({"t"});
     check(capture.lastEvent == "tick");
 };

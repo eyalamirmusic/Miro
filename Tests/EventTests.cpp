@@ -54,7 +54,7 @@ auto evPublishUpdatesSnapshot =
                                   [&] { observed = e.snapshot(); },
                                   EA::Listener::Modes::TriggerOnEvent};
 
-    e.publish(EventTestPayload {.n = 42, .s = "hello"});
+    e.publish({.n = 42, .s = "hello"});
 
     check(observed.n == 42);
     check(observed.s == "hello");

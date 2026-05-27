@@ -46,9 +46,9 @@ public:
     CMRes echo(const CMReq& req)
     {
         calls++;
-        return CMRes {req.text + "!"};
+        return {req.text + "!"};
     }
-    CMRes status() const { return CMRes {"ok"}; }
+    CMRes status() const { return {"ok"}; }
     void log(const CMReq& req) { lastLogged = req.text; }
     void quit() { quitCalls++; }
 
@@ -99,7 +99,7 @@ const EmittedFile* findFile(const EA::Vector<EmittedFile>& files,
 auto cmTypesModule = test(
     "codegenMain: ts format emits typed interfaces for all reachable payloads") = []
 {
-    auto files = buildCodegen<CMTestApi>("schema", EA::Vector<std::string> {"ts"});
+    auto files = buildCodegen<CMTestApi>("schema", {"ts"});
 
     auto* ts = findFile(files, ".ts");
     check(ts != nullptr);
@@ -113,7 +113,7 @@ auto cmBackendModule =
     test("codegenMain: backend format emits one typed call per command") = []
 {
     auto files =
-        buildCodegen<CMTestApi>("schema", EA::Vector<std::string> {"backend"});
+        buildCodegen<CMTestApi>("schema", {"backend"});
 
     auto* backend = findFile(files, ".backend.ts");
     check(backend != nullptr);
@@ -132,7 +132,7 @@ auto cmHandlersModule =
     test("codegenMain: ts-server format emits Handlers + dispatch") = []
 {
     auto files =
-        buildCodegen<CMTestApi>("schema", EA::Vector<std::string> {"ts-server"});
+        buildCodegen<CMTestApi>("schema", {"ts-server"});
 
     auto* handlers = findFile(files, ".handlers.ts");
     check(handlers != nullptr);
@@ -145,7 +145,7 @@ auto cmHandlersModule =
 
 auto cmZodModule = test("codegenMain: zod format emits z.object() schemas") = []
 {
-    auto files = buildCodegen<CMTestApi>("schema", EA::Vector<std::string> {"zod"});
+    auto files = buildCodegen<CMTestApi>("schema", {"zod"});
 
     auto* zod = findFile(files, ".zod.ts");
     check(zod != nullptr);
@@ -157,7 +157,7 @@ auto cmZodModule = test("codegenMain: zod format emits z.object() schemas") = []
 auto cmDefaultsToAllFormats =
     test("codegenMain: empty formats list runs every registered format") = []
 {
-    auto files = buildCodegen<CMTestApi>("schema", EA::Vector<std::string> {});
+    auto files = buildCodegen<CMTestApi>("schema", {});
 
     // Spot-check that the canonical suspects all turned up.
     check(findFile(files, ".ts") != nullptr);
@@ -171,7 +171,7 @@ auto cmCustomBasename =
     test("codegenMain: baseName threads through to emitted filenames") = []
 {
     auto files =
-        buildCodegen<CMTestApi>("api", EA::Vector<std::string> {"ts", "backend"});
+        buildCodegen<CMTestApi>("api", {"ts", "backend"});
 
     auto* ts = findFile(files, ".ts");
     check(ts != nullptr);
@@ -193,11 +193,11 @@ auto cmMultipleApis =
     struct CMOtherApi
     {
         void reflect(ApiReflector& r) { r.command(&CMOtherApi::other, "other"); }
-        CMRes other() const { return CMRes {"other"}; }
+        CMRes other() const { return {"other"}; }
     };
 
     auto files = buildCodegen<CMTestApi, CMOtherApi>(
-        "schema", EA::Vector<std::string> {"backend"});
+        "schema", {"backend"});
 
     auto* backend = findFile(files, ".backend.ts");
     check(backend != nullptr);
@@ -209,7 +209,7 @@ auto cmEventsModule = test(
     "codegenMain: events format emits typed Events + EventBus interfaces") = []
 {
     auto files =
-        buildCodegen<CMTestApi>("schema", EA::Vector<std::string> {"events"});
+        buildCodegen<CMTestApi>("schema", {"events"});
 
     auto* events = findFile(files, ".events.ts");
     check(events != nullptr);
@@ -228,7 +228,7 @@ auto cmEventsModuleSubApi = test(
     "codegenMain: events format emits sub-API events under the use() prefix") = []
 {
     auto files =
-        buildCodegen<CMCompositeApi>("schema", EA::Vector<std::string> {"events"});
+        buildCodegen<CMCompositeApi>("schema", {"events"});
 
     auto* events = findFile(files, ".events.ts");
     check(events != nullptr);
