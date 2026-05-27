@@ -538,3 +538,314 @@ auto arDescribeDrivesBackendFormat =
     check(out.find("log: (req: T.ARReq): Promise<void>") != std::string::npos);
     check(out.find("tick: (): Promise<void>") != std::string::npos);
 };
+
+// ---------- Sub-APIs: r.use("key", member) recursion ----------
+//
+// A reflect() body can defer to a member's own reflect() via
+// r.use("key", member); all commands/events the sub declares land
+// under "key.<name>". The same dual dispatch as the data layer is
+// supported — intrusive Sub::reflect(ApiReflector&) or a free
+// reflect(ApiReflector&, Sub&) overload.
+
+namespace
+{
+class FilesSubApi
+{
+public:
+    // NOLINTNEXTLINE(readability-convert-member-functions-to-static)
+    void reflect(ApiReflector& r)
+    {
+        using T = FilesSubApi;
+        r.commands<&T::read, &T::write>();
+        r.event<&T::changed>();
+    }
+
+    ARRes read(const ARReq& req)
+    {
+        reads++;
+        return ARRes {"read:" + req.text};
+    }
+
+    void write(const ARReq& req)
+    {
+        lastWritten = req.text;
+        changed.publish(ARRes {"wrote:" + req.text});
+    }
+
+    Event<ARRes> changed;
+    std::string lastWritten;
+    int reads = 0;
+};
+
+class UsersSubApi
+{
+public:
+    // NOLINTNEXTLINE(readability-convert-member-functions-to-static)
+    void reflect(ApiReflector& r) { r.commands<&UsersSubApi::list>(); }
+
+    // NOLINTNEXTLINE(readability-convert-member-functions-to-static)
+    ARRes list() const { return ARRes {"alice,bob"}; }
+};
+
+class CompositeApi
+{
+public:
+    // NOLINTNEXTLINE(readability-convert-member-functions-to-static)
+    void reflect(ApiReflector& r)
+    {
+        r.commands<&CompositeApi::topPing>();
+        r.use("files", files);
+        r.use("users", users);
+    }
+
+    // NOLINTNEXTLINE(readability-convert-member-functions-to-static)
+    ARRes topPing() const { return ARRes {"pong"}; }
+
+    FilesSubApi files;
+    UsersSubApi users;
+};
+} // namespace
+
+auto arSubApiBindsPrefixedCommand =
+    test("ApiReflector: r.use(key, sub) installs sub commands under key.<name>") = []
+{
+    auto api = CompositeApi {};
+    auto bridge = Bridge {};
+    bridge.use(api);
+
+    auto result = bridge.dispatch("files.read", Json::parse(R"({"text":"x"})"));
+
+    check(result["echoed"].asString() == "read:x");
+    check(api.files.reads == 1);
+};
+
+auto arSubApiTopLevelStillFlat =
+    test("ApiReflector: commands declared outside use() keep their flat names") = []
+{
+    auto api = CompositeApi {};
+    auto bridge = Bridge {};
+    bridge.use(api);
+
+    auto result = bridge.dispatch("topPing", JSON {});
+    check(result["echoed"].asString() == "pong");
+};
+
+auto arSubApiEventPrefixed = test(
+    "ApiReflector: events declared inside use() are emitted under the prefix") = []
+{
+    auto api = CompositeApi {};
+    auto bridge = Bridge {};
+    bridge.use(api);
+
+    auto capture = EmitCapture {bridge};
+
+    api.files.changed.publish(ARRes {"hello"});
+
+    check(capture.lastEvent == "files.changed");
+    check(capture.lastPayload["echoed"].asString() == "hello");
+};
+
+auto arSubApiCommandRoutesToSubInstance =
+    test("ApiReflector: prefixed command dispatches against the sub instance, "
+         "not the outer API") = []
+{
+    auto api = CompositeApi {};
+    auto bridge = Bridge {};
+    bridge.use(api);
+
+    bridge.dispatch("files.write", Json::parse(R"({"text":"trace"})"));
+
+    check(api.files.lastWritten == "trace");
+};
+
+auto arSubApiMultipleSiblings =
+    test("ApiReflector: multiple sibling sub-APIs are namespaced independently") = []
+{
+    auto api = CompositeApi {};
+    auto bridge = Bridge {};
+    bridge.use(api);
+
+    check(bridge.dispatch("users.list", JSON {})["echoed"].asString()
+          == "alice,bob");
+
+    check(bridge.dispatch("files.read", Json::parse(R"({"text":"y"})"))["echoed"]
+              .asString()
+          == "read:y");
+};
+
+auto arSubApiDescribeNamesArePrefixed =
+    test("ApiReflector: DescribeReflector records commands and events with "
+         "the use() prefix") = []
+{
+    auto describe = Detail::DescribeReflector {};
+    auto api = CompositeApi {};
+    api.reflect(describe);
+
+    check(findCmd(describe.commands, "topPing") != nullptr);
+    check(findCmd(describe.commands, "files.read") != nullptr);
+    check(findCmd(describe.commands, "files.write") != nullptr);
+    check(findCmd(describe.commands, "users.list") != nullptr);
+
+    check(findEvt(describe.events, "files.changed") != nullptr);
+
+    // The unprefixed names must not appear — would mean we leaked the
+    // local name through alongside the prefixed one.
+    check(findCmd(describe.commands, "read") == nullptr);
+    check(findCmd(describe.commands, "write") == nullptr);
+    check(findEvt(describe.events, "changed") == nullptr);
+};
+
+// ---------- Nested use(): prefixes accumulate with '.' ----------
+
+namespace
+{
+class InnerLeafApi
+{
+public:
+    // NOLINTNEXTLINE(readability-convert-member-functions-to-static)
+    void reflect(ApiReflector& r) { r.commands<&InnerLeafApi::ping>(); }
+
+    // NOLINTNEXTLINE(readability-convert-member-functions-to-static)
+    ARRes ping() const { return ARRes {"deep-pong"}; }
+};
+
+class MiddleApi
+{
+public:
+    // NOLINTNEXTLINE(readability-convert-member-functions-to-static)
+    void reflect(ApiReflector& r) { r.use("inner", leaf); }
+
+    InnerLeafApi leaf;
+};
+
+class OuterNestedApi
+{
+public:
+    // NOLINTNEXTLINE(readability-convert-member-functions-to-static)
+    void reflect(ApiReflector& r) { r.use("outer", middle); }
+
+    MiddleApi middle;
+};
+} // namespace
+
+auto arSubApiNestedPrefixAccumulates =
+    test("ApiReflector: nested r.use(...) calls accumulate prefixes with '.'") = []
+{
+    auto api = OuterNestedApi {};
+    auto bridge = Bridge {};
+    bridge.use(api);
+
+    auto result = bridge.dispatch("outer.inner.ping", JSON {});
+    check(result["echoed"].asString() == "deep-pong");
+};
+
+auto arSubApiNestedDescribeNames = test(
+    "ApiReflector: DescribeReflector sees the fully accumulated nested name") = []
+{
+    auto describe = Detail::DescribeReflector {};
+    auto api = OuterNestedApi {};
+    api.reflect(describe);
+
+    check(describe.commands.size() == 1);
+    check(describe.commands[0].name == "outer.inner.ping");
+};
+
+// ---------- Free-function reflect overload (non-intrusive) ----------
+//
+// A sub-API doesn't have to declare its own reflect() method. A free
+// reflect(ApiReflector&, T&) overload in the same namespace (or
+// Miro::) is picked up by ADL — mirrors MIRO_REFLECT_EXTERNAL on the
+// data side.
+
+namespace
+{
+class ExternalSubApi
+{
+public:
+    // NOLINTNEXTLINE(readability-convert-member-functions-to-static)
+    ARRes hello() const { return ARRes {"external"}; }
+};
+
+// Free function in the same namespace, found via ADL from
+// ApiReflector::use<>(). Marked [[maybe_unused]] because clang's
+// pre-instantiation pass can't see the ADL caller and would otherwise
+// flag the definition as unneeded.
+[[maybe_unused]] inline void reflect(ApiReflector& r, ExternalSubApi& sub)
+{
+    (void) sub;
+    r.command(&ExternalSubApi::hello, "hello");
+}
+
+class HostApi
+{
+public:
+    // NOLINTNEXTLINE(readability-convert-member-functions-to-static)
+    void reflect(ApiReflector& r) { r.use("ext", sub); }
+
+    ExternalSubApi sub;
+};
+} // namespace
+
+auto arSubApiFreeFunctionDispatch = test(
+    "ApiReflector: r.use() picks up free reflect(ApiReflector&, T&) via ADL") = []
+{
+    auto api = HostApi {};
+    auto bridge = Bridge {};
+    bridge.use(api);
+
+    check(bridge.dispatch("ext.hello", JSON {})["echoed"].asString() == "external");
+};
+
+// ---------- Flat use(sub): split one API across helpers, no prefix ----------
+
+namespace
+{
+class HelperBlock
+{
+public:
+    // NOLINTNEXTLINE(readability-convert-member-functions-to-static)
+    void reflect(ApiReflector& r) { r.commands<&HelperBlock::helperCmd>(); }
+
+    // NOLINTNEXTLINE(readability-convert-member-functions-to-static)
+    ARRes helperCmd() const { return ARRes {"helper"}; }
+};
+
+class FlatSplitApi
+{
+public:
+    // NOLINTNEXTLINE(readability-convert-member-functions-to-static)
+    void reflect(ApiReflector& r)
+    {
+        r.commands<&FlatSplitApi::ownCmd>();
+        r.use(helper);
+    }
+
+    // NOLINTNEXTLINE(readability-convert-member-functions-to-static)
+    ARRes ownCmd() const { return ARRes {"own"}; }
+
+    HelperBlock helper;
+};
+} // namespace
+
+auto arSubApiFlatUseNoPrefix = test(
+    "ApiReflector: r.use(sub) without key installs sub commands at top level") = []
+{
+    auto api = FlatSplitApi {};
+    auto bridge = Bridge {};
+    bridge.use(api);
+
+    check(bridge.dispatch("ownCmd", JSON {})["echoed"].asString() == "own");
+    check(bridge.dispatch("helperCmd", JSON {})["echoed"].asString() == "helper");
+};
+
+auto arSubApiFlatDescribeNoPrefix = test(
+    "ApiReflector: DescribeReflector records flat-use() sub names without prefix") =
+    []
+{
+    auto describe = Detail::DescribeReflector {};
+    auto api = FlatSplitApi {};
+    api.reflect(describe);
+
+    check(findCmd(describe.commands, "ownCmd") != nullptr);
+    check(findCmd(describe.commands, "helperCmd") != nullptr);
+};

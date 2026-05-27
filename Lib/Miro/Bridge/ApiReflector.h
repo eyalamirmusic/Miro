@@ -38,6 +38,15 @@
 // descriptor, and dispatch through a virtual hook the concrete
 // reflectors override. Same trick CommandTable already uses to route
 // typed handlers through a runtime RawHandler.
+//
+// Sub-APIs: a reflect() body can defer to a member's own reflect()
+// via r.use("subname", member) — every command/event the sub declares
+// lands under "subname.<name>" on the wire and in DescribeReflector.
+// r.use(member) (no key) does the same with no prefix; useful for
+// splitting one API's reflect() across helper objects. Sub may
+// declare reflect() intrusively (Sub::reflect(ApiReflector&)) or via
+// a free reflect(Miro::ApiReflector&, Sub&) overload — same dual
+// dispatch the data Reflector uses.
 
 #include "../Reflection/CommandTable.h"
 #include "../Reflection/TypeName.h"
@@ -48,6 +57,7 @@
 #include <ea_data_structures/Pointers/OwningPointer.h>
 
 #include <functional>
+#include <string>
 #include <string_view>
 #include <utility>
 
@@ -55,6 +65,21 @@ namespace Miro
 {
 
 class Bridge;
+class ApiReflector;
+
+namespace Detail
+{
+
+template <typename T>
+concept HasApiReflectMember = requires(T& v, ApiReflector& r) { v.reflect(r); };
+
+template <typename T>
+concept HasApiExternalReflect = requires(T& v, ApiReflector& r) { reflect(r, v); };
+
+template <typename T>
+concept ApiReflectable = HasApiReflectMember<T> || HasApiExternalReflect<T>;
+
+} // namespace Detail
 
 // In-place variant of TypeTree::buildTree<T>(). The descriptors carry
 // these as `void(TypeNode&)` factories so DescribeReflector can build
@@ -163,8 +188,10 @@ public:
     {
         using Info = MethodInfo<Pmf>;
 
+        auto fullName = joinedName(name);
+
         auto d = Detail::CommandDescriptor {};
-        d.name = name;
+        d.name = fullName;
 
         if constexpr (Info::hasReq)
             d.req = Detail::makeTypeInfo<typename Info::Req>();
@@ -201,7 +228,8 @@ public:
     template <typename Pmd>
     void event(Pmd member, std::string_view name)
     {
-        eventImpl(makeEventDescriptor(member, name));
+        auto fullName = joinedName(name);
+        eventImpl(makeEventDescriptor(member, fullName));
     }
 
     // Name-free overload: derives the event name from the pmd itself.
@@ -231,18 +259,99 @@ public:
                     std::string_view collectionField,
                     std::string_view keyField)
     {
-        auto d = makeEventDescriptor(member, name);
+        auto fullName = joinedName(name);
+        auto d = makeEventDescriptor(member, fullName);
         d.isKeyed = true;
         d.collectionField = collectionField;
         d.keyField = keyField;
         eventImpl(d);
     }
 
+    // Recurse into a sub-API: every command/event the sub declares is
+    // emitted with "key." prepended on the wire and in
+    // DescribeReflector. The current API-instance pointer is swapped
+    // for &sub for the duration of the recursion so concrete
+    // reflectors that install pmf handlers cast against the right
+    // type. Sub may declare reflect() intrusively or as a free
+    // reflect(Miro::ApiReflector&, Sub&) overload (ADL).
+    template <typename Sub>
+        requires Detail::ApiReflectable<Sub>
+    void use(std::string_view key, Sub& sub)
+    {
+        frames.add(Frame {static_cast<void*>(&sub), std::string {key}});
+        dispatchSubReflect(sub);
+        frames.pop_back();
+    }
+
+    // Same as use(key, sub) but flat — no prefix contribution. Useful
+    // for splitting one API's reflect() across helper objects that
+    // share the wire namespace.
+    template <typename Sub>
+        requires Detail::ApiReflectable<Sub>
+    void use(Sub& sub)
+    {
+        frames.add(Frame {static_cast<void*>(&sub), std::string {}});
+        dispatchSubReflect(sub);
+        frames.pop_back();
+    }
+
 protected:
+    explicit ApiReflector(void* initialInstance = nullptr)
+    {
+        if (initialInstance != nullptr)
+            frames.add(Frame {initialInstance, std::string {}});
+    }
+
+    // Concrete reflectors call this from commandImpl/eventImpl to get
+    // the instance the descriptor's makeHandler / makeListener should
+    // bind against. Tracks the use<>() recursion stack — top frame is
+    // the deepest sub-API currently being walked.
+    void* currentApiInstance() const
+    {
+        return frames.empty() ? nullptr : frames.back().api;
+    }
+
     virtual void commandImpl(const Detail::CommandDescriptor&) = 0;
     virtual void eventImpl(const Detail::EventDescriptor&) = 0;
 
 private:
+    // One frame per active use<>() recursion (plus the initial frame
+    // pushed by concrete reflectors that need to bind handlers). The
+    // prefix is empty for frames pushed via the no-key use(sub)
+    // overload — joinedName skips them.
+    struct Frame
+    {
+        void* api = nullptr;
+        std::string prefix;
+    };
+
+    template <typename Sub>
+    void dispatchSubReflect(Sub& sub)
+    {
+        if constexpr (Detail::HasApiReflectMember<Sub>)
+            sub.reflect(*this);
+        else
+            reflect(*this, sub);
+    }
+
+    // Joins active prefixes with '.' and appends `local`. Empty prefix
+    // frames (from no-key use) contribute nothing. Result is a fresh
+    // std::string the caller keeps alive for the duration of
+    // commandImpl/eventImpl, which copies the name immediately.
+    std::string joinedName(std::string_view local) const
+    {
+        auto out = std::string {};
+        for (auto& f: frames)
+        {
+            if (f.prefix.empty())
+                continue;
+            out += f.prefix;
+            out += '.';
+        }
+        out += local;
+        return out;
+    }
+
     // Shared construction shared between event() and keyedEvent().
     // Captures Pmd-dependent type info via EventMemberInfo, populates
     // every Pmd-derived field — keyed metadata is filled in by the
@@ -274,6 +383,8 @@ private:
 
         return d;
     }
+
+    Vector<Frame> frames;
 };
 
 } // namespace Miro

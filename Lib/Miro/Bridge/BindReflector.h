@@ -30,8 +30,8 @@ class BindReflector : public ApiReflector
 {
 public:
     BindReflector(Bridge& bridgeToUse, void* apiInstanceToUse)
-        : bridge(bridgeToUse)
-        , apiInstance(apiInstanceToUse)
+        : ApiReflector(apiInstanceToUse)
+        , bridge(bridgeToUse)
     {
     }
 
@@ -46,7 +46,6 @@ protected:
 
 private:
     Bridge& bridge;
-    void* apiInstance;
 };
 
 } // namespace Detail
