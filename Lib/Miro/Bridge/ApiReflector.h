@@ -199,6 +199,7 @@ public:
     virtual ~ApiReflector() = default;
 
     template <typename Pmf>
+        requires std::is_member_function_pointer_v<Pmf>
     void command(Pmf method, std::string_view name)
     {
         using Info = MethodInfo<Pmf>;
@@ -226,9 +227,75 @@ public:
     // via Detail::memberNameOf<Pmf>(). Prefer this in fresh reflect()
     // bodies — the string overload above stays available for renames.
     template <auto Pmf>
+        requires std::is_member_function_pointer_v<decltype(Pmf)>
     void command()
     {
         command(Pmf, Detail::memberNameOf<Pmf>());
+    }
+
+    // Free-function command: same wiring as the pmf overload, but with
+    // no instance to bind — the descriptor's makeHandler ignores the
+    // apiInstance pointer and routes the call straight through the
+    // function pointer. FunctionInfo<F*> supplies the same hasReq /
+    // hasRes / Req / Res shape MethodInfo provides for pmfs.
+    template <auto Func>
+        requires std::is_function_v<std::remove_pointer_t<decltype(Func)>>
+    void command()
+    {
+        using Info = FunctionInfo<decltype(Func)>;
+
+        auto fullName = joinedName(Detail::memberNameOf<Func>());
+
+        auto d = Detail::CommandDescriptor {};
+        d.name = fullName;
+
+        if constexpr (Info::hasReq)
+            d.req = Detail::makeTypeInfo<typename Info::Req>();
+        if constexpr (Info::hasRes)
+            d.res = Detail::makeTypeInfo<typename Info::Res>();
+
+        d.makeHandler = [](void*) -> CommandTable::RawHandler
+        {
+            return Detail::makeJsonAdapter<Info>(
+                [](auto&&... args) -> decltype(auto)
+                { return Func(std::forward<decltype(args)>(args)...); });
+        };
+
+        commandImpl(d);
+    }
+
+    // Callable-object command: accepts lambdas (capturing and
+    // captureless), std::function, and other invocables with a single
+    // operator(). Req/Res are recovered from MethodInfo<&Callable::
+    // operator()>, so any of the four shapes the pmf path supports
+    // (Res(Req) / Res() / void(Req) / void()) work here too.
+    //
+    // Explicit name only — lambda types have no source-derived name
+    // for memberNameOf to extract, so the caller must supply one.
+    template <typename Callable>
+        requires(!std::is_member_function_pointer_v<Callable>
+                 && !std::is_function_v<std::remove_pointer_t<Callable>>
+                 && requires { &Callable::operator(); })
+    void command(Callable callable, std::string_view name)
+    {
+        using Pmf = decltype(&Callable::operator());
+        using Info = MethodInfo<Pmf>;
+
+        auto fullName = joinedName(name);
+
+        auto d = Detail::CommandDescriptor {};
+        d.name = fullName;
+
+        if constexpr (Info::hasReq)
+            d.req = Detail::makeTypeInfo<typename Info::Req>();
+        if constexpr (Info::hasRes)
+            d.res = Detail::makeTypeInfo<typename Info::Res>();
+
+        d.makeHandler = [c = std::move(callable)](void*) mutable
+            -> CommandTable::RawHandler
+        { return Detail::makeJsonAdapter<Info>(std::move(c)); };
+
+        commandImpl(d);
     }
 
     // Variadic sugar so a whole API can be declared in one statement:
@@ -372,13 +439,14 @@ private:
 
     // One step of the pack expansion driven by api<...>. Kept private
     // so the variadic entry is the only public surface — the dispatch
-    // shape (pmf / event / sub) is an implementation detail.
+    // shape (pmf / free fn / event / sub) is an implementation detail.
     template <auto Member, typename Self>
     void apiOne(Self& self)
     {
         using M = decltype(Member);
 
-        if constexpr (std::is_member_function_pointer_v<M>)
+        if constexpr (std::is_member_function_pointer_v<M>
+                      || std::is_function_v<std::remove_pointer_t<M>>)
         {
             command<Member>();
         }

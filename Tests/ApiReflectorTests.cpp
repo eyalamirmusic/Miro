@@ -921,8 +921,8 @@ public:
 
 } // namespace
 
-auto unifiedApiInstallsCommand = test(
-    "MIRO_REFLECT_API: pmf becomes a command auto-named after the method") = []
+auto unifiedApiInstallsCommand =
+    test("MIRO_REFLECT_API: pmf becomes a command auto-named after the method") = []
 {
     auto api = UnifiedHostApi {};
     auto bridge = Bridge {};
@@ -945,9 +945,9 @@ auto unifiedApiInstallsEvent = test(
     check(capture.lastPayload["echoed"].asString() == "tick");
 };
 
-auto unifiedApiInstallsSubApi = test(
-    "MIRO_REFLECT_API: ApiReflectable data member becomes a sub-API "
-    "prefixed by the identifier") = []
+auto unifiedApiInstallsSubApi =
+    test("MIRO_REFLECT_API: ApiReflectable data member becomes a sub-API "
+         "prefixed by the identifier") = []
 {
     auto api = UnifiedHostApi {};
     auto bridge = Bridge {};
@@ -999,4 +999,143 @@ auto unifiedApiDirectVariadic = test(
     auto capture = EmitCapture {bridge};
     api.beep.publish(ARRes {"boop"});
     check(capture.lastEvent == "beep");
+};
+
+// ---------- Free-function and lambda commands ----------
+//
+// r.command<&freeFn>() handles free-function pointers (template form,
+// name auto-derived via memberNameOf). r.command(callable, name)
+// handles anything else with operator() — capturing lambdas,
+// captureless lambdas, std::function — using MethodInfo<&Lambda::
+// operator()> to recover the Req/Res shape.
+
+namespace
+{
+ARRes freeEcho(const ARReq& req)
+{
+    return ARRes {"free:" + req.text};
+}
+
+int freeTickCalls = 0;
+void freeTick()
+{
+    freeTickCalls++;
+}
+
+class FreeFnHostApi
+{
+public:
+    Event<ARRes> beat;
+    int captures = 0;
+
+    void reflect(ApiReflector& r)
+    {
+        // Members via api<>
+        r.api<&FreeFnHostApi::beat>(*this);
+
+        // Free functions via command<> (template form, auto-named)
+        r.command<&freeEcho>();
+        r.command<&freeTick>();
+
+        // Capturing lambda — closes over *this to count invocations.
+        r.command(
+            [this](const ARReq& req) -> ARRes
+            {
+                captures++;
+                return ARRes {"lambda:" + req.text + ":" + std::to_string(captures)};
+            },
+            "lambdaCmd");
+
+        // Captureless lambda — implicitly convertible to fn ptr but
+        // value form should accept it directly.
+        r.command([](const ARReq& req) -> ARRes
+                  { return ARRes {"clean:" + req.text}; },
+                  "cleanCmd");
+    }
+};
+} // namespace
+
+auto freeFnCommandDispatch =
+    test("ApiReflector::command<&freeFn>(): registers a free function as a "
+         "command with auto-derived name") = []
+{
+    freeTickCalls = 0;
+    auto api = FreeFnHostApi {};
+    auto bridge = Bridge {};
+    bridge.use(api);
+
+    auto r1 = bridge.dispatch("freeEcho", Json::parse(R"({"text":"hi"})"));
+    check(r1["echoed"].asString() == "free:hi");
+
+    bridge.dispatch("freeTick", JSON {});
+    check(freeTickCalls == 1);
+};
+
+auto capturingLambdaCommand =
+    test("ApiReflector::command(lambda, name): capturing lambda as a command "
+         "preserves state across invocations") = []
+{
+    auto api = FreeFnHostApi {};
+    auto bridge = Bridge {};
+    bridge.use(api);
+
+    auto r1 = bridge.dispatch("lambdaCmd", Json::parse(R"({"text":"a"})"));
+    check(r1["echoed"].asString() == "lambda:a:1");
+
+    auto r2 = bridge.dispatch("lambdaCmd", Json::parse(R"({"text":"b"})"));
+    check(r2["echoed"].asString() == "lambda:b:2");
+
+    check(api.captures == 2);
+};
+
+auto capturelessLambdaCommand =
+    test("ApiReflector::command(lambda, name): captureless lambda as a command") = []
+{
+    auto api = FreeFnHostApi {};
+    auto bridge = Bridge {};
+    bridge.use(api);
+
+    auto r = bridge.dispatch("cleanCmd", Json::parse(R"({"text":"x"})"));
+    check(r["echoed"].asString() == "clean:x");
+};
+
+auto freeFnDescribeRecords =
+    test("ApiReflector: describe walk records free-fn and lambda commands alongside "
+         "method commands and events") = []
+{
+    auto describe = Detail::DescribeReflector {};
+    auto api = FreeFnHostApi {};
+    api.reflect(describe);
+
+    check(findCmd(describe.commands, "freeEcho") != nullptr);
+    check(findCmd(describe.commands, "freeTick") != nullptr);
+    check(findCmd(describe.commands, "lambdaCmd") != nullptr);
+    check(findCmd(describe.commands, "cleanCmd") != nullptr);
+    check(findEvt(describe.events, "beat") != nullptr);
+};
+
+auto freeFnApiDispatcher =
+    test("ApiReflector::api<&freeFn>(*this): free function pointer routes through "
+         "the command path") = []
+{
+    struct DispatchHost
+    {
+        Event<ARRes> tick;
+
+        void reflect(ApiReflector& r)
+        {
+            r.api<&freeEcho, &DispatchHost::tick>(*this);
+        }
+    };
+
+    auto api = DispatchHost {};
+    auto bridge = Bridge {};
+    bridge.use(api);
+
+    auto r1 = bridge.dispatch("freeEcho", Json::parse(R"({"text":"q"})"));
+    check(r1["echoed"].asString() == "free:q");
+
+    auto capture = EmitCapture {bridge};
+    api.tick.publish(ARRes {"t"});
+    check(capture.lastEvent == "tick");
 };
