@@ -99,6 +99,37 @@
 #define MIRO_API(refExpr, ...)                                                      \
     MIRO_FOR_EACH_WITH(MIRO_API_FIELD, refExpr, __VA_ARGS__)
 
+#define MIRO_REFLECT_API_FIELD(refExpr, field)                                      \
+    refExpr.template api<&MiroReflectApiSelf::field>(*this);
+
+// ApiReflector sibling of MIRO_REFLECT: generates a reflect() body that
+// hands each listed member to ApiReflector::api<...>(*this). Each
+// member is auto-classified — a method becomes a command, an Event<T>
+// data member becomes an event, and an ApiReflectable data member
+// becomes a sub-API installed under its identifier as prefix.
+//
+// Usage:
+//   class Todos
+//   {
+//   public:
+//       TodoState getTodos() const;
+//       void addTodo(const AddRequest& req);
+//       Miro::Event<TodoState> changes;
+//       FilesSubApi files;
+//
+//       MIRO_REFLECT_API(getTodos, addTodo, changes, files)
+//   };
+//
+// Requires <Miro/Miro.h> (or Bridge/ApiReflector.h + <type_traits>) in
+// scope at expansion.
+#define MIRO_REFLECT_API(...)                                                       \
+    void reflect(Miro::ApiReflector& __VA_OPT__(r))                                 \
+    {                                                                               \
+        __VA_OPT__(                                                                 \
+            using MiroReflectApiSelf = std::remove_cvref_t<decltype(*this)>;)       \
+        MIRO_FOR_EACH_WITH(MIRO_REFLECT_API_FIELD, r, __VA_ARGS__)                  \
+    }
+
 #define MIRO_REFLECT(...)                                                           \
     void reflect(Miro::Reflector& __VA_OPT__(ref))                                  \
     {                                                                               \

@@ -886,3 +886,117 @@ auto arSubApiMacroDescribePrefixed = test(
     check(findCmd(describe.commands, "users.list") != nullptr);
     check(findEvt(describe.events, "files.changed") != nullptr);
 };
+
+// ---------- MIRO_REFLECT_API: unified pmf / pmd / sub-API dispatch ----------
+//
+// MIRO_REFLECT_API(a, b, c) generates a `reflect(ApiReflector&)` body
+// that classifies each listed member by its kind and dispatches to the
+// right overload — pmf → command, pmd to Event<T> → event, pmd to an
+// ApiReflectable type → use(memberName, *this.field). Hand-written
+// reflect() bodies can call r.api<&T::field>(*this) directly.
+
+namespace
+{
+
+class UnifiedFilesSub
+{
+public:
+    ARRes read() const { return ARRes {"unified-read"}; }
+
+    Event<ARRes> changed;
+
+    MIRO_REFLECT_API(read, changed)
+};
+
+class UnifiedHostApi
+{
+public:
+    ARRes ping() const { return ARRes {"unified-pong"}; }
+
+    Event<ARRes> beat;
+    UnifiedFilesSub files;
+
+    MIRO_REFLECT_API(ping, beat, files)
+};
+
+} // namespace
+
+auto unifiedApiInstallsCommand = test(
+    "MIRO_REFLECT_API: pmf becomes a command auto-named after the method") = []
+{
+    auto api = UnifiedHostApi {};
+    auto bridge = Bridge {};
+    bridge.use(api);
+
+    check(bridge.dispatch("ping", JSON {})["echoed"].asString() == "unified-pong");
+};
+
+auto unifiedApiInstallsEvent = test(
+    "MIRO_REFLECT_API: Event<T> data member becomes an event under its name") = []
+{
+    auto api = UnifiedHostApi {};
+    auto bridge = Bridge {};
+    bridge.use(api);
+
+    auto capture = EmitCapture {bridge};
+    api.beat.publish(ARRes {"tick"});
+
+    check(capture.lastEvent == "beat");
+    check(capture.lastPayload["echoed"].asString() == "tick");
+};
+
+auto unifiedApiInstallsSubApi = test(
+    "MIRO_REFLECT_API: ApiReflectable data member becomes a sub-API "
+    "prefixed by the identifier") = []
+{
+    auto api = UnifiedHostApi {};
+    auto bridge = Bridge {};
+    bridge.use(api);
+
+    check(bridge.dispatch("files.read", JSON {})["echoed"].asString()
+          == "unified-read");
+
+    auto capture = EmitCapture {bridge};
+    api.files.changed.publish(ARRes {"file-change"});
+
+    check(capture.lastEvent == "files.changed");
+};
+
+auto unifiedApiDescribeNames =
+    test("MIRO_REFLECT_API: describe walk records all three kinds correctly") = []
+{
+    auto describe = Detail::DescribeReflector {};
+    auto api = UnifiedHostApi {};
+    api.reflect(describe);
+
+    check(findCmd(describe.commands, "ping") != nullptr);
+    check(findCmd(describe.commands, "files.read") != nullptr);
+    check(findEvt(describe.events, "beat") != nullptr);
+    check(findEvt(describe.events, "files.changed") != nullptr);
+};
+
+auto unifiedApiDirectVariadic = test(
+    "ApiReflector::api<...>(*this): hand-written variadic form covers all kinds") =
+    []
+{
+    struct DirectApi
+    {
+        ARRes hello() const { return ARRes {"direct"}; }
+        Event<ARRes> beep;
+
+        void reflect(ApiReflector& r)
+        {
+            r.api<&DirectApi::hello, &DirectApi::beep>(*this);
+        }
+    };
+
+    auto api = DirectApi {};
+    auto bridge = Bridge {};
+    bridge.use(api);
+
+    check(bridge.dispatch("hello", JSON {})["echoed"].asString() == "direct");
+
+    auto capture = EmitCapture {bridge};
+    api.beep.publish(ARRes {"boop"});
+    check(capture.lastEvent == "beep");
+};

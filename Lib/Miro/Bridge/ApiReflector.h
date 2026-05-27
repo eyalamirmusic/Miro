@@ -59,6 +59,7 @@
 #include <functional>
 #include <string>
 #include <string_view>
+#include <type_traits>
 #include <utility>
 
 namespace Miro
@@ -78,6 +79,20 @@ concept HasApiExternalReflect = requires(T& v, ApiReflector& r) { reflect(r, v);
 
 template <typename T>
 concept ApiReflectable = HasApiReflectMember<T> || HasApiExternalReflect<T>;
+
+// Sibling of MethodInfo<Pmf> for pmds — extracts owning class + value
+// type from a pointer-to-data-member. ApiReflector::api<...> uses it to
+// recover the field type from each `&T::field` template argument so it
+// can branch on EventLike<T> vs ApiReflectable<T>.
+template <typename>
+struct PmdTraits;
+
+template <typename C, typename T>
+struct PmdTraits<T C::*>
+{
+    using Class = C;
+    using Type = T;
+};
 
 } // namespace Detail
 
@@ -267,6 +282,27 @@ public:
         eventImpl(d);
     }
 
+    // Unified dispatcher: classifies each Member at compile time and
+    // forwards to the matching overload. A pmf becomes a command
+    // (auto-named); a pmd to Event<T> / RefEvent<T> becomes an event
+    // (auto-named); a pmd to an ApiReflectable type becomes a sub-API
+    // installed under the field identifier as prefix (so the field
+    // name doubles as the wire-name prefix).
+    //
+    // `self` is passed explicitly so the dispatcher can deref pmds
+    // (`self.*Member`) without consulting currentApiInstance() — that
+    // path works in both bind and describe modes without requiring the
+    // concrete reflector to push an initial frame.
+    //
+    // Mostly invoked through MIRO_REFLECT_API. Hand-written reflect()
+    // bodies can call it directly: r.api<&T::a, &T::b>(*this).
+    template <auto... Members, typename Self>
+        requires(sizeof...(Members) > 0)
+    void api(Self& self)
+    {
+        (apiOne<Members>(self), ...);
+    }
+
     // Recurse into a sub-API: every command/event the sub declares is
     // emitted with "key." prepended on the wire and in
     // DescribeReflector. The current API-instance pointer is swapped
@@ -332,6 +368,34 @@ private:
             sub.reflect(*this);
         else
             reflect(*this, sub);
+    }
+
+    // One step of the pack expansion driven by api<...>. Kept private
+    // so the variadic entry is the only public surface — the dispatch
+    // shape (pmf / event / sub) is an implementation detail.
+    template <auto Member, typename Self>
+    void apiOne(Self& self)
+    {
+        using M = decltype(Member);
+
+        if constexpr (std::is_member_function_pointer_v<M>)
+        {
+            command<Member>();
+        }
+        else
+        {
+            using Type = typename Detail::PmdTraits<M>::Type;
+
+            if constexpr (EventLike<Type>)
+                event<Member>();
+            else if constexpr (Detail::ApiReflectable<Type>)
+                use(Detail::memberNameOf<Member>(), self.*Member);
+            else
+                static_assert(sizeof(Type) == 0,
+                              "ApiReflector::api: member is neither a "
+                              "callable, an Event<T>, nor an "
+                              "ApiReflectable sub-API.");
+        }
     }
 
     // Joins active prefixes with '.' and appends `local`. Empty prefix
