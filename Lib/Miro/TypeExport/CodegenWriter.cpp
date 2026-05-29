@@ -25,7 +25,7 @@ namespace
 
 void writeFile(const ghc::filesystem::path& path, const std::string& contents)
 {
-    auto out = std::ofstream {path};
+    auto out = std::ofstream {path, std::ios::binary};
     out << contents;
     std::cout << "Wrote " << path.string() << "\n";
 }
