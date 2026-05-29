@@ -17,7 +17,7 @@ namespace
 // One node in the namespace tree built from CommandEntry::name. A node
 // is either a leaf (carries a CommandEntry) or a branch (carries
 // children). Mixing the two at the same path — e.g. registering both
-// `api` and `api::ping` — is a structural error and is rejected by
+// `api` and `api.ping` — is a structural error and is rejected by
 // insertCommand.
 //
 // Children go through OwningPointer so CommandNode can hold a vector of
@@ -42,10 +42,15 @@ struct CommandNode
 
 Vector<std::string> commandPathSegments(std::string_view name)
 {
-    auto segments = Miro::Detail::splitOn(name, "::");
+    // ApiReflector::joinedName joins sub-API prefixes with a literal '.'
+    // (the wire-protocol separator the Bridge dispatches against), so
+    // r.use("todos", sub) yielding a method `getChanged` lands here as
+    // "todos.getChanged". Split on that same '.' so the emitted module
+    // mirrors the recursion shape: { todos: { getChanged: ... } }.
+    auto segments = Miro::Detail::splitOn(name, ".");
 
     // Tolerate whitespace around the separator so a command name like
-    // "a :: b" (whether handwritten or produced by a name-derivation
+    // "a . b" (whether handwritten or produced by a name-derivation
     // path that preserves it) still splits cleanly into ["a", "b"].
     for (auto& segment: segments)
         segment = Miro::Detail::trimAsciiWhitespace(segment);

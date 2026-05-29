@@ -18,9 +18,10 @@ namespace Miro::Cpp
 // generated client works over HTTP, a webview bridge, or any other
 // JSON-in / JSON-out transport.
 //
-// Nested command names (e.g. "api::ping") flatten into method names
-// using '_' as the separator (Client::api_ping). The original "::"
-// form is preserved on the wire.
+// Nested command names (e.g. "api.ping" — produced by sub-API
+// recursion in ApiReflector) flatten into method names using '_' as
+// the separator (Client::api_ping). The original "."-joined form is
+// preserved on the wire.
 //
 // `typesHeader` is the basename of the matching .miro.h types file
 // (e.g. "schema") emitted by the cpp-miro format. The generated header

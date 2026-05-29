@@ -204,14 +204,14 @@ auto cctVoidNoArgMethod = test("CppClient: void() emits no-arg void method") = [
 };
 
 auto cctNamespacedFlattened =
-    test("CppClient: a::b::name flattens to a_b_name with original wire name") = []
+    test("CppClient: a.b.name flattens to a_b_name with original wire name") = []
 {
     auto roots = std::vector<TypeTree::TypeNode> {};
     roots.push_back(TypeTree::buildTree<CCTEchoRequest>());
     roots.push_back(TypeTree::buildTree<CCTEchoResponse>());
 
     auto entries = std::vector<CommandExport::CommandEntry> {
-        makeEntry("api::v2::echo",
+        makeEntry("api.v2.echo",
                   true,
                   std::string {Detail::typeNameOf<CCTEchoRequest>()},
                   std::string {Detail::qualifiedNameOf<CCTEchoRequest>()},
@@ -224,5 +224,5 @@ auto cctNamespacedFlattened =
         std::span<TypeTree::TypeNode> {roots}, entries, "schema");
 
     check(contains(out, "::CCTEchoResponse api_v2_echo(const ::CCTEchoRequest&"));
-    check(contains(out, "invoker(\"api::v2::echo\", payload);"));
+    check(contains(out, "invoker(\"api.v2.echo\", payload);"));
 };

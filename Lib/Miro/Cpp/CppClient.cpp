@@ -15,7 +15,7 @@ namespace
 
 std::string flattenMethodName(std::string_view command)
 {
-    return Detail::replaceAll(command, "::", "_");
+    return Detail::replaceAll(command, ".", "_");
 }
 
 void emitMethod(std::ostringstream& out,

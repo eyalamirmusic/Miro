@@ -186,14 +186,14 @@ auto cetBackendVoidNoArg =
 };
 
 auto cetBackendNamespaceNests =
-    test("CommandExport: a::b::name produces nested objects") = []
+    test("CommandExport: a.b.name produces nested objects") = []
 {
     auto roots = std::vector<TypeTree::TypeNode> {};
     roots.push_back(TypeTree::buildTree<CETEchoRequest>());
     roots.push_back(TypeTree::buildTree<CETEchoResponse>());
 
     auto entries = std::vector<CommandExport::CommandEntry> {
-        makeEntry("api::v2::echo",
+        makeEntry("api.v2.echo",
                   true,
                   std::string {Detail::typeNameOf<CETEchoRequest>()},
                   std::string {Detail::qualifiedNameOf<CETEchoRequest>()},
@@ -208,7 +208,7 @@ auto cetBackendNamespaceNests =
     check(contains(out, "api: {"));
     check(contains(out, "v2: {"));
     check(contains(out, "echo: (req: T.CETEchoRequest)"));
-    check(contains(out, "invoke('api::v2::echo', req)"));
+    check(contains(out, "invoke('api.v2.echo', req)"));
 };
 
 // ---------- formatServerHandlersModule output ----------
@@ -349,14 +349,14 @@ auto cetHandlersVoidNoArg =
 };
 
 auto cetHandlersNamespaceNests =
-    test("CommandExport (handlers): a::b::name nests in type and dispatch") = []
+    test("CommandExport (handlers): a.b.name nests in type and dispatch") = []
 {
     auto roots = std::vector<TypeTree::TypeNode> {};
     roots.push_back(TypeTree::buildTree<CETEchoRequest>());
     roots.push_back(TypeTree::buildTree<CETEchoResponse>());
 
     auto entries = std::vector<CommandExport::CommandEntry> {
-        makeEntry("api::v2::echo",
+        makeEntry("api.v2.echo",
                   true,
                   std::string {Detail::typeNameOf<CETEchoRequest>()},
                   std::string {Detail::qualifiedNameOf<CETEchoRequest>()},
@@ -372,7 +372,7 @@ auto cetHandlersNamespaceNests =
     check(contains(out, "v2: {"));
     check(contains(out, "echo(req: T.CETEchoRequest)"));
     check(contains(out,
-                   "case 'api::v2::echo': return await handlers.api.v2.echo("
+                   "case 'api.v2.echo': return await handlers.api.v2.echo("
                    "payload as T.CETEchoRequest);"));
 };
 
@@ -388,7 +388,7 @@ auto cetBackendCollisionThrows =
 
     auto entries = std::vector<CommandExport::CommandEntry> {
         makeEntry("api", false, "", "", true, resName, resQual),
-        makeEntry("api::ping", false, "", "", true, resName, resQual),
+        makeEntry("api.ping", false, "", "", true, resName, resQual),
     };
 
     auto threw = false;

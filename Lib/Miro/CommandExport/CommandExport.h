@@ -12,10 +12,12 @@ namespace Miro::CommandExport
 
 // Emits a transport-agnostic TypeScript module exposing each
 // registered command as a typed wrapper around an Invoke callback.
-// Commands whose names contain "::" become nested objects on the
-// returned shape (so api::ping → backend.api.ping). Empty-request
-// types and void-returning handlers collapse to no-arg / void
-// signatures respectively.
+// Commands whose names contain "." become nested objects on the
+// returned shape (so api.ping → backend.api.ping). The '.' separator
+// matches what ApiReflector::joinedName produces for sub-APIs
+// declared via r.use("key", member). Empty-request types and
+// void-returning handlers collapse to no-arg / void signatures
+// respectively.
 //
 // typeRoots must be the TypeNode list for every type referenced by
 // the commands — the caller is responsible for building them via
