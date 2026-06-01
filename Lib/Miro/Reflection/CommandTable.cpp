@@ -19,8 +19,7 @@ bool CommandTable::has(std::string_view command) const
     return handlers.contains(std::string {command});
 }
 
-JSON CommandTable::dispatch(std::string_view command,
-                                   const JSON& payload) const
+JSON CommandTable::dispatch(std::string_view command, const JSON& payload) const
 {
     auto it = handlers.find(std::string {command});
 
@@ -28,6 +27,21 @@ JSON CommandTable::dispatch(std::string_view command,
         throw UnknownCommandError(std::string {command});
 
     return it->second(payload);
+}
+
+void CommandTable::dispatchAsync(std::string_view command,
+                                 const JSON& payload,
+                                 const Resolve& resolve) const
+{
+    try
+    {
+        resolve(dispatch(command, payload), nullptr);
+    }
+    catch (const std::exception& e)
+    {
+        auto message = std::string {e.what()};
+        resolve(JSON {}, &message);
+    }
 }
 
 } // namespace Miro

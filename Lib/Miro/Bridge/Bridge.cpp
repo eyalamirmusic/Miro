@@ -8,6 +8,13 @@ JSON Bridge::dispatch(std::string_view command, const JSON& payloadToUse) const
     return commands.dispatch(command, payloadToUse);
 }
 
+void Bridge::dispatchAsync(std::string_view command,
+                           const JSON& payloadToUse,
+                           const Resolve& resolve) const
+{
+    commands.dispatchAsync(command, payloadToUse, resolve);
+}
+
 void Bridge::emitJson(const std::string& eventToUse, const JSON& payloadToUse)
 {
     event = eventToUse;

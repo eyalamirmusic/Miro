@@ -75,6 +75,14 @@ public:
 
     JSON dispatch(std::string_view command, const JSON& payloadToUse) const;
 
+    // Async dispatch transports call: an async command settles `resolve`
+    // later (from whatever thread marshals back); a sync command runs
+    // inline and forwards its result to `resolve` immediately. See
+    // CommandTable::dispatchAsync.
+    void dispatchAsync(std::string_view command,
+                       const JSON& payloadToUse,
+                       const Resolve& resolve) const;
+
     // Walks api.reflect(...) with a BindReflector — each command lands
     // in this bridge's CommandTable, each event subscribes a Listener
     // owned by the bridge (so subscriptions die with the bridge, not

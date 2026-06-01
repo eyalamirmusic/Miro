@@ -15,6 +15,15 @@
 
 namespace Miro
 {
+// The completion seam between Miro and a host's async runtime. Miro is
+// deliberately event-loop-agnostic: dispatchAsync runs the (synchronous)
+// command handler and reports the outcome by invoking this std::function
+// exactly once — a JSON result (error == nullptr) on success, or a
+// non-null error message on failure. A transport hands in a Resolve whose
+// body it controls; that's where the host decides threading. Mirrors the
+// WebView wire's deliver(id, result, error).
+using Resolve = std::function<void(const JSON& result, const std::string* error)>;
+
 struct EmptyValue
 {
     static void reflect(Reflector&) {}
@@ -147,6 +156,16 @@ public:
     bool has(std::string_view command) const;
 
     JSON dispatch(std::string_view command, const JSON& payload) const;
+
+    // Completion-based dispatch: runs the (synchronous) handler and
+    // reports the outcome through `resolve` — the result on success, or
+    // the message of any thrown exception (including an unknown command)
+    // as the error. Miro never blocks or threads here; a transport that
+    // wants the call to be asynchronous controls that by where it invokes
+    // dispatchAsync and what its Resolve does (see eacp's WebViewBridge).
+    void dispatchAsync(std::string_view command,
+                       const JSON& payload,
+                       const Resolve& resolve) const;
 
 private:
     void registerHandler(const std::string& command, const RawHandler& handler);
