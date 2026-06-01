@@ -41,6 +41,7 @@ struct MethodInfo<R (C::*)(const A&)>
     static constexpr bool hasReq = true;
     static constexpr bool hasRes = !std::is_void_v<R>;
     static constexpr bool isConst = false;
+    static constexpr bool isAsync = false;
 };
 
 template <typename C, typename R, typename A>
@@ -52,6 +53,7 @@ struct MethodInfo<R (C::*)(const A&) const>
     static constexpr bool hasReq = true;
     static constexpr bool hasRes = !std::is_void_v<R>;
     static constexpr bool isConst = true;
+    static constexpr bool isAsync = false;
 };
 
 template <typename C, typename R>
@@ -63,6 +65,7 @@ struct MethodInfo<R (C::*)()>
     static constexpr bool hasReq = false;
     static constexpr bool hasRes = !std::is_void_v<R>;
     static constexpr bool isConst = false;
+    static constexpr bool isAsync = false;
 };
 
 template <typename C, typename R>
@@ -74,6 +77,63 @@ struct MethodInfo<R (C::*)() const>
     static constexpr bool hasReq = false;
     static constexpr bool hasRes = !std::is_void_v<R>;
     static constexpr bool isConst = true;
+    static constexpr bool isAsync = false;
+};
+
+// ---------- Async (Completer) pmf traits ----------
+//
+// A continuation-style handler `void(const Req&, Completer<Res>)` (or the
+// no-request `void(Completer<Res>)`) — derives the same Req / Res / hasReq
+// / hasRes fields as the synchronous shapes so it plugs into the shared
+// adapters, and flags isAsync so ApiReflector routes it through onAsync.
+// Res is recovered from the Completer's type argument (void → no response).
+
+template <typename C, typename A, typename R>
+struct MethodInfo<void (C::*)(const A&, Completer<R>)>
+{
+    using Class = C;
+    using Req = A;
+    using Res = R;
+    static constexpr bool hasReq = true;
+    static constexpr bool hasRes = !std::is_void_v<R>;
+    static constexpr bool isConst = false;
+    static constexpr bool isAsync = true;
+};
+
+template <typename C, typename A, typename R>
+struct MethodInfo<void (C::*)(const A&, Completer<R>) const>
+{
+    using Class = C;
+    using Req = A;
+    using Res = R;
+    static constexpr bool hasReq = true;
+    static constexpr bool hasRes = !std::is_void_v<R>;
+    static constexpr bool isConst = true;
+    static constexpr bool isAsync = true;
+};
+
+template <typename C, typename R>
+struct MethodInfo<void (C::*)(Completer<R>)>
+{
+    using Class = C;
+    using Req = void;
+    using Res = R;
+    static constexpr bool hasReq = false;
+    static constexpr bool hasRes = !std::is_void_v<R>;
+    static constexpr bool isConst = false;
+    static constexpr bool isAsync = true;
+};
+
+template <typename C, typename R>
+struct MethodInfo<void (C::*)(Completer<R>) const>
+{
+    using Class = C;
+    using Req = void;
+    using Res = R;
+    static constexpr bool hasReq = false;
+    static constexpr bool hasRes = !std::is_void_v<R>;
+    static constexpr bool isConst = true;
+    static constexpr bool isAsync = true;
 };
 
 // ---------- Event-member pointer traits ----------
@@ -112,6 +172,7 @@ struct FunctionInfo<R (*)(const A&)>
     using Res = R;
     static constexpr bool hasReq = true;
     static constexpr bool hasRes = !std::is_void_v<R>;
+    static constexpr bool isAsync = false;
 };
 
 template <typename R>
@@ -121,6 +182,7 @@ struct FunctionInfo<R (*)()>
     using Res = R;
     static constexpr bool hasReq = false;
     static constexpr bool hasRes = !std::is_void_v<R>;
+    static constexpr bool isAsync = false;
 };
 
 // ---------- makePmfHandler — pmf-to-RawHandler ----------
@@ -158,6 +220,21 @@ CommandTable::RawHandler makePmfHandler(Pmf method,
     return Detail::makeJsonAdapter<Info>(
         [method, instancePtr](auto&&... args) -> decltype(auto)
         { return ((*instancePtr).*method)(std::forward<decltype(args)>(args)...); });
+}
+
+// Async sibling of makePmfHandler: binds an async pmf (void(const Req&,
+// Completer<Res>) / void(Completer<Res>)) to an instance and wraps it as
+// an AsyncRawHandler via makeAsyncJsonAdapter. The handler returns void —
+// the Completer carries the result out — so no decltype(auto) here.
+template <typename Pmf>
+CommandTable::AsyncRawHandler
+    makeAsyncPmfHandler(Pmf method, typename MethodInfo<Pmf>::Class& instance)
+{
+    using Info = MethodInfo<Pmf>;
+    auto* instancePtr = &instance;
+    return Detail::makeAsyncJsonAdapter<Info>(
+        [method, instancePtr](auto&&... args)
+        { ((*instancePtr).*method)(std::forward<decltype(args)>(args)...); });
 }
 
 } // namespace Miro

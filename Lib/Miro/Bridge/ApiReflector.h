@@ -149,6 +149,8 @@ TypeInfo makeTypeInfo()
 struct CommandDescriptor
 {
     using HandlerFunc = std::function<CommandTable::RawHandler(void* apiInstance)>;
+    using AsyncHandlerFunc =
+        std::function<CommandTable::AsyncRawHandler(void* apiInstance)>;
 
     std::string_view name;
 
@@ -157,7 +159,13 @@ struct CommandDescriptor
     TypeInfo req;
     TypeInfo res;
 
+    // Exactly one of these is populated. An async command (handler shaped
+    // void(Req, Completer<Res>)) sets makeAsyncHandler; every other shape
+    // sets makeHandler. req/res are filled identically either way, so
+    // codegen reflectors that only read name/req/res need no async
+    // awareness — the binding side picks the path (see BindReflector).
     HandlerFunc makeHandler;
+    AsyncHandlerFunc makeAsyncHandler;
 };
 
 // Sibling descriptor for an Event<T> member. `makeListener` builds an
@@ -214,11 +222,23 @@ public:
         if constexpr (Info::hasRes)
             d.res = Detail::makeTypeInfo<typename Info::Res>();
 
-        d.makeHandler = [method](void* apiInstance) -> CommandTable::RawHandler
+        if constexpr (Info::isAsync)
         {
-            auto& api = *static_cast<typename Info::Class*>(apiInstance);
-            return makePmfHandler(method, api);
-        };
+            d.makeAsyncHandler =
+                [method](void* apiInstance) -> CommandTable::AsyncRawHandler
+            {
+                auto& api = *static_cast<typename Info::Class*>(apiInstance);
+                return makeAsyncPmfHandler(method, api);
+            };
+        }
+        else
+        {
+            d.makeHandler = [method](void* apiInstance) -> CommandTable::RawHandler
+            {
+                auto& api = *static_cast<typename Info::Class*>(apiInstance);
+                return makePmfHandler(method, api);
+            };
+        }
 
         commandImpl(d);
     }
@@ -291,9 +311,18 @@ public:
         if constexpr (Info::hasRes)
             d.res = Detail::makeTypeInfo<typename Info::Res>();
 
-        d.makeHandler = [c = std::move(callable)](void*) mutable
-            -> CommandTable::RawHandler
-        { return Detail::makeJsonAdapter<Info>(std::move(c)); };
+        if constexpr (Info::isAsync)
+        {
+            d.makeAsyncHandler = [c = std::move(callable)](
+                                     void*) mutable -> CommandTable::AsyncRawHandler
+            { return Detail::makeAsyncJsonAdapter<Info>(std::move(c)); };
+        }
+        else
+        {
+            d.makeHandler =
+                [c = std::move(callable)](void*) mutable -> CommandTable::RawHandler
+            { return Detail::makeJsonAdapter<Info>(std::move(c)); };
+        }
 
         commandImpl(d);
     }

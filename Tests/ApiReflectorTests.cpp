@@ -18,7 +18,9 @@
 
 #include <ea_data_structures/Pointers/Broadcaster.h>
 
+#include <future>
 #include <string>
+#include <thread>
 
 using namespace nano;
 using namespace Miro;
@@ -655,8 +657,7 @@ auto arSubApiMultipleSiblings =
     auto bridge = Bridge {};
     bridge.use(api);
 
-    check(bridge.dispatch("users.list", {})["echoed"].asString()
-          == "alice,bob");
+    check(bridge.dispatch("users.list", {})["echoed"].asString() == "alice,bob");
 
     check(bridge.dispatch("files.read", Json::parse(R"({"text":"y"})"))["echoed"]
               .asString()
@@ -868,8 +869,7 @@ auto arSubApiMacroBindsPrefixed = test(
     check(bridge.dispatch("files.read", Json::parse(R"({"text":"q"})"))["echoed"]
               .asString()
           == "read:q");
-    check(bridge.dispatch("users.list", {})["echoed"].asString()
-          == "alice,bob");
+    check(bridge.dispatch("users.list", {})["echoed"].asString() == "alice,bob");
 };
 
 auto arSubApiMacroDescribePrefixed = test(
@@ -953,8 +953,7 @@ auto unifiedApiInstallsSubApi =
     auto bridge = Bridge {};
     bridge.use(api);
 
-    check(bridge.dispatch("files.read", {})["echoed"].asString()
-          == "unified-read");
+    check(bridge.dispatch("files.read", {})["echoed"].asString() == "unified-read");
 
     auto capture = EmitCapture {bridge};
     api.files.changed.publish({"file-change"});
@@ -1048,8 +1047,7 @@ public:
 
         // Captureless lambda — implicitly convertible to fn ptr but
         // value form should accept it directly.
-        r.command([](const ARReq& req) -> ARRes
-                  { return {"clean:" + req.text}; },
+        r.command([](const ARReq& req) -> ARRes { return {"clean:" + req.text}; },
                   "cleanCmd");
     }
 };
@@ -1138,4 +1136,87 @@ auto freeFnApiDispatcher =
     auto capture = EmitCapture {bridge};
     api.tick.publish({"t"});
     check(capture.lastEvent == "tick");
+};
+
+// ---------- Async commands: void(Req, Completer<Res>) members ----------
+//
+// An async member handler owns its threading and settles a Completer.
+// Bind mode must route it through CommandTable::onAsync (so dispatchAsync
+// reaches it), while describe mode records the same Req/Res as a sync
+// command — async-ness never crosses into codegen.
+
+namespace
+{
+class AsyncReflectApi
+{
+public:
+    void reflect(ApiReflector& r)
+    {
+        using T = AsyncReflectApi;
+        r.commands<&T::echoAsync, &T::pingAsync>();
+    }
+
+    // void(Req, Completer<Res>) — resolves later from a worker thread.
+    void echoAsync(const ARReq& req, Completer<ARRes> done)
+    {
+        calls++;
+        std::thread([req, done] { done.resolve({req.text + "!"}); }).detach();
+    }
+
+    // void(Completer<Res>) — no request, resolves inline.
+    void pingAsync(Completer<ARRes> done) { done.resolve({"pong"}); }
+
+    int calls = 0;
+};
+} // namespace
+
+auto arBindDispatchesAsync = test(
+    "ApiReflector: Bridge::use installs async void(Req, Completer<Res>) handler") =
+    []
+{
+    auto api = AsyncReflectApi {};
+    auto bridge = Bridge {};
+    bridge.use(api);
+
+    auto settled = std::promise<JSON> {};
+    auto future = settled.get_future();
+    bridge.dispatchAsync("echoAsync",
+                         Json::parse(R"({"text":"hi"})"),
+                         [&settled](const JSON& r, const std::string*)
+                         { settled.set_value(r); });
+
+    auto result = future.get();
+    check(result["echoed"].asString() == "hi!");
+    check(api.calls == 1);
+};
+
+auto arBindDispatchesAsyncNoReq = test(
+    "ApiReflector: Bridge::use installs async void(Completer<Res>) handler") = []
+{
+    auto api = AsyncReflectApi {};
+    auto bridge = Bridge {};
+    bridge.use(api);
+
+    auto result = JSON {};
+    bridge.dispatchAsync("pingAsync",
+                         {},
+                         [&result](const JSON& r, const std::string*)
+                         { result = r; });
+
+    check(result["echoed"].asString() == "pong");
+};
+
+auto arDescribeRecordsAsyncCommand =
+    test("ApiReflector: DescribeReflector records an async command's req/res") = []
+{
+    auto describe = Detail::DescribeReflector {};
+    auto api = AsyncReflectApi {};
+    api.reflect(describe);
+
+    auto* echo = findCmd(describe.commands, "echoAsync");
+    check(echo != nullptr);
+    check(bool(echo->req));
+    check(bool(echo->res));
+    check(echo->req.name == "ARReq");
+    check(echo->res.name == "ARRes");
 };

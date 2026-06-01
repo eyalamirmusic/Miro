@@ -14,9 +14,16 @@ void CommandTable::registerHandler(const std::string& command,
     handlers[command] = handler;
 }
 
+void CommandTable::registerAsyncHandler(const std::string& command,
+                                        const AsyncRawHandler& handler)
+{
+    asyncHandlers[command] = handler;
+}
+
 bool CommandTable::has(std::string_view command) const
 {
-    return handlers.contains(std::string {command});
+    auto key = std::string {command};
+    return handlers.contains(key) || asyncHandlers.contains(key);
 }
 
 JSON CommandTable::dispatch(std::string_view command, const JSON& payload) const
@@ -24,7 +31,13 @@ JSON CommandTable::dispatch(std::string_view command, const JSON& payload) const
     auto it = handlers.find(std::string {command});
 
     if (it == handlers.end())
+    {
+        if (asyncHandlers.contains(std::string {command}))
+            throw std::runtime_error("command is async, use dispatchAsync: "
+                                     + std::string {command});
+
         throw UnknownCommandError(std::string {command});
+    }
 
     return it->second(payload);
 }
@@ -33,6 +46,17 @@ void CommandTable::dispatchAsync(std::string_view command,
                                  const JSON& payload,
                                  const Resolve& resolve) const
 {
+    // Async handlers own the Resolve from here — the adapter built by
+    // onAsync wraps it in a Completer and reports its own errors, so we
+    // hand it off and return rather than settling on its behalf.
+    auto async = asyncHandlers.find(std::string {command});
+
+    if (async != asyncHandlers.end())
+    {
+        async->second(payload, resolve);
+        return;
+    }
+
     try
     {
         resolve(dispatch(command, payload), nullptr);

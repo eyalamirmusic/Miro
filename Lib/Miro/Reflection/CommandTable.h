@@ -4,8 +4,10 @@
 #include "Reflector.h"
 #include "Serialize.h"
 
+#include <atomic>
 #include <concepts>
 #include <functional>
+#include <memory>
 #include <stdexcept>
 #include <string>
 #include <string_view>
@@ -23,6 +25,90 @@ namespace Miro
 // body it controls; that's where the host decides threading. Mirrors the
 // WebView wire's deliver(id, result, error).
 using Resolve = std::function<void(const JSON& result, const std::string* error)>;
+
+namespace Detail
+{
+// Shared, thread-safe, single-shot settlement state behind a Completer.
+// The first resolve/reject wins; later calls are no-ops. If every copy
+// of a Completer is destroyed without ever settling, the destructor here
+// auto-rejects so a forgotten completion surfaces as a visible error
+// rather than a JS Promise that hangs forever.
+class CompleterState
+{
+public:
+    explicit CompleterState(Resolve resolveToUse)
+        : resolve(std::move(resolveToUse))
+    {
+    }
+
+    CompleterState(const CompleterState&) = delete;
+    CompleterState& operator=(const CompleterState&) = delete;
+
+    ~CompleterState()
+    {
+        auto message = std::string {"command handler dropped without completing"};
+        settle(JSON {}, &message);
+    }
+
+    void settle(const JSON& result, const std::string* error)
+    {
+        if (!done.exchange(true))
+            resolve(result, error);
+    }
+
+private:
+    Resolve resolve;
+    std::atomic_bool done {false};
+};
+} // namespace Detail
+
+// The typed, single-shot completion handle handed to an async command
+// handler: `void doThing(const Req&, Completer<Res> done)`. The handler
+// owns its own threading and calls done.resolve(value) / done.reject(msg)
+// whenever it is ready — from any thread, possibly long after returning.
+// Copyable (all copies share one CompleterState), so it can be captured
+// into thread-pool jobs or std::function queues without ceremony.
+template <typename Res>
+class Completer
+{
+public:
+    explicit Completer(Resolve resolveToUse)
+        : state(std::make_shared<Detail::CompleterState>(std::move(resolveToUse)))
+    {
+    }
+
+    void resolve(const Res& value) const { state->settle(toJSON(value), nullptr); }
+
+    void reject(const std::string& message) const
+    {
+        state->settle(JSON {}, &message);
+    }
+
+private:
+    std::shared_ptr<Detail::CompleterState> state;
+};
+
+// Response-less async handler: `void doThing(const Req&, Completer<void>)`.
+// resolve() settles with an empty JSON body, matching a sync void handler.
+template <>
+class Completer<void>
+{
+public:
+    explicit Completer(Resolve resolveToUse)
+        : state(std::make_shared<Detail::CompleterState>(std::move(resolveToUse)))
+    {
+    }
+
+    void resolve() const { state->settle(JSON {}, nullptr); }
+
+    void reject(const std::string& message) const
+    {
+        state->settle(JSON {}, &message);
+    }
+
+private:
+    std::shared_ptr<Detail::CompleterState> state;
+};
 
 struct EmptyValue
 {
@@ -99,6 +185,41 @@ std::function<JSON(const JSON&)> makeJsonAdapter(Callable callable)
     };
 }
 
+// Async counterpart of makeJsonAdapter: wraps a continuation-style
+// callable (void(Req, Completer<Res>) or void(Completer<Res>)) into a
+// JSON-in / Resolve-out handler. The Completer is constructed up front
+// and shared by value into the handler, so all settlement paths — the
+// handler resolving, a synchronous-phase throw caught here, or every
+// copy being dropped — funnel through one single-shot guard. Used by
+// CommandTable::onAsync and makeAsyncPmfHandler in Bridge/Callable.h.
+template <CallableInfo Info, typename Callable>
+std::function<void(const JSON&, Resolve)> makeAsyncJsonAdapter(Callable callable)
+{
+    return [callable = std::move(callable)](const JSON& payload, Resolve resolve)
+    {
+        auto completer = Completer<typename Info::Res> {std::move(resolve)};
+
+        try
+        {
+            if constexpr (Info::hasReq)
+            {
+                auto req = typename Info::Req {};
+                fromJSON(req, Json::payloadOrEmpty(payload));
+                callable(req, completer);
+            }
+            else
+            {
+                ignoreUnused(payload);
+                callable(completer);
+            }
+        }
+        catch (const std::exception& e)
+        {
+            completer.reject(e.what());
+        }
+    };
+}
+
 } // namespace Detail
 
 class CommandTable
@@ -153,6 +274,40 @@ public:
         registerHandler(command, handler);
     }
 
+    // Handler that receives the Resolve continuation (by value, so it can
+    // outlive dispatchAsync) instead of returning a value. Settled later
+    // by the handler — see Completer / onAsync.
+    using AsyncRawHandler =
+        std::function<void(const JSON& payload, Resolve resolve)>;
+
+    // Registers an async command: the handler owns its own threading and
+    // settles the supplied Completer whenever it is ready (from any thread,
+    // possibly long after returning). The command's Req/Res — and therefore
+    // its wire format and generated TypeScript — are identical to the sync
+    // form; only the C++ handler shape differs.
+    template <typename Req, typename Res>
+    void onAsync(const std::string& command,
+                 const std::function<void(const Req&, Completer<Res>)>& handler)
+    {
+        registerAsyncHandler(
+            command,
+            Detail::makeAsyncJsonAdapter<Detail::InfoFor<Req, Res>>(handler));
+    }
+
+    template <typename Res>
+    void onAsync(const std::string& command,
+                 const std::function<void(Completer<Res>)>& handler)
+    {
+        registerAsyncHandler(
+            command,
+            Detail::makeAsyncJsonAdapter<Detail::InfoFor<void, Res>>(handler));
+    }
+
+    void onAsync(const std::string& command, const AsyncRawHandler& handler)
+    {
+        registerAsyncHandler(command, handler);
+    }
+
     bool has(std::string_view command) const;
 
     JSON dispatch(std::string_view command, const JSON& payload) const;
@@ -169,7 +324,10 @@ public:
 
 private:
     void registerHandler(const std::string& command, const RawHandler& handler);
+    void registerAsyncHandler(const std::string& command,
+                              const AsyncRawHandler& handler);
 
     std::unordered_map<std::string, RawHandler> handlers;
+    std::unordered_map<std::string, AsyncRawHandler> asyncHandlers;
 };
 } // namespace Miro

@@ -65,6 +65,24 @@ public:
         commands.on(command, handler);
     }
 
+    // Async command handlers — own their threading and settle the supplied
+    // Completer (from any thread, possibly later). The reflected path
+    // (use(api)) picks these up automatically for void(Req, Completer<Res>)
+    // members; these overloads are for hand-registered handlers.
+    template <typename Req, typename Res>
+    void onAsync(const std::string& command,
+                 const std::function<void(const Req&, Completer<Res>)>& handler)
+    {
+        commands.onAsync<Req, Res>(command, handler);
+    }
+
+    template <typename Res>
+    void onAsync(const std::string& command,
+                 const std::function<void(Completer<Res>)>& handler)
+    {
+        commands.onAsync<Res>(command, handler);
+    }
+
     template <typename T>
     void emit(const std::string& eventToUse, const T& payloadToUse)
     {
