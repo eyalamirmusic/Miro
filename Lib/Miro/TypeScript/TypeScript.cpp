@@ -129,15 +129,8 @@ std::string renderZod(const TypeNode& node, bool fieldContext)
             break;
     }
 
-    // An empty std::optional serializes to JSON `null`, never `undefined`
-    // (ReflectContainers `writeNull`), so the schema must admit `null`. In
-    // field context `.nullish()` (= null | undefined) also makes the object
-    // key optional, mirroring the plain renderer's `field?: T | null`. Outside
-    // a field (array element, map value) there is no absent case — a JSON
-    // array/object value is `null`, never `undefined` — so `.nullable()`
-    // (null only) keeps the inferred type identical to the types module's
-    // `(T | null)`. Using `.nullish()` here would add a spurious `| undefined`
-    // and drift from the plain types.
+    // Disengaged optional serializes to null. Field: .nullish() (null|undefined,
+    // key optional); non-field (array/map value): .nullable(), no undefined.
     if (node.optional)
         base += fieldContext ? ".nullish()" : ".nullable()";
 
@@ -166,10 +159,7 @@ std::string declareZodEnum(const TypeNode& node)
 
 // ---------- Plain TypeScript renderer ----------
 
-// Renders a node as a TypeScript type expression. Field-level absence is
-// carried by the `field?:` separator; the disengaged-optional value (which
-// serializes to JSON `null`) is carried by a `| null` union added here, in
-// both field and non-field contexts.
+// Renders a node as a TypeScript type expression.
 std::string renderType(const TypeNode& node, bool fieldContext);
 
 std::string renderTypeObjectInline(const TypeNode& node)
@@ -231,11 +221,8 @@ std::string renderType(const TypeNode& node, bool fieldContext)
             break;
     }
 
-    // An empty std::optional serializes to JSON `null` (ReflectContainers
-    // `writeNull`), so the type must admit `null`. In field context the
-    // `field?:` separator already conveys absent/undefined; we add `| null`
-    // for the disengaged-value case. Outside a field (e.g. the inner of an
-    // array) the whole union is wrapped, since there is no `?:` to carry it.
+    // Disengaged optional serializes to null. Field: `?:` carries absent, add
+    // `| null`; non-field: wrap `(T | null)`, no `?:` to carry it.
     if (node.optional)
         base = fieldContext ? base + " | null" : "(" + base + " | null)";
 

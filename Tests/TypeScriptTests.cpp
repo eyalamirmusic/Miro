@@ -147,20 +147,8 @@ auto tsTypesNamedReference =
     check(contains(out, "address: Address;"));
 };
 
-// ---------- Optional/serialization agreement (regression class) ----------
-//
-// The class of bug: Miro serializes a disengaged std::optional as JSON
-// `null` (ReflectContainers `writeNull`), but the TS exporters typed
-// optionals as `T | undefined` / `.optional()` — which reject `null`. So
-// any literal emitted from toJSON(T{}) — most visibly an event's `initial`
-// value in schema.hooks.ts, where `foregroundDurationMs:null` failed
-// against `number | undefined` — does not typecheck against its own
-// generated type. Each test below pins the contract by checking BOTH
-// halves: the serializer emits null, and the generated type/zod admits it.
-// Shapes covered: optional primitive, optional named struct, optional
-// enum, and optional as an array element (the non-field render branch),
-// across the plain-types and Zod renderers.
-
+// A disengaged optional serializes to null, so the generated type/zod must
+// admit null. Each test pins both halves: serializer emits null, type accepts.
 auto tsTypesOptionalPrimitiveIsNullable =
     test("TypeScript types: optional primitive admits the null it serializes to") = []
 {
@@ -193,15 +181,8 @@ auto tsTypesOptionalArrayElementIsNullable =
                    "slots: (number | null)[];"));
 };
 
-// Drift guard: the plain-types and Zod modules must infer the SAME TS type
-// for the same C++ type. In array (non-field) context an empty optional
-// serializes to `null` and never `undefined` (a JSON array can't hold
-// undefined), so toTypes drops undefined and emits `(number | null)[]`. The
-// Zod element must match: `.nullable()` (null only), NOT `.nullish()` (which
-// adds `| undefined`, so `z.infer` yields `(number | null | undefined)[]` —
-// a different type from the types module for the identical input). renderZod
-// is field/non-field aware (like renderType) precisely to keep these in sync;
-// this guard fails if that distinction is ever lost.
+// Drift guard: types and zod must render the same nullability. Non-field
+// optionals are `.nullable()` (null only), not `.nullish()` (adds undefined).
 auto tsZodTypesNoDriftOnOptionalArrayElement =
     test("TypeScript: zod and types agree on optional array element (no undefined "
          "drift)") = []
@@ -209,15 +190,10 @@ auto tsZodTypesNoDriftOnOptionalArrayElement =
     auto value = ClassWithOptionalInArray {};
     value.slots.push_back(std::nullopt);
 
-    // Serializer emits null (never undefined) for the disengaged element...
     check(contains(toJSONString(value), "\"slots\":[null]"));
-
-    // ...the types module pins `(number | null)[]` (undefined dropped)...
     check(contains(TypeScript::toTypes<ClassWithOptionalInArray>(),
                    "slots: (number | null)[];"));
 
-    // ...so the zod element must be `.nullable()`, matching it. `.nullish()`
-    // here is the drift: it would infer `(number | null | undefined)[]`.
     auto zod = TypeScript::toZod<ClassWithOptionalInArray>();
     check(contains(zod, "z.array(z.number().int().nullable())"));
     check(!contains(zod, "z.array(z.number().int().nullish())"));
