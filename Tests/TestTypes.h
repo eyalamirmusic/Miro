@@ -292,11 +292,6 @@ struct ClassWithEnum
     UnscopedMode mode = ModeAuto;
 };
 
-// More non-field optional positions (same class as ClassWithOptionalInArray):
-// a disengaged optional here serializes to `null`, never `undefined`, so the
-// rendered element/value type must be `(T | null)` and the zod must be
-// `.nullable()` — these pin zod/types agreement across the remaining shapes.
-
 // Optional named struct as an array element.
 struct ClassWithOptionalNamedInArray
 {
