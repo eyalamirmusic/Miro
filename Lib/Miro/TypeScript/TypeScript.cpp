@@ -71,7 +71,7 @@ std::string_view tsPrimitive(TypeTree::PrimitiveKind kind)
 
 // ---------- Zod renderer ----------
 
-std::string renderZod(const TypeNode& node);
+std::string renderZod(const TypeNode& node, bool fieldContext);
 
 std::string renderZodObjectInline(const TypeNode& node)
 {
@@ -80,7 +80,7 @@ std::string renderZodObjectInline(const TypeNode& node)
 
     for (auto& field: node.fields)
         out << "    " << formatPropertyKey(field.name) << ": "
-            << renderZod(*field.type) << ",\n";
+            << renderZod(*field.type, /*fieldContext=*/true) << ",\n";
 
     out << "})";
     return out.str();
@@ -104,7 +104,7 @@ std::string renderZodEnumInline(const TypeNode& node)
     return out.str();
 }
 
-std::string renderZod(const TypeNode& node)
+std::string renderZod(const TypeNode& node, bool fieldContext)
 {
     auto base = std::string {};
 
@@ -118,22 +118,28 @@ std::string renderZod(const TypeNode& node)
                 node.typeName.empty() ? renderZodObjectInline(node) : node.typeName;
             break;
         case TypeNode::Shape::Array:
-            base = "z.array(" + renderZod(*node.inner) + ")";
+            base = "z.array(" + renderZod(*node.inner, /*fieldContext=*/false) + ")";
             break;
         case TypeNode::Shape::Map:
-            base = "z.record(z.string(), " + renderZod(*node.inner) + ")";
+            base = "z.record(z.string(), "
+                   + renderZod(*node.inner, /*fieldContext=*/false) + ")";
             break;
         case TypeNode::Shape::Enum:
             base = node.typeName.empty() ? renderZodEnumInline(node) : node.typeName;
             break;
     }
 
-    // `.nullish()` (= null | undefined), not `.optional()` (undefined
-    // only): an empty std::optional serializes to JSON `null`, so the
-    // schema must accept null as well as an absent key. See the plain-types
-    // renderer below and ReflectContainers `writeNull`.
+    // An empty std::optional serializes to JSON `null`, never `undefined`
+    // (ReflectContainers `writeNull`), so the schema must admit `null`. In
+    // field context `.nullish()` (= null | undefined) also makes the object
+    // key optional, mirroring the plain renderer's `field?: T | null`. Outside
+    // a field (array element, map value) there is no absent case — a JSON
+    // array/object value is `null`, never `undefined` — so `.nullable()`
+    // (null only) keeps the inferred type identical to the types module's
+    // `(T | null)`. Using `.nullish()` here would add a spurious `| undefined`
+    // and drift from the plain types.
     if (node.optional)
-        base += ".nullish()";
+        base += fieldContext ? ".nullish()" : ".nullable()";
 
     return base;
 }
@@ -309,7 +315,7 @@ std::string formatZodModule(TypeNode& root)
     // the single-root path adds one for anonymous roots like top-level
     // vectors so the module isn't pointless.
     if (!rootIsHoisted(root))
-        out += "export default " + renderZod(root) + ";\n";
+        out += "export default " + renderZod(root, /*fieldContext=*/false) + ";\n";
 
     return out;
 }

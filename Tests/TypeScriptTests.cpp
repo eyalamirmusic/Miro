@@ -193,6 +193,81 @@ auto tsTypesOptionalArrayElementIsNullable =
                    "slots: (number | null)[];"));
 };
 
+// Drift guard: the plain-types and Zod modules must infer the SAME TS type
+// for the same C++ type. In array (non-field) context an empty optional
+// serializes to `null` and never `undefined` (a JSON array can't hold
+// undefined), so toTypes drops undefined and emits `(number | null)[]`. The
+// Zod element must match: `.nullable()` (null only), NOT `.nullish()` (which
+// adds `| undefined`, so `z.infer` yields `(number | null | undefined)[]` —
+// a different type from the types module for the identical input). renderZod
+// is field/non-field aware (like renderType) precisely to keep these in sync;
+// this guard fails if that distinction is ever lost.
+auto tsZodTypesNoDriftOnOptionalArrayElement =
+    test("TypeScript: zod and types agree on optional array element (no undefined "
+         "drift)") = []
+{
+    auto value = ClassWithOptionalInArray {};
+    value.slots.push_back(std::nullopt);
+
+    // Serializer emits null (never undefined) for the disengaged element...
+    check(contains(toJSONString(value), "\"slots\":[null]"));
+
+    // ...the types module pins `(number | null)[]` (undefined dropped)...
+    check(contains(TypeScript::toTypes<ClassWithOptionalInArray>(),
+                   "slots: (number | null)[];"));
+
+    // ...so the zod element must be `.nullable()`, matching it. `.nullish()`
+    // here is the drift: it would infer `(number | null | undefined)[]`.
+    auto zod = TypeScript::toZod<ClassWithOptionalInArray>();
+    check(contains(zod, "z.array(z.number().int().nullable())"));
+    check(!contains(zod, "z.array(z.number().int().nullish())"));
+};
+
+auto tsZodTypesNoDriftOnOptionalNamedArrayElement =
+    test("TypeScript: zod and types agree on optional named array element") = []
+{
+    auto value = ClassWithOptionalNamedInArray {};
+    value.slots.push_back(std::nullopt);
+
+    check(contains(toJSONString(value), "\"slots\":[null]"));
+    check(contains(TypeScript::toTypes<ClassWithOptionalNamedInArray>(),
+                   "slots: (Inner | null)[];"));
+
+    auto zod = TypeScript::toZod<ClassWithOptionalNamedInArray>();
+    check(contains(zod, "z.array(Inner.nullable())"));
+    check(!contains(zod, "z.array(Inner.nullish())"));
+};
+
+auto tsZodTypesNoDriftOnOptionalEnumArrayElement =
+    test("TypeScript: zod and types agree on optional enum array element") = []
+{
+    auto value = ClassWithOptionalEnumInArray {};
+    value.slots.push_back(std::nullopt);
+
+    check(contains(toJSONString(value), "\"slots\":[null]"));
+    check(contains(TypeScript::toTypes<ClassWithOptionalEnumInArray>(),
+                   "slots: (Color | null)[];"));
+
+    auto zod = TypeScript::toZod<ClassWithOptionalEnumInArray>();
+    check(contains(zod, "z.array(Color.nullable())"));
+    check(!contains(zod, "z.array(Color.nullish())"));
+};
+
+auto tsZodTypesNoDriftOnOptionalMapValue =
+    test("TypeScript: zod and types agree on optional map value") = []
+{
+    auto value = ClassWithOptionalMapValue {};
+    value.slots.emplace("a", std::nullopt);
+
+    check(contains(toJSONString(value), "\"a\":null"));
+    check(contains(TypeScript::toTypes<ClassWithOptionalMapValue>(),
+                   "slots: Record<string, (number | null)>;"));
+
+    auto zod = TypeScript::toZod<ClassWithOptionalMapValue>();
+    check(contains(zod, "z.record(z.string(), z.number().int().nullable())"));
+    check(!contains(zod, "z.record(z.string(), z.number().int().nullish())"));
+};
+
 auto tsZodOptionalPrimitiveIsNullable =
     test("TypeScript: optional primitive zod admits null (nullish)") = []
 {

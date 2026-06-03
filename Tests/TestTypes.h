@@ -295,6 +295,35 @@ struct ClassWithEnum
     UnscopedMode mode = ModeAuto;
 };
 
+// More non-field optional positions (same class as ClassWithOptionalInArray):
+// a disengaged optional here serializes to `null`, never `undefined`, so the
+// rendered element/value type must be `(T | null)` and the zod must be
+// `.nullable()` — these pin zod/types agreement across the remaining shapes.
+
+// Optional named struct as an array element.
+struct ClassWithOptionalNamedInArray
+{
+    std::vector<std::optional<Inner>> slots;
+
+    MIRO_REFLECT(slots)
+};
+
+// Optional enum as an array element.
+struct ClassWithOptionalEnumInArray
+{
+    std::vector<std::optional<Color>> slots;
+
+    MIRO_REFLECT(slots)
+};
+
+// Optional as a map value — the value renders in non-field context too.
+struct ClassWithOptionalMapValue
+{
+    std::map<std::string, std::optional<int>> slots;
+
+    MIRO_REFLECT(slots)
+};
+
 // ---------- Types shared across the export-format tests ------------------
 // Address + User cover the cases the TypeScript / Schema / C++ exporters
 // each want to assert on (primitives, named refs, optionals of named
