@@ -65,17 +65,17 @@ auto tsMapField = test("TypeScript: map field becomes z.record") = []
 };
 
 auto tsOptionalPrimitive =
-    test("TypeScript: optional primitive uses .optional()") = []
+    test("TypeScript: optional primitive uses .nullish()") = []
 {
     auto out = TypeScript::toZod<User>();
-    check(contains(out, "note: z.string().optional()"));
+    check(contains(out, "note: z.string().nullish()"));
 };
 
 auto tsOptionalNamed =
-    test("TypeScript: optional named struct uses .optional()") = []
+    test("TypeScript: optional named struct uses .nullish()") = []
 {
     auto out = TypeScript::toZod<User>();
-    check(contains(out, "shipping: Address.optional()"));
+    check(contains(out, "shipping: Address.nullish()"));
 };
 
 auto tsNamedReference = test("TypeScript: nested named struct emitted by name") = []
@@ -126,17 +126,18 @@ auto tsTypesMapField = test("TypeScript types: map becomes Record<string, V>") =
     check(contains(out, "counters: Record<string, number>;"));
 };
 
-auto tsTypesOptionalPrimitive = test("TypeScript types: optional uses field?:") = []
+auto tsTypesOptionalPrimitive =
+    test("TypeScript types: optional uses field?: T | null") = []
 {
     auto out = TypeScript::toTypes<User>();
-    check(contains(out, "note?: string;"));
+    check(contains(out, "note?: string | null;"));
 };
 
 auto tsTypesOptionalNamed =
-    test("TypeScript types: optional named struct uses field?:") = []
+    test("TypeScript types: optional named struct uses field?: T | null") = []
 {
     auto out = TypeScript::toTypes<User>();
-    check(contains(out, "shipping?: Address;"));
+    check(contains(out, "shipping?: Address | null;"));
 };
 
 auto tsTypesNamedReference =
@@ -144,6 +145,124 @@ auto tsTypesNamedReference =
 {
     auto out = TypeScript::toTypes<User>();
     check(contains(out, "address: Address;"));
+};
+
+// A disengaged optional serializes to null, so the generated type/zod must
+// admit null. Each test pins both halves: serializer emits null, type accepts.
+auto tsTypesOptionalPrimitiveIsNullable =
+    test("TypeScript types: optional primitive admits the null it serializes to") = []
+{
+    check(contains(toJSONString(User {}), "\"note\":null"));
+    check(contains(TypeScript::toTypes<User>(), "note?: string | null;"));
+};
+
+auto tsTypesOptionalNamedIsNullable =
+    test("TypeScript types: optional named struct admits the null it serializes to") =
+        []
+{
+    check(contains(toJSONString(User {}), "\"shipping\":null"));
+    check(contains(TypeScript::toTypes<User>(), "shipping?: Address | null;"));
+};
+
+auto tsTypesOptionalEnumIsNullable =
+    test("TypeScript types: optional enum admits the null it serializes to") = []
+{
+    check(contains(toJSONString(User {}), "\"accent\":null"));
+    check(contains(TypeScript::toTypes<User>(), "accent?: Color | null;"));
+};
+
+auto tsTypesOptionalArrayElementIsNullable =
+    test("TypeScript types: optional array element renders (T | null)") = []
+{
+    auto value = ClassWithOptionalInArray {};
+    value.slots.push_back(std::nullopt);
+    check(contains(toJSONString(value), "\"slots\":[null]"));
+    check(contains(TypeScript::toTypes<ClassWithOptionalInArray>(),
+                   "slots: (number | null)[];"));
+};
+
+// Drift guard: types and zod must render the same nullability. Non-field
+// optionals are `.nullable()` (null only), not `.nullish()` (adds undefined).
+auto tsZodTypesNoDriftOnOptionalArrayElement =
+    test("TypeScript: zod and types agree on optional array element (no undefined "
+         "drift)") = []
+{
+    auto value = ClassWithOptionalInArray {};
+    value.slots.push_back(std::nullopt);
+
+    check(contains(toJSONString(value), "\"slots\":[null]"));
+    check(contains(TypeScript::toTypes<ClassWithOptionalInArray>(),
+                   "slots: (number | null)[];"));
+
+    auto zod = TypeScript::toZod<ClassWithOptionalInArray>();
+    check(contains(zod, "z.array(z.number().int().nullable())"));
+    check(!contains(zod, "z.array(z.number().int().nullish())"));
+};
+
+auto tsZodTypesNoDriftOnOptionalNamedArrayElement =
+    test("TypeScript: zod and types agree on optional named array element") = []
+{
+    auto value = ClassWithOptionalNamedInArray {};
+    value.slots.push_back(std::nullopt);
+
+    check(contains(toJSONString(value), "\"slots\":[null]"));
+    check(contains(TypeScript::toTypes<ClassWithOptionalNamedInArray>(),
+                   "slots: (Inner | null)[];"));
+
+    auto zod = TypeScript::toZod<ClassWithOptionalNamedInArray>();
+    check(contains(zod, "z.array(Inner.nullable())"));
+    check(!contains(zod, "z.array(Inner.nullish())"));
+};
+
+auto tsZodTypesNoDriftOnOptionalEnumArrayElement =
+    test("TypeScript: zod and types agree on optional enum array element") = []
+{
+    auto value = ClassWithOptionalEnumInArray {};
+    value.slots.push_back(std::nullopt);
+
+    check(contains(toJSONString(value), "\"slots\":[null]"));
+    check(contains(TypeScript::toTypes<ClassWithOptionalEnumInArray>(),
+                   "slots: (Color | null)[];"));
+
+    auto zod = TypeScript::toZod<ClassWithOptionalEnumInArray>();
+    check(contains(zod, "z.array(Color.nullable())"));
+    check(!contains(zod, "z.array(Color.nullish())"));
+};
+
+auto tsZodTypesNoDriftOnOptionalMapValue =
+    test("TypeScript: zod and types agree on optional map value") = []
+{
+    auto value = ClassWithOptionalMapValue {};
+    value.slots.emplace("a", std::nullopt);
+
+    check(contains(toJSONString(value), "\"a\":null"));
+    check(contains(TypeScript::toTypes<ClassWithOptionalMapValue>(),
+                   "slots: Record<string, (number | null)>;"));
+
+    auto zod = TypeScript::toZod<ClassWithOptionalMapValue>();
+    check(contains(zod, "z.record(z.string(), z.number().int().nullable())"));
+    check(!contains(zod, "z.record(z.string(), z.number().int().nullish())"));
+};
+
+auto tsZodOptionalPrimitiveIsNullable =
+    test("TypeScript: optional primitive zod admits null (nullish)") = []
+{
+    check(contains(toJSONString(User {}), "\"note\":null"));
+    check(contains(TypeScript::toZod<User>(), "note: z.string().nullish()"));
+};
+
+auto tsZodOptionalNamedIsNullable =
+    test("TypeScript: optional named struct zod admits null (nullish)") = []
+{
+    check(contains(toJSONString(User {}), "\"shipping\":null"));
+    check(contains(TypeScript::toZod<User>(), "shipping: Address.nullish()"));
+};
+
+auto tsZodOptionalEnumIsNullable =
+    test("TypeScript: optional enum zod admits null (nullish)") = []
+{
+    check(contains(toJSONString(User {}), "\"accent\":null"));
+    check(contains(TypeScript::toZod<User>(), "accent: Color.nullish()"));
 };
 
 auto tsTypesNoZodImport = test("TypeScript types: does not import zod") = []
@@ -186,10 +305,10 @@ auto tsEnumFieldRefersByName =
     check(contains(out, "priority: Priority,"));
 };
 
-auto tsEnumOptional = test("TypeScript: optional enum uses .optional()") = []
+auto tsEnumOptional = test("TypeScript: optional enum uses .nullish()") = []
 {
     auto out = TypeScript::toZod<User>();
-    check(contains(out, "accent: Color.optional()"));
+    check(contains(out, "accent: Color.nullish()"));
 };
 
 auto tsEnumDependencyOrder =
@@ -216,10 +335,11 @@ auto tsTypesEnumFieldRefersByName =
     check(contains(out, "priority: Priority;"));
 };
 
-auto tsTypesEnumOptional = test("TypeScript types: optional enum uses field?:") = []
+auto tsTypesEnumOptional =
+    test("TypeScript types: optional enum uses field?: T | null") = []
 {
     auto out = TypeScript::toTypes<User>();
-    check(contains(out, "accent?: Color;"));
+    check(contains(out, "accent?: Color | null;"));
 };
 
 auto tsTypesEnumDependencyOrder =

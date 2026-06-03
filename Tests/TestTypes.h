@@ -254,6 +254,14 @@ struct ClassWithOptional
     std::optional<Inner> maybeInner;
 };
 
+// Optional as an array element — non-field position, renders `(T | null)`.
+struct ClassWithOptionalInArray
+{
+    std::vector<std::optional<int>> slots;
+
+    MIRO_REFLECT(slots)
+};
+
 enum class Color
 {
     Red,
@@ -282,6 +290,30 @@ struct ClassWithEnum
     Color color = Color::Green;
     Signal signal = Signal::Go;
     UnscopedMode mode = ModeAuto;
+};
+
+// Optional named struct as an array element.
+struct ClassWithOptionalNamedInArray
+{
+    std::vector<std::optional<Inner>> slots;
+
+    MIRO_REFLECT(slots)
+};
+
+// Optional enum as an array element.
+struct ClassWithOptionalEnumInArray
+{
+    std::vector<std::optional<Color>> slots;
+
+    MIRO_REFLECT(slots)
+};
+
+// Optional as a map value — the value renders in non-field context too.
+struct ClassWithOptionalMapValue
+{
+    std::map<std::string, std::optional<int>> slots;
+
+    MIRO_REFLECT(slots)
 };
 
 // ---------- Types shared across the export-format tests ------------------

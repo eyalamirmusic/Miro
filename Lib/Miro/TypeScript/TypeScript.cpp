@@ -71,7 +71,7 @@ std::string_view tsPrimitive(TypeTree::PrimitiveKind kind)
 
 // ---------- Zod renderer ----------
 
-std::string renderZod(const TypeNode& node);
+std::string renderZod(const TypeNode& node, bool fieldContext);
 
 std::string renderZodObjectInline(const TypeNode& node)
 {
@@ -80,7 +80,7 @@ std::string renderZodObjectInline(const TypeNode& node)
 
     for (auto& field: node.fields)
         out << "    " << formatPropertyKey(field.name) << ": "
-            << renderZod(*field.type) << ",\n";
+            << renderZod(*field.type, /*fieldContext=*/true) << ",\n";
 
     out << "})";
     return out.str();
@@ -104,7 +104,7 @@ std::string renderZodEnumInline(const TypeNode& node)
     return out.str();
 }
 
-std::string renderZod(const TypeNode& node)
+std::string renderZod(const TypeNode& node, bool fieldContext)
 {
     auto base = std::string {};
 
@@ -118,18 +118,21 @@ std::string renderZod(const TypeNode& node)
                 node.typeName.empty() ? renderZodObjectInline(node) : node.typeName;
             break;
         case TypeNode::Shape::Array:
-            base = "z.array(" + renderZod(*node.inner) + ")";
+            base = "z.array(" + renderZod(*node.inner, /*fieldContext=*/false) + ")";
             break;
         case TypeNode::Shape::Map:
-            base = "z.record(z.string(), " + renderZod(*node.inner) + ")";
+            base = "z.record(z.string(), "
+                   + renderZod(*node.inner, /*fieldContext=*/false) + ")";
             break;
         case TypeNode::Shape::Enum:
             base = node.typeName.empty() ? renderZodEnumInline(node) : node.typeName;
             break;
     }
 
+    // Disengaged optional serializes to null. Field: .nullish() (null|undefined,
+    // key optional); non-field (array/map value): .nullable(), no undefined.
     if (node.optional)
-        base += ".optional()";
+        base += fieldContext ? ".nullish()" : ".nullable()";
 
     return base;
 }
@@ -156,9 +159,7 @@ std::string declareZodEnum(const TypeNode& node)
 
 // ---------- Plain TypeScript renderer ----------
 
-// Renders a node as a TypeScript type expression (no `?` — optionality
-// at field-level is handled by the field separator). For non-field
-// optional contexts we wrap with ` | undefined`.
+// Renders a node as a TypeScript type expression.
 std::string renderType(const TypeNode& node, bool fieldContext);
 
 std::string renderTypeObjectInline(const TypeNode& node)
@@ -220,11 +221,10 @@ std::string renderType(const TypeNode& node, bool fieldContext)
             break;
     }
 
-    // In field context, optionality is conveyed by `field?:`. Outside a
-    // field (e.g. the inner of an array), optional must be expressed as
-    // a union with undefined.
-    if (node.optional && !fieldContext)
-        base = "(" + base + " | undefined)";
+    // Disengaged optional serializes to null. Field: `?:` carries absent, add
+    // `| null`; non-field: wrap `(T | null)`, no `?:` to carry it.
+    if (node.optional)
+        base = fieldContext ? base + " | null" : "(" + base + " | null)";
 
     return base;
 }
@@ -302,7 +302,7 @@ std::string formatZodModule(TypeNode& root)
     // the single-root path adds one for anonymous roots like top-level
     // vectors so the module isn't pointless.
     if (!rootIsHoisted(root))
-        out += "export default " + renderZod(root) + ";\n";
+        out += "export default " + renderZod(root, /*fieldContext=*/false) + ";\n";
 
     return out;
 }
