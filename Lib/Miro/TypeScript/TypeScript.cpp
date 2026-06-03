@@ -128,8 +128,12 @@ std::string renderZod(const TypeNode& node)
             break;
     }
 
+    // `.nullish()` (= null | undefined), not `.optional()` (undefined
+    // only): an empty std::optional serializes to JSON `null`, so the
+    // schema must accept null as well as an absent key. See the plain-types
+    // renderer below and ReflectContainers `writeNull`.
     if (node.optional)
-        base += ".optional()";
+        base += ".nullish()";
 
     return base;
 }
@@ -156,9 +160,10 @@ std::string declareZodEnum(const TypeNode& node)
 
 // ---------- Plain TypeScript renderer ----------
 
-// Renders a node as a TypeScript type expression (no `?` — optionality
-// at field-level is handled by the field separator). For non-field
-// optional contexts we wrap with ` | undefined`.
+// Renders a node as a TypeScript type expression. Field-level absence is
+// carried by the `field?:` separator; the disengaged-optional value (which
+// serializes to JSON `null`) is carried by a `| null` union added here, in
+// both field and non-field contexts.
 std::string renderType(const TypeNode& node, bool fieldContext);
 
 std::string renderTypeObjectInline(const TypeNode& node)
@@ -220,11 +225,13 @@ std::string renderType(const TypeNode& node, bool fieldContext)
             break;
     }
 
-    // In field context, optionality is conveyed by `field?:`. Outside a
-    // field (e.g. the inner of an array), optional must be expressed as
-    // a union with undefined.
-    if (node.optional && !fieldContext)
-        base = "(" + base + " | undefined)";
+    // An empty std::optional serializes to JSON `null` (ReflectContainers
+    // `writeNull`), so the type must admit `null`. In field context the
+    // `field?:` separator already conveys absent/undefined; we add `| null`
+    // for the disengaged-value case. Outside a field (e.g. the inner of an
+    // array) the whole union is wrapped, since there is no `?:` to carry it.
+    if (node.optional)
+        base = fieldContext ? base + " | null" : "(" + base + " | null)";
 
     return base;
 }

@@ -254,6 +254,17 @@ struct ClassWithOptional
     std::optional<Inner> maybeInner;
 };
 
+// Optional in a non-field position: the element type of an array. An empty
+// optional element serializes to `null` inside the array, so the rendered
+// element type must be `(T | null)` — exercises the non-field branch of the
+// TS renderer, where there is no `field?:` to carry optionality.
+struct ClassWithOptionalInArray
+{
+    std::vector<std::optional<int>> slots;
+
+    MIRO_REFLECT(slots)
+};
+
 enum class Color
 {
     Red,
