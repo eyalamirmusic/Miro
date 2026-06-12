@@ -373,3 +373,43 @@ auto printIndentedScalar = test("Print indented scalar") = []
     check(print(parse("true"), 4) == "true");
     check(print(parse("null"), 4) == "null");
 };
+
+// Regression: a Value holding a multi-element array (each element a
+// nested object) must survive being stored into, and copied between,
+// other values' object maps. With Array as an EA::Vector of the
+// recursive Value type this corrupted the array on some toolchains
+// (observed crashing on macOS arm64 CI when serialising an MCP
+// tools/list response); std::vector supports the recursive incomplete
+// type correctly.
+auto multiElementArraySurvivesStoreAndCopy =
+    test("Multi-element array survives store and copy") = []
+{
+    auto makeEntry = [](const std::string& name)
+    {
+        auto entry = Value {Object {}};
+        entry.asObject()["name"] = Value {name};
+        entry.asObject()["schema"] = Value {Object {{"type", Value {"object"}}}};
+        return entry;
+    };
+
+    auto list = Json::Array {};
+    list.push_back(makeEntry("echo"));
+    list.push_back(makeEntry("explode"));
+
+    auto result = Value {Object {}};
+    result.asObject()["items"] = Value {std::move(list)}; // store the array
+
+    auto envelope = Value {Object {}};
+    envelope.asObject()["result"] = result; // copy a value holding the array
+
+    auto& items = envelope.asObject().at("result").asObject().at("items").asArray();
+    check(items.size() == 2);
+    check(items[0].asObject().at("name").asString() == "echo");
+    check(items[1].asObject().at("name").asString() == "explode");
+    check(items[1].asObject().at("schema").asObject().at("type").asString()
+          == "object");
+
+    auto reparsed = parse(print(envelope));
+    check(reparsed.asObject().at("result").asObject().at("items").asArray().size()
+          == 2);
+};

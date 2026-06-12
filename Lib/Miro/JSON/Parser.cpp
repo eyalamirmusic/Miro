@@ -317,13 +317,13 @@ private:
         if (pos < end && *pos != ']')
         {
             elements.reserve(16);
-            elements.add(parseValue());
+            elements.push_back(parseValue());
             skipWhitespaceAndComments();
 
             while (pos < end && *pos == ',')
             {
                 ++pos;
-                elements.add(parseValue());
+                elements.push_back(parseValue());
                 skipWhitespaceAndComments();
             }
         }

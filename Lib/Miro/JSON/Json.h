@@ -7,6 +7,7 @@
 #include <string>
 #include <string_view>
 #include <variant>
+#include <vector>
 
 namespace Miro::Json
 {
@@ -14,7 +15,7 @@ namespace Miro::Json
 struct Value;
 
 using Null = std::nullptr_t;
-using Array = Vector<Value>;
+using Array = std::vector<Value>;
 using Object = std::map<std::string, Value>;
 
 struct Value

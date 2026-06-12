@@ -193,7 +193,7 @@ Reflector& JsonReflector::atIndex(std::size_t index, Options childOpts)
 
 Reflector& JsonReflector::atIndexForSave(std::size_t index, Options childOpts)
 {
-    auto& arr = ensureArray(slot).getVector();
+    auto& arr = ensureArray(slot);
 
     if (arr.size() <= index)
         arr.resize(index + 1);
@@ -206,7 +206,7 @@ Reflector& JsonReflector::atIndexForLoad(std::size_t index, Options childOpts)
     if (!slot.isArray())
         return spawnMissingChild(childOpts);
 
-    auto& arr = std::get<Json::Array>(slot.data).getVector();
+    auto& arr = std::get<Json::Array>(slot.data);
 
     if (index >= arr.size())
         return spawnMissingChild(childOpts);
@@ -216,12 +216,12 @@ Reflector& JsonReflector::atIndexForLoad(std::size_t index, Options childOpts)
 
 std::size_t JsonReflector::arraySize() const
 {
-    return slot.isArray() ? slot.asArray().getVector().size() : 0;
+    return slot.isArray() ? slot.asArray().size() : 0;
 }
 
 void JsonReflector::resizeArray(std::size_t newSize)
 {
-    ensureArray(slot).getVector().resize(newSize);
+    ensureArray(slot).resize(newSize);
 }
 
 Vector<std::string> JsonReflector::mapKeys() const
