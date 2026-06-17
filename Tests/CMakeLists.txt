@@ -19,6 +19,7 @@ nano_add_executable(MiroTests SOURCES
         CppExportTests.cpp
         CppClientTests.cpp
         SwiftTests.cpp
+        SwiftBridgeCTests.cpp
         EAContainerTests.cpp
         PolymorphicTests.cpp
         UserPrimitiveTests.cpp
