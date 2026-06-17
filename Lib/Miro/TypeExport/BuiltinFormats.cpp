@@ -17,6 +17,8 @@
 #include "../Cpp/CppClient.h"
 #include "../JSON/Json.h"
 #include "../Schema/Schema.h"
+#include "../Swift/Swift.h"
+#include "../Swift/SwiftClient.h"
 #include "../TypeScript/TypeScript.h"
 
 namespace
@@ -108,6 +110,19 @@ using Miro::TypeExport::registerFormat;
         return Miro::Cpp::formatClientHeader(
             ctx.typeRoots, ctx.commands, ctx.baseName);
     },
+});
+
+[[maybe_unused]] const auto swiftFormat = registerFormat(Format {
+    "swift",
+    ".swift",
+    [](const Context& ctx) { return Miro::Swift::formatTypes(ctx.typeRoots); },
+});
+
+[[maybe_unused]] const auto swiftClientFormat = registerFormat(Format {
+    "swift-client",
+    ".client.swift",
+    [](const Context& ctx)
+    { return Miro::Swift::formatClient(ctx.typeRoots, ctx.commands); },
 });
 
 } // namespace
