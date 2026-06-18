@@ -23,5 +23,5 @@ endif ()
 
 if (MIRO_BUILD_EXAMPLES)
     enable_testing()
-    add_subdirectory(Examples/MiroSwiftExport)
+    add_subdirectory(Examples)
 endif ()

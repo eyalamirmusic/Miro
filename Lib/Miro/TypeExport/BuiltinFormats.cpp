@@ -19,6 +19,8 @@
 #include "../Schema/Schema.h"
 #include "../Swift/Swift.h"
 #include "../Swift/SwiftClient.h"
+#include "../Swift/SwiftRuntime.h"
+#include "../Swift/SwiftServer.h"
 #include "../TypeScript/TypeScript.h"
 
 namespace
@@ -123,6 +125,19 @@ using Miro::TypeExport::registerFormat;
     ".client.swift",
     [](const Context& ctx)
     { return Miro::Swift::formatClient(ctx.typeRoots, ctx.commands); },
+});
+
+[[maybe_unused]] const auto swiftRuntimeFormat = registerFormat(Format {
+    "swift-runtime",
+    ".runtime.swift",
+    [](const Context&) { return Miro::Swift::formatRuntime(); },
+});
+
+[[maybe_unused]] const auto swiftServerFormat = registerFormat(Format {
+    "swift-server",
+    ".server.swift",
+    [](const Context& ctx)
+    { return Miro::Swift::formatServer(ctx.typeRoots, ctx.commands); },
 });
 
 } // namespace

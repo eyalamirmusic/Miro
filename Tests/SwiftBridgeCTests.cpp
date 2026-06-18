@@ -7,8 +7,12 @@
 
 #include <Miro/Miro.h>
 #include <Miro/Swift/BridgeC.h>
+#include <Miro/Swift/RemoteBridge.h>
 #include <NanoTest/NanoTest.h>
 
+#include <cstdlib>
+#include <cstring>
+#include <exception>
 #include <string>
 
 using namespace nano;
@@ -131,4 +135,69 @@ auto bcFreeNullIsSafe = test("BridgeC: miro_string_free(nullptr) is a no-op") = 
 {
     miro_string_free(nullptr);
     check(true);
+};
+
+// ---------- RemoteBridge: the reverse direction (C++ caller -> peer) ----------
+
+namespace
+{
+
+struct RBMsg
+{
+    std::string text;
+
+    MIRO_REFLECT(text)
+};
+
+// Stand-in for the generated Swift miro_swift_dispatch: echoes the payload
+// for "echo", fails (null + *errorOut) for anything else. Allocates with
+// malloc so the matching free is plain std::free.
+extern "C"
+{
+    char* rbDispatch(void*, const char* command, const char* payload, char** error)
+    {
+        if (std::string {command} == "echo")
+            return strdup(payload);
+
+        if (error != nullptr)
+            *error = strdup((std::string {"no such command: "} + command).c_str());
+        return nullptr;
+    }
+
+    void rbFree(char* str)
+    {
+        std::free(str);
+    }
+}
+
+} // namespace
+
+auto rbInvokerRoundTrip =
+    test("RemoteBridge: makeRemoteInvoker round-trips JSON through a raw fn") = []
+{
+    auto invoker = Swift::makeRemoteInvoker(&rbDispatch, nullptr, &rbFree);
+
+    auto result = invoker("echo", toJSON(RBMsg {"hi"}));
+
+    auto out = RBMsg {};
+    fromJSON(out, result);
+    check(out.text == "hi");
+};
+
+auto rbInvokerError =
+    test("RemoteBridge: invoker throws with the peer's message on failure") = []
+{
+    auto invoker = Swift::makeRemoteInvoker(&rbDispatch, nullptr, &rbFree);
+
+    auto threw = false;
+    try
+    {
+        invoker("boom", JSON {Json::Object {}});
+    }
+    catch (const std::exception& error)
+    {
+        threw = true;
+        check(contains(std::string {error.what()}, "no such command: boom"));
+    }
+    check(threw);
 };

@@ -57,13 +57,14 @@ void emitMethod(std::ostringstream& out,
     {
         auto resType =
             resolved.nameFor(cmd.responseQualifiedName, cmd.responseTypeName);
-        out << "        let result = try invoke(\"" << wire << "\", payload)\n";
+        out << "        let result = try transport.invoke(\"" << wire
+            << "\", payload)\n";
         out << "        return try decoder.decode(" << resType
             << ".self, from: result)\n";
     }
     else
     {
-        out << "        _ = try invoke(\"" << wire << "\", payload)\n";
+        out << "        _ = try transport.invoke(\"" << wire << "\", payload)\n";
     }
 
     out << "    }\n";
@@ -77,17 +78,21 @@ std::string formatClient(std::span<TypeTree::TypeNode> typeRoots,
     auto resolved = CommandExport::resolveTypes(typeRoots);
 
     auto out = std::ostringstream {};
-    out << "// Typed client: one method per command over an injected JSON "
-           "transport.\n";
+    out << "// Typed client: one method per command over a MiroTransport.\n";
     out << "import Foundation\n\n";
     out << "final class Client {\n";
-    out << "    typealias Invoke = (_ command: String, _ payload: Data) throws "
-           "-> Data\n\n";
-    out << "    private let invoke: Invoke\n";
+    out << "    private let transport: MiroTransport\n";
     out << "    private let encoder = JSONEncoder()\n";
     out << "    private let decoder = JSONDecoder()\n\n";
-    out << "    init(invoke: @escaping Invoke) {\n";
-    out << "        self.invoke = invoke\n";
+    out << "    init(_ transport: MiroTransport) {\n";
+    out << "        self.transport = transport\n";
+    out << "    }\n\n";
+    out << "    // Convenience: wrap a plain closure as the transport.\n";
+    out << "    convenience init(\n";
+    out << "        invoke: @escaping (_ command: String, _ payload: Data) "
+           "throws -> Data\n";
+    out << "    ) {\n";
+    out << "        self.init(MiroClosureTransport(invoke))\n";
     out << "    }\n";
 
     for (auto& cmd: commands)

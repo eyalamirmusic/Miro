@@ -34,14 +34,17 @@ configures — the C++ host library and the codegen build; only the
 
 ## How CMake builds it
 
-- **`miro_export(CalcSchema ... FORMATS swift swift-client)`** builds a
-  codegen executable from `CalcApi` and emits `generated/Schema.swift` +
-  `generated/Schema.client.swift` via the real registered formats.
+- **`miro_export(CalcSchema ...)`** builds a codegen executable from
+  `CalcApi`; an `add_custom_command` runs it to emit `Schema.swift`,
+  `Schema.runtime.swift`, and `Schema.client.swift` (the `swift`,
+  `swift-runtime`, and `swift-client` formats) into the build tree.
 - **`CalcHost`** is a C++ *shared* library (so the Swift executable only
   resolves the C-ABI symbols, not the C++ runtime).
-- **`CalcDemo`** is the Swift executable: `main.swift` + the two generated
+- **`CalcDemo`** is the Swift executable: `main.swift` + the three generated
   files, with `cpp/CalcHost.h` passed as the `-import-objc-header`
   bridging header, linked against `CalcHost`, and registered as a CTest.
+  The generated `Client` takes a `MiroTransport`; `main.swift` uses the
+  closure convenience init that wraps `calc_host_dispatch`.
 
 ## Layout
 
@@ -51,9 +54,11 @@ configures — the C++ host library and the codegen build; only the
 | `cpp/CalcApi.h` | The wire contract — **single source of truth**. One `reflect(ApiReflector&)` drives both runtime binding and codegen. |
 | `cpp/Host.cpp` | Owns a `Miro::Bridge` bound to a `CalcApi`; exposes it via the `CalcHost` C ABI. |
 | `cpp/CalcHost.h` | The C ABI Swift imports (the swiftc **bridging header**). |
-| `generated/Schema.swift` | Generated `Codable` types (committed for visibility; regenerated each build). |
-| `generated/Schema.client.swift` | Generated typed `Client`. |
-| `swift/main.swift` | The integration test: wires the client's `Invoke` to the C ABI and asserts. |
+| `swift/main.swift` | The integration test: wires the client's transport to the C ABI and asserts. |
+
+Generated files (`Schema.swift`, `Schema.runtime.swift`, `Schema.client.swift`)
+are written into the build tree
+(`build-swift/Examples/MiroSwiftExport/generated/`), not committed.
 
 ## Adding a command
 
@@ -61,10 +66,10 @@ Add a method + `r.command(&CalcApi::foo, "foo")` in `cpp/CalcApi.h`, then
 rebuild. The new method appears on the generated Swift `Client` with no
 other edits.
 
-## What this does *not* cover yet
+## See also / not covered yet
 
-- **C++ → Swift** (C++ calling into Swift handlers) — needs the generated
-  Swift dispatch/`Handlers` half.
+- **C++ → Swift** (C++ calling into Swift handlers) — see the sibling
+  `MiroSwiftServer` example.
 - **Async** — the client and the C ABI are synchronous; `async throws` +
   completion marshalling across the C ABI is the follow-up.
 - **Events** — the one-way host→client event channel isn't wired here.

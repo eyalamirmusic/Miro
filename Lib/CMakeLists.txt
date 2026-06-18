@@ -24,8 +24,11 @@ add_library(Miro STATIC
     Miro/Reflection/Reflector.cpp
     Miro/Schema/Schema.cpp
     Miro/Swift/BridgeC.cpp
+    Miro/Swift/RemoteBridge.cpp
     Miro/Swift/Swift.cpp
     Miro/Swift/SwiftClient.cpp
+    Miro/Swift/SwiftRuntime.cpp
+    Miro/Swift/SwiftServer.cpp
     Miro/TypeExport/CodegenMain.cpp
     Miro/TypeExport/Format.cpp
     Miro/TypeTree/TypeTree.cpp

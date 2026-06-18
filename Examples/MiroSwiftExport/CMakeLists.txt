@@ -1,15 +1,29 @@
 set(CMAKE_FOLDER Examples)
 
-# Generate Schema.swift + Schema.client.swift from CalcApi using the real
-# codegen machinery (the registered `swift` / `swift-client` formats).
-# miro_export builds CalcSchema_Codegen and attaches a POST_BUILD step
-# that re-emits the files into generated/ whenever the schema changes.
+# Generated files live in the build tree — they're build outputs, not
+# committed source.
+set(GEN ${CMAKE_CURRENT_BINARY_DIR}/generated)
+
+# Build the codegen tool for CalcApi (no implicit emit — we drive it with an
+# explicit OUTPUT command so the generated files are proper build outputs).
 miro_export(CalcSchema
         API_HEADER ${CMAKE_CURRENT_SOURCE_DIR}/cpp/CalcApi.h
-        API CalcApi
-        OUTPUT_DIR ${CMAKE_CURRENT_SOURCE_DIR}/generated
-        OUTPUT_NAME Schema
-        FORMATS swift swift-client)
+        API CalcApi)
+
+set(GEN_SWIFT
+        ${GEN}/Schema.swift
+        ${GEN}/Schema.runtime.swift
+        ${GEN}/Schema.client.swift)
+
+add_custom_command(
+        OUTPUT ${GEN_SWIFT}
+        COMMAND ${CMAKE_COMMAND} -E make_directory ${GEN}
+        COMMAND CalcSchema_Codegen --out ${GEN} --name Schema
+                --format swift --format swift-runtime --format swift-client
+        DEPENDS CalcSchema_Codegen
+        COMMENT "Generating Swift types + runtime + client from CalcApi"
+        VERBATIM)
+add_custom_target(CalcGenerate DEPENDS ${GEN_SWIFT})
 
 # The C++ host as a shared library: it bundles the Miro objects it needs
 # and links the C++ runtime itself, so the Swift executable that links it
@@ -22,22 +36,18 @@ if (TARGET miro_warnings)
 endif ()
 
 # The Swift app — only when a usable Swift compiler is available, which on
-# macOS means configuring with the Ninja generator (the Makefiles
-# generator has no Swift support, so this skips cleanly there).
+# macOS means configuring with the Ninja generator (the Makefiles generator
+# has no Swift support, so this skips cleanly there).
 include(CheckLanguage)
 check_language(Swift)
 
 if (CMAKE_Swift_COMPILER)
     enable_language(Swift)
 
-    add_executable(CalcDemo
-            swift/main.swift
-            generated/Schema.swift
-            generated/Schema.client.swift)
+    set_source_files_properties(${GEN_SWIFT} PROPERTIES GENERATED TRUE)
 
-    # Ensure the generated sources are refreshed before Swift compiles.
-    add_dependencies(CalcDemo CalcSchema_Codegen)
-
+    add_executable(CalcDemo swift/main.swift ${GEN_SWIFT})
+    add_dependencies(CalcDemo CalcGenerate)
     target_link_libraries(CalcDemo PRIVATE CalcHost)
 
     # CalcHost.h is the Objective-C/C bridging header that surfaces the C

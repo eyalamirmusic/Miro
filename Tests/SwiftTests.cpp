@@ -10,6 +10,8 @@
 #include <Miro/Miro.h>
 #include <Miro/Swift/Swift.h>
 #include <Miro/Swift/SwiftClient.h>
+#include <Miro/Swift/SwiftRuntime.h>
+#include <Miro/Swift/SwiftServer.h>
 #include <NanoTest/NanoTest.h>
 
 #include <span>
@@ -177,8 +179,11 @@ auto sctClientShell =
 
     check(contains(out, "import Foundation"));
     check(contains(out, "final class Client {"));
-    check(contains(out, "typealias Invoke = (_ command: String, _ payload: Data)"));
-    check(contains(out, "init(invoke: @escaping Invoke) {"));
+    check(contains(out, "private let transport: MiroTransport"));
+    check(contains(out, "init(_ transport: MiroTransport) {"));
+    // Closure convenience init keeps Client(invoke:) working.
+    check(contains(out, "convenience init("));
+    check(contains(out, "self.init(MiroClosureTransport(invoke))"));
 };
 
 auto sctEmptyRegistry =
@@ -214,7 +219,7 @@ auto sctResAndReqMethod =
     check(contains(out,
                    "func echo(_ req: SCTEchoRequest) throws -> SCTEchoResponse {"));
     check(contains(out, "let payload = try encoder.encode(req)"));
-    check(contains(out, "let result = try invoke(\"echo\", payload)"));
+    check(contains(out, "let result = try transport.invoke(\"echo\", payload)"));
     check(contains(out,
                    "return try decoder.decode(SCTEchoResponse.self, from: result)"));
 };
@@ -240,7 +245,7 @@ auto sctEmptyRequestElided =
 
     check(contains(out, "func ping() throws -> SCTPingResponse {"));
     check(contains(out, "let payload = Data(\"{}\".utf8)"));
-    check(contains(out, "let result = try invoke(\"ping\", payload)"));
+    check(contains(out, "let result = try transport.invoke(\"ping\", payload)"));
 };
 
 auto sctResOnlyMethod =
@@ -285,7 +290,7 @@ auto sctVoidReqMethod =
 
     check(contains(out, "func log(_ req: SCTEchoRequest) throws {"));
     check(!contains(out, "func log(_ req: SCTEchoRequest) throws ->"));
-    check(contains(out, "_ = try invoke(\"log\", payload)"));
+    check(contains(out, "_ = try transport.invoke(\"log\", payload)"));
 };
 
 auto sctVoidNoArgMethod =
@@ -301,7 +306,7 @@ auto sctVoidNoArgMethod =
 
     check(contains(out, "func quit() throws {"));
     check(contains(out, "let payload = Data(\"{}\".utf8)"));
-    check(contains(out, "_ = try invoke(\"quit\", payload)"));
+    check(contains(out, "_ = try transport.invoke(\"quit\", payload)"));
 };
 
 auto sctNamespacedFlattened =
@@ -325,5 +330,100 @@ auto sctNamespacedFlattened =
 
     check(contains(
         out, "func api_v2_echo(_ req: SCTEchoRequest) throws -> SCTEchoResponse {"));
-    check(contains(out, "invoke(\"api.v2.echo\", payload)"));
+    check(contains(out, "transport.invoke(\"api.v2.echo\", payload)"));
+};
+
+// ---------- Runtime ----------
+
+auto swRuntimeSeam = test("SwiftRuntime: emits the MiroTransport seam") = []
+{
+    auto out = Swift::formatRuntime();
+    check(contains(out, "protocol MiroTransport {"));
+    check(contains(out, "func invoke(_ command: String, _ payload: Data) throws"));
+    check(contains(out, "struct MiroClosureTransport: MiroTransport {"));
+    check(contains(out, "enum MiroDispatchError: Error {"));
+};
+
+// ---------- Server (callee) renderer ----------
+
+namespace
+{
+
+std::vector<TypeTree::TypeNode> serverRoots()
+{
+    auto roots = std::vector<TypeTree::TypeNode> {};
+    roots.push_back(TypeTree::buildTree<SCTEchoRequest>());
+    roots.push_back(TypeTree::buildTree<SCTEchoResponse>());
+    roots.push_back(TypeTree::buildTree<SCTPingResponse>());
+    roots.push_back(TypeTree::buildTree<EmptyValue>());
+    return roots;
+}
+
+} // namespace
+
+auto ssvProtocolAndDispatch =
+    test("SwiftServer: emits a Handlers protocol and a dispatch switch") = []
+{
+    auto roots = serverRoots();
+    auto entries = std::vector<CommandExport::CommandEntry> {
+        makeEntry("echo",
+                  true,
+                  std::string {Detail::typeNameOf<SCTEchoRequest>()},
+                  std::string {Detail::qualifiedNameOf<SCTEchoRequest>()},
+                  true,
+                  std::string {Detail::typeNameOf<SCTEchoResponse>()},
+                  std::string {Detail::qualifiedNameOf<SCTEchoResponse>()}),
+    };
+
+    auto out = Swift::formatServer(std::span<TypeTree::TypeNode> {roots}, entries);
+
+    check(contains(out, "protocol Handlers {"));
+    check(
+        contains(out, "func echo(_ req: SCTEchoRequest) throws -> SCTEchoResponse"));
+    check(contains(out,
+                   "func dispatch(_ handlers: any Handlers, _ command: String, "
+                   "_ payload: Data) throws -> Data {"));
+    check(contains(out, "case \"echo\":"));
+    check(contains(out,
+                   "let req = try JSONDecoder().decode(SCTEchoRequest.self, "
+                   "from: payload)"));
+    check(contains(out, "return try JSONEncoder().encode(handlers.echo(req))"));
+    check(contains(out, "throw MiroDispatchError.unknownCommand(command)"));
+};
+
+auto ssvVoidAndEmpty =
+    test("SwiftServer: empty-request and void commands collapse correctly") = []
+{
+    auto roots = serverRoots();
+    auto entries = std::vector<CommandExport::CommandEntry> {
+        makeEntry("status",
+                  false,
+                  "",
+                  "",
+                  true,
+                  std::string {Detail::typeNameOf<SCTPingResponse>()},
+                  std::string {Detail::qualifiedNameOf<SCTPingResponse>()}),
+        makeEntry("quit", false, "", "", false, "", ""),
+    };
+
+    auto out = Swift::formatServer(std::span<TypeTree::TypeNode> {roots}, entries);
+
+    check(contains(out, "func status() throws -> SCTPingResponse"));
+    check(contains(out, "func quit() throws\n"));
+    // void command returns an empty object and ignores the result.
+    check(contains(out, "try handlers.quit()"));
+    check(contains(out, "return Data(\"{}\".utf8)"));
+};
+
+auto ssvCAbiAdapter = test("SwiftServer: generates the @_cdecl C-ABI adapter") = []
+{
+    auto roots = serverRoots();
+    auto entries = std::vector<CommandExport::CommandEntry> {};
+
+    auto out = Swift::formatServer(std::span<TypeTree::TypeNode> {roots}, entries);
+
+    check(contains(out, "final class MiroHandlerBox {"));
+    check(contains(out, "func miroInstallHandlers(_ handlers: any Handlers)"));
+    check(contains(out, "@_cdecl(\"miro_swift_dispatch\")"));
+    check(contains(out, "@_cdecl(\"miro_swift_string_free\")"));
 };
