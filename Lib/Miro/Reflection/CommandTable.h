@@ -1,6 +1,7 @@
 #pragma once
 
 #include "../IgnoreUnused.h"
+#include "../JSON/Json.h"
 #include "Reflector.h"
 #include "Serialize.h"
 

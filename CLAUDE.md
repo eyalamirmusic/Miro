@@ -27,19 +27,19 @@ ctest --test-dir build --config Release -R "TestName"
 
 ## Architecture
 
-Each implementation `.cpp` file in `Lib/Miro/Detail/` is a separate translation unit, listed explicitly in `Lib/CMakeLists.txt`.
+Each implementation `.cpp` file under `Lib/Miro/` is a separate translation unit, listed explicitly in `Lib/CMakeLists.txt`.
 
-Public surface:
-- `Lib/Miro/Miro.h` — the sole public header. Umbrella that pulls in the Detail headers. User code always includes `<Miro/Miro.h>`.
+Public surface — the entry headers at `Lib/Miro/*.h`. Each is self-contained (enforced by the compile-check TUs in `Tests/PublicHeaders/`):
+- `Miro/Miro.h` — umbrella, includes all entry headers below. Kept for backwards compatibility.
+- `Miro/Json.h` — raw JSON layer (`Miro::Json::Value`, `parse()`, `print()`), no reflection.
+- `Miro/Reflect.h` — reflection layer + JSON serialization (`MIRO_REFLECT`, `Reflector`, `toJSON` / `fromJSON`).
+- `Miro/Xml.h` — XML value layer + XML serialization (`toXML` / `fromXML`).
+- `Miro/Bridge.h` — runtime command/event bridge (`Bridge`, `ApiReflector`, `Event`, `CommandTable`).
+- `Miro/Codegen.h` — type-export / codegen toolchain (`DescribeReflector`, `TypeTree`, TypeScript / schema / C++ emitters, `codegenMain()`).
 
-Implementation (in `Lib/Miro/Detail/`, treat as private):
-- `Json.h` / `Json.cpp` — `Miro::Json::Value` type, accessors, `parse()`, `print()`. Also aliases `Miro::JSON = Miro::Json::Value`.
-- `Parser.cpp` — JSON parser (exposed via `Miro::Json::parse()`).
-- `Printer.cpp` — JSON serializer (exposed via `Miro::Json::print()`).
-- `Reflector.h` / `Reflector.cpp` — `Reflector`, `Property`, core `reflect(Reflector&, T&)` dispatch, primitive + keyed overloads.
-- `ReflectContainers.h` — `reflect` overloads for `std::vector`, `std::array`, `std::map`.
-- `Serialize.h` — `toJSON` / `fromJSON` / `toJSONString` / etc. user-facing helpers.
-- `ReflectMacro.h` — `MIRO_REFLECT(field1, field2, ...)` macro that generates a `reflect()` method from a field list.
+Headers in subdirectories (`Lib/Miro/Reflection/`, `Lib/Miro/JSON/`, `Lib/Miro/Bridge/`, ...) are implementation details — user code includes only the entry headers. Layering notes:
+- `Reflection/Reflector.h` (the abstract `Reflector` base) is format-agnostic — it must not include the JSON layer.
+- `Reflection/Serialize.h` holds the JSON helpers only; the XML counterparts live in `Reflection/SerializeXml.h` so the bridge/JSON path never drags in XML.
 
 CMake target is `Miro` (static library). To add a new source file, add it to the `add_library(Miro ...)` list in `Lib/CMakeLists.txt`. When `MIRO_UNITY_BUILD=ON` (the default), CMake batches those sources into a unity TU via the `UNITY_BUILD` target property.
 

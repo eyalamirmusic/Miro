@@ -44,7 +44,17 @@ FetchContent_MakeAvailable(Miro)
 target_link_libraries(YourTarget PRIVATE Miro)
 ```
 
-All functionality is exposed through a single public header: `#include <Miro/Miro.h>`. The library is built as a unity TU (one `.cpp` file) — implementation details live under `Lib/Miro/Detail/` and should not be included directly.
+`#include <Miro/Miro.h>` is the umbrella header that exposes everything. If you only need part of the library, include just the layer you use:
+
+| Header | Contents |
+|---|---|
+| `<Miro/Json.h>` | Raw JSON value type, `parse()` / `print()` — no reflection |
+| `<Miro/Reflect.h>` | Reflection layer + JSON serialization (`MIRO_REFLECT`, `toJSON` / `fromJSON`) |
+| `<Miro/Xml.h>` | XML value type + XML serialization (`toXML` / `fromXML`) |
+| `<Miro/Bridge.h>` | Runtime command/event bridge (`Bridge`, `ApiReflector`, `Event`) |
+| `<Miro/Codegen.h>` | Type-export / codegen toolchain (`codegenMain()`, TypeScript / schema / C++ emitters) |
+
+Each entry header is self-contained. Headers in subdirectories (`Miro/Reflection/...`, `Miro/JSON/...`, ...) are implementation details and should not be included directly.
 
 ## The `Json` layer
 

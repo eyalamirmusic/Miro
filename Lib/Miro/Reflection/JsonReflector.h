@@ -1,5 +1,6 @@
 #pragma once
 
+#include "../JSON/Json.h"
 #include "Reflector.h"
 
 namespace Miro

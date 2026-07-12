@@ -1,31 +1,17 @@
 #pragma once
 
-#include "Containers.h"
-#include "IgnoreUnused.h"
+// Umbrella header — pulls in every public Miro entry point. Kept for
+// backwards compatibility; new code can include just the layers it
+// needs:
+//
+//   <Miro/Json.h>    — raw JSON value type, parse / print
+//   <Miro/Reflect.h> — reflection + JSON serialization (toJSON / fromJSON)
+//   <Miro/Xml.h>     — XML value type + XML serialization
+//   <Miro/Bridge.h>  — runtime command/event bridge
+//   <Miro/Codegen.h> — type-export / codegen toolchain
 
-#include "Bridge/ApiReflector.h"
-#include "Bridge/BindReflector.h"
-#include "Bridge/Bridge.h"
-#include "Bridge/Callable.h"
-#include "Bridge/DescribeReflector.h"
-#include "Bridge/Event.h"
-#include "CommandExport/CommandEntry.h"
-#include "CommandExport/CommandExport.h"
-#include "Reflection/Any.h"
-#include "Reflection/CommandTable.h"
-#include "Reflection/JsonReflector.h"
-#include "Reflection/XmlReflector.h"
-#include "XML/Xml.h"
-#include "Reflection/ReflectContainers.h"
-#include "Reflection/ReflectDispatch.h"
-#include "Reflection/ReflectEnum.h"
-#include "Reflection/ReflectMacro.h"
-#include "Reflection/ReflectPolymorphic.h"
-#include "Reflection/Reflector.h"
-#include "Reflection/Serialize.h"
-#include "Reflection/TypeName.h"
-#include "Schema/Schema.h"
-#include "TypeExport/CodegenMain.h"
-#include "TypeExport/Context.h"
-#include "TypeExport/Format.h"
-#include "TypeScript/TypeScript.h"
+#include "Bridge.h"
+#include "Codegen.h"
+#include "Json.h"
+#include "Reflect.h"
+#include "Xml.h"
