@@ -181,6 +181,20 @@ auto parseLoneSlashThrows = test("Parse lone slash throws") = []
     check(threw);
 };
 
+auto getParsedValueValid = test("getParsedValue parses valid input") = []
+{
+    check(getParsedValue("42") == parse("42"));
+    check(getParsedValue(R"({"a": 1})") == parse(R"({"a": 1})"));
+};
+
+auto getParsedValueMalformed =
+    test("getParsedValue returns null on malformed input without throwing") = []
+{
+    check(getParsedValue("/* never closes").isNull());
+    check(getParsedValue("{ oops").isNull());
+    check(getParsedValue("").isNull());
+};
+
 auto valueEquality = test("Value equality") = []
 {
     check(parse("42") == parse("42"));

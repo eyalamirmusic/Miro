@@ -82,6 +82,13 @@ const Value* find(const Object& object, std::string_view key);
 Value payloadOrEmpty(const Value& payload);
 
 Value parse(std::string_view inputToUse);
+
+// Like parse(), but never throws. On malformed input it catches the
+// ParseError (and any other exception) internally and returns a null
+// Value instead. Use this at boundaries where a default-constructed
+// result is preferable to handling a thrown ParseError.
+Value getParsedValue(std::string_view inputToUse);
+
 std::string print(const Value& valueToUse, int indentToUse = 0);
 void log(const Value& valueToUse, int indentToUse = 0);
 } // namespace Miro::Json

@@ -2,6 +2,8 @@
 
 #include <NanoTest/NanoTest.h>
 
+#include <stdexcept>
+
 using namespace nano;
 using namespace Miro;
 
@@ -130,8 +132,8 @@ auto saveVectorOfInts = test("Save vector of ints") = []
 
 auto loadVectorOfInts = test("Load vector of ints") = []
 {
-    auto val = createFromJSONString<ClassWithVectorOfInts>(
-        R"({"nums": [10, 20, 30]})");
+    auto val =
+        createFromJSONString<ClassWithVectorOfInts>(R"({"nums": [10, 20, 30]})");
 
     check(val.nums.size() == 3);
     check(val.nums[0] == 10);
@@ -323,6 +325,50 @@ auto createFromJSONStringTest = test("createFromJSONString") = []
     check(val.label == "hi");
 };
 
+// --- Non-throwing load guarantees ---
+
+// A type whose reflect() throws, used to prove the load boundary
+// swallows exceptions coming from user code.
+struct ThrowingReflect
+{
+    void reflect(Miro::Reflector& ref)
+    {
+        ref["value"](value);
+        throw std::runtime_error("reflect boom");
+    }
+
+    int value = 7;
+};
+
+auto loadMalformedJsonDoesNotThrow =
+    test("createFromJSONString on malformed JSON returns default") = []
+{
+    auto val = createFromJSONString<Outer>("{ not valid json");
+
+    check(val.a == 0);
+    check(val.nested.x == 0);
+    check(val.label.empty());
+};
+
+auto loadTypeMismatchKeepsDefault =
+    test("Load with mismatched types keeps existing value without throwing") = []
+{
+    auto val = Inner {123};
+    fromJSONString(val, R"({"x": "not a number"})");
+
+    check(val.x == 123);
+};
+
+auto loadThrowingReflectIsCaught =
+    test("Throwing reflect() is caught during load") = []
+{
+    auto val = createFromJSONString<ThrowingReflect>(R"({"value": 42})");
+
+    // reflect() populated the field before throwing; the throw was
+    // swallowed at the load boundary rather than propagated.
+    check(val.value == 42);
+};
+
 // --- Missing property tests ---
 
 auto missingPropertyKeepsDefault = test("Missing property keeps existing value") = []
@@ -408,8 +454,8 @@ auto inlineFieldsSave = test("MIRO_FIELDS saves alongside custom logic") = []
 
 auto inlineFieldsLoad = test("MIRO_FIELDS loads alongside custom logic") = []
 {
-    auto val = createFromJSONString<InlineFieldsType>(
-        R"({"x": 42, "name": "world"})");
+    auto val =
+        createFromJSONString<InlineFieldsType>(R"({"x": 42, "name": "world"})");
 
     check(val.x == 42);
     check(val.name == "world");
@@ -434,8 +480,7 @@ auto inlineFieldsRenamedRef =
 
     check(json["value"].asNumber() == 7.0);
 
-    auto loaded =
-        createFromJSONString<InlineFieldsRenamedRef>(R"({"value": 99})");
+    auto loaded = createFromJSONString<InlineFieldsRenamedRef>(R"({"value": 99})");
     check(loaded.value == 99);
 };
 

@@ -442,4 +442,16 @@ Value parse(std::string_view inputToUse)
     return result;
 }
 
+Value getParsedValue(std::string_view inputToUse)
+{
+    try
+    {
+        return parse(inputToUse);
+    }
+    catch (...)
+    {
+        return Value {};
+    }
+}
+
 } // namespace Miro::Json
