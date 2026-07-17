@@ -7,20 +7,28 @@
 
 #include <string>
 #include <string_view>
+#include <utility>
 
 // JSON serialization helpers only. The XML counterparts (toXML /
 // fromXML / toXMLString / ...) live in SerializeXml.h so the JSON
 // path — and everything built on it, like CommandTable — doesn't
 // drag the XML layer into every consumer.
+//
+// Every entry point takes an optional CustomOptions: a caller-supplied
+// payload (e.g. a "session" tag) drilled down unchanged to every nested
+// reflector, readable inside any reflect() body via ref.customOptions().
+// It defaults to empty, so existing call sites are unaffected.
 
 namespace Miro
 {
 
 template <typename T>
-JSON toJSON(const T& value)
+JSON toJSON(const T& value, CustomOptions custom = {})
 {
     auto json = JSON {};
-    auto ref = JsonReflector {json, Detail::topLevelOptions<T>(Mode::Save)};
+    auto ref = JsonReflector {
+        json,
+        Detail::topLevelOptions<T>(Mode::Save, /*schema=*/false, std::move(custom))};
     Detail::reflectValue(ref, const_cast<T&>(value));
     return json;
 }
@@ -32,13 +40,15 @@ JSON toJSON(const T& value)
 // On failure `value` keeps whatever was populated before the fault
 // rather than propagating the exception.
 template <typename T>
-void fromJSON(T& value, const JSON& json)
+void fromJSON(T& value, const JSON& json, CustomOptions custom = {})
 {
     try
     {
         auto mutableJson = json;
         auto ref =
-            JsonReflector {mutableJson, Detail::topLevelOptions<T>(Mode::Load)};
+            JsonReflector {mutableJson,
+                           Detail::topLevelOptions<T>(
+                               Mode::Load, /*schema=*/false, std::move(custom))};
         Detail::reflectValue(ref, value);
     }
     catch (...)
@@ -50,39 +60,39 @@ void fromJSON(T& value, const JSON& json)
 // Non-throwing (see fromJSON): a fault leaves the returned value with
 // whatever was populated before it, starting from a default T {}.
 template <typename T>
-T createFromJSON(const JSON& json)
+T createFromJSON(const JSON& json, CustomOptions custom = {})
 {
     auto value = T {};
-    fromJSON(value, json);
+    fromJSON(value, json, std::move(custom));
     return value;
 }
 
 template <typename T>
-std::string toJSONString(const T& value, int indent = 0)
+std::string toJSONString(const T& value, int indent = 0, CustomOptions custom = {})
 {
-    return Json::print(toJSON(value), indent);
+    return Json::print(toJSON(value, std::move(custom)), indent);
 }
 
 template <typename T>
-void logJSON(const T& value, int indent = 4)
+void logJSON(const T& value, int indent = 4, CustomOptions custom = {})
 {
-    Json::log(toJSON(value), indent);
+    Json::log(toJSON(value, std::move(custom)), indent);
 }
 
 // Non-throwing: malformed JSON is swallowed by getParsedValue (yielding
 // null, which loads as "no fields"), and fromJSON never throws.
 template <typename T>
-void fromJSONString(T& value, std::string_view jsonString)
+void fromJSONString(T& value, std::string_view jsonString, CustomOptions custom = {})
 {
-    fromJSON(value, Json::getParsedValue(jsonString));
+    fromJSON(value, Json::getParsedValue(jsonString), std::move(custom));
 }
 
 // Non-throwing counterpart of createFromJSON for a raw string; see
 // fromJSONString.
 template <typename T>
-T createFromJSONString(std::string_view jsonString)
+T createFromJSONString(std::string_view jsonString, CustomOptions custom = {})
 {
-    return createFromJSON<T>(Json::getParsedValue(jsonString));
+    return createFromJSON<T>(Json::getParsedValue(jsonString), std::move(custom));
 }
 
 } // namespace Miro

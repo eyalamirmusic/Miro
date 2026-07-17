@@ -11,6 +11,7 @@
 #include <optional>
 #include <string>
 #include <type_traits>
+#include <utility>
 #include <variant>
 #include <vector>
 
@@ -152,10 +153,13 @@ consteval Shape shapeOf()
         return Shape::Primitive;
 }
 
-// Build child Options from a parent's Options. mode and schema
-// inherit; shape and nullable are decided by the value type T.
+// Build child Options from a parent's Options. mode, schema and the
+// custom payload inherit (the plain copy of `parent` carries them);
+// shape and nullable are decided by the value type T. Not constexpr:
+// Options now holds a std::string (CustomOptions), and this is only
+// ever evaluated at runtime while spawning a child reflector.
 template <typename T>
-constexpr Options childOptionsFor(const Options& parent)
+Options childOptionsFor(const Options& parent)
 {
     auto opts = parent;
     opts.shape = shapeOf<T>();
@@ -163,15 +167,18 @@ constexpr Options childOptionsFor(const Options& parent)
     return opts;
 }
 
-// Build top-level Options for a fresh root reflector reflecting T.
+// Build top-level Options for a fresh root reflector reflecting T. The
+// custom payload defaults to empty; the JSON/XML entry points pass the
+// caller-supplied CustomOptions here so it drills down to every child.
 template <typename T>
-constexpr Options topLevelOptions(Mode mode, bool schema = false)
+Options topLevelOptions(Mode mode, bool schema = false, CustomOptions custom = {})
 {
     return Options {
         .mode = mode,
         .shape = shapeOf<T>(),
         .nullable = isOptional<T>(),
         .schema = schema,
+        .custom = std::move(custom),
     };
 }
 
@@ -288,18 +295,18 @@ template <typename T>
 void Property::operator()(T& value)
 {
     using Detail::reflectValue;
-    reflectValue(reflector.atKey(key,
-                                 Detail::childOptionsFor<T>(reflector.options())),
-                 value);
+    reflectValue(
+        reflector.atKey(key, Detail::childOptionsFor<T>(reflector.options())),
+        value);
 }
 
 template <typename T>
 void Element::operator()(T& value)
 {
     using Detail::reflectValue;
-    reflectValue(reflector.atIndex(index,
-                                   Detail::childOptionsFor<T>(reflector.options())),
-                 value);
+    reflectValue(
+        reflector.atIndex(index, Detail::childOptionsFor<T>(reflector.options())),
+        value);
 }
 
 } // namespace Miro

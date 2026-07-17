@@ -56,11 +56,26 @@ enum class ValueKind
     Object
 };
 
+// User-supplied, format-agnostic payload threaded verbatim through an
+// entire reflection walk. Seeded at the top-level toJSON/fromJSON (or
+// toXML/fromXML) call and copied unchanged from a parent reflector to
+// every child — so, unlike the per-child fields of Options, a value set
+// at the root is visible to every nested type's reflect() body via
+// reflector.customOptions(). Types that care can branch on it (e.g.
+// carry a "session" tag down the tree and serialize differently for it);
+// types that don't simply ignore it. Currently just a free-form string,
+// but more fields can be added later without touching the propagation
+// machinery.
+struct CustomOptions
+{
+    std::string tag {};
+};
+
 // Spawn-time configuration for a Reflector. Carried as a value member
 // of the base, so most queries (mode, shape, schema, nullable) are
 // non-virtual reads. When a parent spawns a child via atKey/atIndex,
 // the dispatcher constructs the child's Options from the parent's —
-// mode and schema propagate; shape and nullable are set per-child
+// mode, schema and custom propagate; shape and nullable are set per-child
 // based on the value type being reflected.
 struct Options
 {
@@ -68,6 +83,9 @@ struct Options
     Shape shape = Shape::Primitive;
     bool nullable = false;
     bool schema = false;
+
+    // Propagated parent -> child unchanged (see CustomOptions).
+    CustomOptions custom {};
 };
 
 // Identity of a named C++ type announced through reflection. `shortName`
@@ -133,6 +151,7 @@ public:
     Element operator[](std::size_t index);
 
     const Options& options() const { return opts; }
+    const CustomOptions& customOptions() const { return opts.custom; }
     Mode mode() const { return opts.mode; }
     Shape shape() const { return opts.shape; }
     bool isSaving() const { return opts.mode == Mode::Save; }
