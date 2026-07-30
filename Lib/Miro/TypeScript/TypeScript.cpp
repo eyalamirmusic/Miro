@@ -330,7 +330,11 @@ std::string formatEventsModule(std::span<TypeNode> typeRoots,
     auto resolved = CommandExport::resolveTypes(typeRoots);
 
     auto out = std::ostringstream {};
-    out << "import type * as T from './" << baseName << "';\n\n";
+
+    // Only when an event names one: an API can have commands and no events, and
+    // an unused import fails every consumer built with noUnusedLocals.
+    if (!events.empty())
+        out << "import type * as T from './" << baseName << "';\n\n";
 
     out << "export interface Events\n{\n";
     for (auto& ev: events)

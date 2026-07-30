@@ -80,6 +80,16 @@ public:
     CMFilesSub files;
 };
 
+// Commands, no events — the shape that made the events module emit an import
+// it never uses.
+class CMNoEventsApi
+{
+public:
+    void reflect(ApiReflector& r) { r.command(&CMNoEventsApi::status, "status"); }
+
+    CMRes status() const { return {"ok"}; }
+};
+
 const EmittedFile* findFile(const EA::Vector<EmittedFile>& files,
                             std::string_view suffix)
 {
@@ -221,6 +231,23 @@ auto cmEventsModule = test(
           != std::string::npos);
     check(events->contents.find("export interface EventBus") != std::string::npos);
     check(events->contents.find("subscribe<K extends EventName>")
+          != std::string::npos);
+};
+
+// An API can have commands and no events, and the bridge module still imports
+// the (empty) Events type — so the module is emitted either way. Nothing in it
+// names a payload, so importing the schema would leave an unused import, which
+// fails every consumer compiled with noUnusedLocals.
+auto cmEventsModuleWithoutEvents =
+    test("codegenMain: an event-less API's events module imports nothing") = []
+{
+    auto files = buildCodegen<CMNoEventsApi>("schema", {"events"});
+
+    auto* events = findFile(files, ".events.ts");
+    check(events != nullptr);
+    check(events->contents.find("import") == std::string::npos);
+    check(events->contents.find("export interface Events") != std::string::npos);
+    check(events->contents.find("export type EventName = keyof Events;")
           != std::string::npos);
 };
 
