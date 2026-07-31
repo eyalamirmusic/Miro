@@ -330,7 +330,12 @@ std::string formatEventsModule(std::span<TypeNode> typeRoots,
     auto resolved = CommandExport::resolveTypes(typeRoots);
 
     auto out = std::ostringstream {};
-    out << "import type * as T from './" << baseName << "';\n\n";
+
+    // Only the event payloads below name `T`, so an API with no events would
+    // import a module it never references — which fails any tsc running
+    // noUnusedLocals.
+    if (!events.empty())
+        out << "import type * as T from './" << baseName << "';\n\n";
 
     out << "export interface Events\n{\n";
     for (auto& ev: events)

@@ -224,6 +224,31 @@ auto cmEventsModule = test(
           != std::string::npos);
 };
 
+auto cmEventsModuleNoEvents = test(
+    "codegenMain: event-less API emits no schema import in its events module") =
+    []
+{
+    // Only event payloads reference `T`, so importing it here would leave an
+    // unused local — a hard error under tsc's noUnusedLocals.
+    struct CMNoEventsApi
+    {
+        void reflect(ApiReflector& r) { r.command(&CMNoEventsApi::ping, "ping"); }
+        CMRes ping() const { return {"pong"}; }
+    };
+
+    auto files = buildCodegen<CMNoEventsApi>("schema", {"events"});
+
+    auto* events = findFile(files, ".events.ts");
+    check(events != nullptr);
+    check(events->contents.find("import type * as T") == std::string::npos);
+
+    // The rest of the module is unchanged — only the import is conditional.
+    check(events->contents.find("export interface Events") != std::string::npos);
+    check(events->contents.find("export type EventName = keyof Events;")
+          != std::string::npos);
+    check(events->contents.find("export interface EventBus") != std::string::npos);
+};
+
 auto cmEventsModuleSubApi = test(
     "codegenMain: events format emits sub-API events under the use() prefix") = []
 {
