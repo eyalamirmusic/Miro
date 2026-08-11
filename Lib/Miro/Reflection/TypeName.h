@@ -6,11 +6,8 @@
 namespace Miro::Detail
 {
 
-// Extracts a compile-time, compiler-derived name for type T from
-// __PRETTY_FUNCTION__ / __FUNCSIG__. Same trick as enumNameRaw in
-// ReflectEnum.h, generalized to any T. Returns the spelling the
-// compiler chose for the template argument (may include namespace
-// qualifiers and template arguments).
+// Whatever spelling the compiler chose, including namespace qualifiers,
+// template arguments and (on MSVC) a leading class-key keyword.
 template <typename T>
 constexpr std::string_view rawTypeNameOf()
 {
@@ -33,11 +30,6 @@ constexpr std::string_view rawTypeNameOf()
 #endif
 }
 
-// Like rawTypeNameOf but strips the leading C++ class-key keyword that
-// MSVC's __FUNCSIG__ emits ("struct ", "class ", "enum "). All namespace
-// qualifiers and template arguments are preserved. This is the canonical
-// spelling to compare or hash across compilers — Clang/GCC don't emit
-// the keyword in __PRETTY_FUNCTION__, so this is a no-op there.
 template <typename T>
 constexpr std::string_view qualifiedNameOf()
 {
@@ -53,17 +45,12 @@ constexpr std::string_view qualifiedNameOf()
     return raw;
 }
 
-// Returns just the unqualified short name. Strips namespaces (incl.
-// "(anonymous namespace)::"). Templates and STL types are deliberately
-// left intact in the raw form — callers that want to filter them can
-// inspect for '<' / "std::" themselves.
 template <typename T>
 constexpr std::string_view typeNameOf()
 {
     auto name = qualifiedNameOf<T>();
 
-    // Find the rightmost "::" that is *not* inside template angle
-    // brackets, and trim everything before it.
+    // Rightmost "::" outside template angle brackets.
     auto depth = 0;
     auto lastColon = std::string_view::npos;
 
@@ -83,12 +70,6 @@ constexpr std::string_view typeNameOf()
     return name;
 }
 
-// Compile-time extraction of a pointer-to-member's short name from
-// __PRETTY_FUNCTION__ / __FUNCSIG__. Same trick as enumNameRaw, but
-// with the NTTP rendered as a qualified `&Class::name` (or
-// `&Class<T>::name`). Used by ApiReflector to derive command / event
-// names from `&Foo::bar`-style template arguments so the user doesn't
-// have to repeat the name as a string.
 template <auto Member>
 constexpr std::string_view memberNameOf()
 {
@@ -112,14 +93,11 @@ constexpr std::string_view memberNameOf()
 
     auto name = sig.substr(start, end - start);
 
-    // Drop the leading '&' that compilers prepend for pmf / pmd NTTPs.
     if (!name.empty() && name.front() == '&')
         name.remove_prefix(1);
 
-    // Find the rightmost "::" at zero depth (ignoring template-argument
-    // angle brackets in the class qualifier and parens that wrap
-    // "(anonymous namespace)") — that separates the class qualifier
-    // from the actual member name.
+    // Rightmost "::" outside template angle brackets and outside the
+    // parens of an "(anonymous namespace)" qualifier.
     auto angleDepth = 0;
     auto parenDepth = 0;
     auto lastColon = std::string_view::npos;
@@ -143,20 +121,14 @@ constexpr std::string_view memberNameOf()
     if (lastColon != std::string_view::npos)
         name.remove_prefix(lastColon + 2);
 
-    // MSVC renders a pmf NTTP as the full function signature, so what
-    // remains after trimming the qualifier is "method(paramList) cv".
-    // Strip the parameter list (and any trailing cv-quals) so the result
-    // is just the unqualified member name, matching the GCC/Clang output.
+    // MSVC renders a pmf NTTP as a full signature, so drop the trailing
+    // "(params) cv" that GCC/Clang never emit.
     if (auto paren = name.find('('); paren != std::string_view::npos)
         name = name.substr(0, paren);
 
     return name;
 }
 
-// True if T is a "named" user-defined type — i.e. not a template
-// instantiation and not in the std namespace. Used by the TypeScript
-// exporter to decide whether to register T as a reusable type or
-// inline its shape.
 template <typename T>
 constexpr bool isNamedUserType()
 {

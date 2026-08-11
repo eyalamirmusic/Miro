@@ -1,10 +1,3 @@
-// Tests for Miro::Event<T> and Miro::RefEvent<T> — the typed event
-// sources API classes declare as members. Event<T> owns its payload
-// (.publish(payload) copies in and triggers); RefEvent<T> holds a T&
-// to externally owned state (.publish() only triggers, the owner has
-// already mutated the referenced T). Both satisfy the EventLike
-// concept so the reflector consumes them interchangeably.
-
 #include <Miro/Miro.h>
 #include <NanoTest/NanoTest.h>
 
@@ -114,8 +107,6 @@ auto evListenerDetachOnDestroy = test(
     check(fired == 1);
 };
 
-// ---------- RefEvent<T> ----------
-
 auto refEvSnapshotReadsThroughRef =
     test("RefEvent: snapshot() reads through the referenced T") = []
 {
@@ -128,8 +119,7 @@ auto refEvSnapshotReadsThroughRef =
     state.n = 99;
     state.s = "mutated";
 
-    // No publish() yet — snapshot still reflects current ref state
-    // because there's only ever one source of truth (the ref'd T).
+    // Still current without a publish(): the ref'd T is the only source of truth.
     check(e.snapshot().n == 99);
     check(e.snapshot().s == "mutated");
 };
@@ -172,7 +162,5 @@ auto refEvDetachOnDestroy = test("RefEvent: listener detaches on destruction") =
     check(fired == 1);
 };
 
-// EventLike contract — both flavours must satisfy it; new flavours
-// added later are caught at compile time if they don't.
 static_assert(EventLike<Event<int>>);
 static_assert(EventLike<RefEvent<int>>);

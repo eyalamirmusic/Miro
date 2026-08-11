@@ -1,8 +1,3 @@
-// Coverage for polymorphic reflection: std::variant<Ts...>,
-// Miro::Polymorphic<Base, Derived...>, the reflectPolymorphic callback
-// API, the MIRO_REFLECT_POLY / MIRO_REFLECT_EXTERNAL_POLY macros, and
-// the assertion hook fired by schema-mode reflectors.
-
 #include <Miro/Miro.h>
 #include <NanoTest/NanoTest.h>
 
@@ -35,11 +30,8 @@ struct Triangle
     MIRO_REFLECT(base, height)
 };
 
-// Base class for the OwningPointer<Base> / Polymorphic<...> tests. Needs
-// a virtual destructor so dynamic_cast works and OwningPointer's delete
-// is well-formed; an empty reflect() satisfies the Reflectable concept
-// (the dispatcher never calls it directly — alternatives are always
-// reflected through their concrete derived reflect()).
+// The empty reflect() only satisfies the Reflectable concept: alternatives
+// are always reflected through their concrete derived reflect().
 struct ShapeBase
 {
     virtual ~ShapeBase() = default;
@@ -58,7 +50,6 @@ struct SquareShape : ShapeBase
     MIRO_REFLECT(side)
 };
 
-// Used by the "MIRO_REFLECT_POLY" intrusive-macro test.
 struct PolyVariantField
 {
     std::variant<Circle, Square> value;
@@ -67,10 +58,8 @@ struct PolyVariantField
 
 } // namespace
 
-// File-scope (not anonymous) so MIRO_REFLECT_EXTERNAL_POLY's generated
-// reflect() in namespace Miro doesn't pick up internal linkage from an
-// anonymous-namespace parameter type, which would trip -Wunused-function
-// on this TU.
+// Must stay out of the anonymous namespace: internal linkage would leak into
+// MIRO_REFLECT_EXTERNAL_POLY's generated reflect() and trip -Wunused-function.
 struct ExternalPolyType
 {
     std::variant<Circle, Square> shape;
@@ -82,9 +71,6 @@ MIRO_REFLECT_EXTERNAL_POLY(
 namespace
 {
 
-// Nested-field test: a normal struct that owns a polymorphic field
-// alongside a regular one. Validates the externally-tagged shape
-// nests correctly under a JSON key.
 struct Drawing
 {
     std::string name;
@@ -93,9 +79,6 @@ struct Drawing
     MIRO_REFLECT(name, shape)
 };
 
-// Hand-written reflect() for the "unknown tag on load" test. Exposes
-// the dispatcher's handled() result through a member so the test can
-// observe it without a side channel.
 struct PolyWithHandledFlag
 {
     std::variant<Circle, Square> value;
@@ -270,16 +253,12 @@ auto unknownTagOnLoadLeavesValueAlone =
 {
     auto holder = PolyWithHandledFlag {.value = Circle {0.0}};
 
-    // Save and confirm the round trip baseline works.
     auto json = toJSONString(holder);
     check(json == R"({"circle":{"radius":0}})");
 
-    // Now load a payload carrying a tag we didn't register.
     fromJSONString(holder, R"({"triangle":{"base":1,"height":2}})");
 
     check(!holder.lastLoadHandled);
-    // The variant should still hold a Circle (its prior state) — no
-    // alternative matched, so assign<T>() never fired.
     check(std::holds_alternative<Circle>(holder.value));
 };
 
@@ -304,9 +283,8 @@ auto nestedPolymorphicFieldRoundTrip =
 auto xmlVariantRoundTrip =
     test("variant nested in a named struct round-trips through XML") = []
 {
-    // Top-level XML uses the type's short name as the root element name,
-    // which produces invalid XML for unnamed/templated types — so we
-    // wrap the variant in a regular struct (the realistic use case).
+    // Top-level XML names the root after the type, which is invalid for a
+    // bare variant — so it is wrapped in a named struct.
     auto original = PolyVariantField {.value = Square {2.0}};
     auto xmlString = toXMLString(original);
 

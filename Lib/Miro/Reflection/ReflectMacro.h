@@ -2,47 +2,9 @@
 
 #include "Reflector.h"
 
-// Macro-based reflect() generator.
-//
-// Usage (intrusive, for types you own):
-//   struct Foo
-//   {
-//       int x = 0;
-//       std::string name;
-//       MIRO_REFLECT(x, name)
-//   };
-//
-// Usage (non-intrusive, for types you don't own):
-//   // at global scope, after Foo is fully declared
-//   MIRO_REFLECT_EXTERNAL(Foo, x, name)
-//
-// Each listed member becomes ref["member"](member). The field name is used
-// as the JSON key. Supports up to ~256 fields.
-//
-// Usage (custom JSON keys, intrusive):
-//   MIRO_REFLECT_MEMBERS(x, "X Coord", name, "Full Name")
-//
-// Usage (custom JSON keys, non-intrusive):
-//   MIRO_REFLECT_EXTERNAL_MEMBERS(Foo, x, "X Coord", name, "Full Name")
-//
-// The ..._MEMBERS variants take (field, keyString) pairs instead of bare
-// field names, so the JSON key can differ from the C++ identifier.
-//
-// Usage (hand-written reflect body with auto-named fields):
-//   void reflect(Miro::Reflector& ref)
-//   {
-//       if (ref.isLoading())
-//           onAboutToLoad.trigger();
-//
-//       MIRO_FIELDS(ref, x, name);
-//
-//       if (ref.isLoading())
-//           onLoaded.trigger();
-//   }
-//
-// MIRO_FIELDS is the building block MIRO_REFLECT itself uses. Reach for it
-// when you need custom logic inside reflect() but still want to avoid
-// hand-typing each field name as both an identifier and a string.
+// Recursive expansion machinery: MIRO_PARENS defers each ..._AGAIN so the
+// preprocessor rescans it, and the nested MIRO_EXPAND passes bound the
+// recursion at roughly 256 items.
 
 #define MIRO_PARENS ()
 
@@ -68,9 +30,8 @@
     macro(a, b) __VA_OPT__(MIRO_FOR_EACH_PAIR_AGAIN MIRO_PARENS(macro, __VA_ARGS__))
 #define MIRO_FOR_EACH_PAIR_AGAIN() MIRO_FOR_EACH_PAIR_HELPER
 
-// Like MIRO_FOR_EACH, but threads a fixed `extra` argument through every
-// invocation: macro(extra, a) macro(extra, b) ... — used by MIRO_FIELDS
-// to bind the user-supplied reflector expression into each field call.
+// Like MIRO_FOR_EACH, but passes `extra` as the first argument of every
+// invocation: macro(extra, a) macro(extra, b) ...
 #define MIRO_FOR_EACH_WITH(macro, extra, ...)                                       \
     __VA_OPT__(MIRO_EXPAND(MIRO_FOR_EACH_WITH_HELPER(macro, extra, __VA_ARGS__)))
 #define MIRO_FOR_EACH_WITH_HELPER(macro, extra, a, ...)                             \
@@ -80,48 +41,20 @@
 
 #define MIRO_FIELDS_FIELD(refExpr, field) refExpr[#field](field);
 
-// Public: drop into a hand-written reflect() body to reflect a list of
-// fields without re-typing their names as strings. `refExpr` is evaluated
-// once per field (typically just the bare reflector parameter name).
+// `refExpr` is re-evaluated once per field, so pass a plain reflector name.
 #define MIRO_FIELDS(refExpr, ...)                                                   \
     MIRO_FOR_EACH_WITH(MIRO_FIELDS_FIELD, refExpr, __VA_ARGS__)
 
+// The MIRO_API* macros expand to ApiReflector calls; this header does not
+// include the bridge layer, so the user must have <Miro/Bridge.h> in scope.
 #define MIRO_API_FIELD(refExpr, field) refExpr.use(#field, field);
 
-// ApiReflector sibling of MIRO_FIELDS: inside an ApiReflector reflect()
-// body, defer to a list of sub-API members using each one's identifier
-// as the wire-name prefix. Expands `MIRO_API(r, files, users)` to
-// `r.use("files", files); r.use("users", users);` — each sub's
-// commands/events land under "files.<name>" and "users.<name>".
-//
-// Requires <Miro/Miro.h> (or Bridge/ApiReflector.h directly) in scope
-// at expansion — the macro does not include it.
 #define MIRO_API(refExpr, ...)                                                      \
     MIRO_FOR_EACH_WITH(MIRO_API_FIELD, refExpr, __VA_ARGS__)
 
 #define MIRO_REFLECT_API_FIELD(refExpr, field)                                      \
     refExpr.template api<&MiroReflectApiSelf::field>(*this);
 
-// ApiReflector sibling of MIRO_REFLECT: generates a reflect() body that
-// hands each listed member to ApiReflector::api<...>(*this). Each
-// member is auto-classified — a method becomes a command, an Event<T>
-// data member becomes an event, and an ApiReflectable data member
-// becomes a sub-API installed under its identifier as prefix.
-//
-// Usage:
-//   class Todos
-//   {
-//   public:
-//       TodoState getTodos() const;
-//       void addTodo(const AddRequest& req);
-//       Miro::Event<TodoState> changes;
-//       FilesSubApi files;
-//
-//       MIRO_REFLECT_API(getTodos, addTodo, changes, files)
-//   };
-//
-// Requires <Miro/Miro.h> (or Bridge/ApiReflector.h + <type_traits>) in
-// scope at expansion.
 #define MIRO_REFLECT_API(...)                                                       \
     void reflect(Miro::ApiReflector& __VA_OPT__(r))                                 \
     {                                                                               \
@@ -168,19 +101,7 @@
     }                                                                               \
     }
 
-// Polymorphic reflect: `field` is a std::variant or OwningPointer<Base>
-// holder; pairs are (DerivedType, "tag") sequences. Generates a reflect()
-// body that delegates to Miro::reflectPolymorphic with the listed
-// alternatives. The lambda captures `d` from its enclosing scope, so
-// the per-pair expansion doesn't need to thread it.
-//
-// Usage:
-//   struct Shape
-//   {
-//       std::variant<Circle, Square> value;
-//       MIRO_REFLECT_POLY(value, Circle, "circle", Square, "square")
-//   };
-
+// `d` is the dispatcher named by the enclosing MIRO_REFLECT_POLY lambda.
 #define MIRO_POLY_ALT_PAIR(type, tag) d.template alt<type>(tag);
 
 #define MIRO_REFLECT_POLY(field, ...)                                               \

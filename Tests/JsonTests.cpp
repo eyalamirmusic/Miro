@@ -203,8 +203,6 @@ auto valueEquality = test("Value equality") = []
     check(parse("null") == parse("null"));
 };
 
-// --- Implicit conversion tests ---
-
 auto implicitConvertToBool = test("Implicit convert to bool") = []
 {
     JSON value = true;
@@ -284,8 +282,6 @@ auto implicitConvertInExpression = test("Implicit convert in expression") = []
         check(false);
 };
 
-// --- Print tests ---
-
 auto printNull = test("Print null") = [] { check(print(parse("null")) == "null"); };
 
 auto printBool = test("Print bool") = []
@@ -335,8 +331,6 @@ auto printRoundtrip = test("Print roundtrip") = []
     auto input = R"({"active":true,"items":[1,"two",null],"name":"Miro"})";
     check(print(parse(input)) == input);
 };
-
-// --- Indented print tests ---
 
 auto printIndentedObject = test("Print indented object") = []
 {

@@ -1,10 +1,5 @@
 #pragma once
 
-// Entry header: the reflection layer plus JSON serialization —
-// MIRO_REFLECT, Reflector, toJSON / fromJSON / toJSONString and
-// friends. XML serialization lives in <Miro/Xml.h>, the runtime
-// command/event bridge in <Miro/Bridge.h>.
-
 #include "Containers.h"
 #include "IgnoreUnused.h"
 

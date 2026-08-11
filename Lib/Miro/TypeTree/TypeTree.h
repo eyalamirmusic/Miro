@@ -9,18 +9,9 @@
 #include <string>
 #include <string_view>
 
-// A format-neutral description of a reflected C++ type. The TypeReflector
-// walks any MIRO_REFLECT-enabled value and builds a TypeNode tree;
-// downstream renderers (Zod, plain TypeScript, JSON Schema, future
-// formats) consume the same tree, so the structural reflection logic
-// is written once and the per-format work shrinks to "walk this tree
-// and emit text/JSON".
-
 namespace Miro::TypeTree
 {
 
-// Primitive flavour. Renderers map this to format-specific spellings
-// (e.g. Boolean → "z.boolean()" / "boolean" / "{type:'boolean'}").
 enum class PrimitiveKind
 {
     Boolean,
@@ -32,8 +23,7 @@ enum class PrimitiveKind
 
 struct TypeNode
 {
-    // Nested so it doesn't shadow Miro::Shape (which lives on the
-    // parent Reflector's Options). The IR superset adds an Enum case.
+    // Nested so it doesn't shadow Miro::Shape on Reflector::Options.
     enum class Shape
     {
         Primitive,
@@ -46,23 +36,13 @@ struct TypeNode
     Shape shape = Shape::Primitive;
     bool optional = false;
 
-    // Primitive only.
     PrimitiveKind primitive = PrimitiveKind::String;
 
-    // Object / Enum only: the display name emitted in generated source.
-    // Defaults to the unqualified C++ type name; on collision the
-    // disambiguation pass rewrites it to a sanitized qualified form.
-    // Empty if anonymous (only meaningful for objects — enums always
-    // come with a name from the dispatcher).
     std::string typeName;
 
-    // Object / Enum only: the raw qualified C++ name from the compiler
-    // (e.g. "Ns::Inner::Foo"). Stable per type and used as the dedup
-    // key so two types in different namespaces with the same short
-    // name don't silently collapse into one declaration.
+    // Dedup key: keeps same-short-name types from different namespaces apart.
     std::string qualifiedName;
 
-    // Object only: ordered fields.
     struct Field
     {
         std::string name;
@@ -70,23 +50,16 @@ struct TypeNode
     };
     Vector<Field> fields;
 
-    // Array / Map only: the inner element type.
+    // Array / Map only.
     OwningPointer<TypeNode> inner;
 
-    // Enum only: ordered enumerator names.
     Vector<std::string> enumValues;
 
-    // Array only, and only when fixed-size (std::array<T, N> or
-    // EA::Array<T, N>): both bounds get N. nullopt for resizable
-    // arrays (std::vector / EA::Vector). Schema renderer uses these
-    // to emit minItems/maxItems.
+    // Both hold N for fixed-size arrays; nullopt for resizable ones.
     std::optional<std::size_t> minItems;
     std::optional<std::size_t> maxItems;
 };
 
-// Walks a default-constructed value of T via reflection and produces
-// the structural TypeNode tree. Used by both the TypeScript and Schema
-// renderers.
 class TypeReflector final : public Reflector
 {
 public:
@@ -110,14 +83,10 @@ private:
     TypeNode& node;
     OwningPointer<TypeReflector> currentChild;
 
-    // Parent in the spawn chain; nullptr at the root. Used by
-    // beginNamedType to detect a recursive descent into the same C++
-    // type — the slot becomes a name reference and the body is skipped.
+    // nullptr at the root; beginNamedType walks this chain against
+    // activeQualifiedName to turn a recursive descent into a name reference.
     TypeReflector* parent;
 
-    // Qualified name being walked at this slot. Set in beginNamedType
-    // when the body is going to run; descendants check the parent chain
-    // against this to detect cycles.
     std::string activeQualifiedName;
 
     Reflector& spawnChild(TypeNode& targetNode, Options childOpts);
@@ -134,14 +103,8 @@ TypeNode buildTree()
     return root;
 }
 
-// Post-walk pass shared by every renderer: collects the named-type
-// nodes reachable from any root in dependency order, and resolves
-// display-name collisions by rewriting `typeName` on each affected
-// TypeNode in place. The returned pointers reference nodes inside
-// `roots` (or their subtrees) — valid for as long as `roots` is alive.
-//
-// Roots are passed mutably because the rewrite happens in place; if a
-// caller doesn't want their trees touched, hand over a copy.
+// Returns the named-type nodes in dependency order, rewriting colliding
+// `typeName`s in place. Pointers stay valid as long as `roots` does.
 Vector<const TypeNode*> prepareRoots(std::span<TypeNode> roots);
 
 } // namespace Miro::TypeTree

@@ -9,14 +9,8 @@
 namespace Miro
 {
 
-// Renders a TypeNode tree (or several roots) as a JSON Schema document.
-// Every named type's body lives under a top-level "$defs" map; every
-// reference (including recursive ones) becomes {"$ref": "..."}.
-//
-// Roots are passed mutably because the disambiguation pass may rewrite
-// per-node `typeName` when distinct C++ types share an unqualified
-// name. Callers that don't want the trees touched should hand over a
-// copy.
+// Roots are passed mutably: the disambiguation pass may rewrite per-node
+// `typeName` when distinct C++ types share an unqualified name.
 JSON formatJsonSchema(TypeTree::TypeNode& root);
 JSON formatJsonSchema(std::span<TypeTree::TypeNode> roots);
 

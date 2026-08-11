@@ -1,6 +1,4 @@
-// Self-containment check: <Miro/Json.h> must compile as the first and
-// only Miro include. The test body is a minimal smoke of the raw JSON
-// layer; the real assertion is that this TU compiles at all.
+// The real assertion is that this TU compiles with one Miro include.
 
 #include <Miro/Json.h>
 

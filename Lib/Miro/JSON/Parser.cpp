@@ -111,8 +111,6 @@ public:
     }
 
 private:
-    // --- Primitives ---
-
     Value parseNull()
     {
         expectKeyword("null", 4);
@@ -197,8 +195,6 @@ private:
 
         skipDigits();
     }
-
-    // --- Strings ---
 
     Value parseString() { return {parseStringRaw()}; }
 
@@ -305,8 +301,6 @@ private:
         appendUtf8(result, codepoint);
     }
 
-    // --- Containers ---
-
     Value parseArray()
     {
         expect('[');
@@ -364,8 +358,6 @@ private:
         entries.emplace(std::move(key), std::move(value));
         skipWhitespaceAndComments();
     }
-
-    // --- Helpers ---
 
     static void appendUtf8(std::string& result, unsigned codepoint)
     {

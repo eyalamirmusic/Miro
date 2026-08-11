@@ -1,8 +1,3 @@
-// Tests for Miro::Cpp::formatClientHeader — emits a typed C++ Client
-// header that mirrors the TypeScript backend module. Each test builds
-// CommandEntry instances by hand (rather than relying on static-init
-// order) and inspects the rendered string.
-
 #include "TestHelpers.h"
 
 #include <Miro/Cpp/CppClient.h>

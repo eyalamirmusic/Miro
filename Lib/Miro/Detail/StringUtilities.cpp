@@ -133,8 +133,7 @@ std::string trimAsciiWhitespace(std::string_view input)
 std::string makeIndent(int width, int depth)
 {
     auto count = static_cast<std::size_t>(width) * static_cast<std::size_t>(depth);
-    // Braced init-list would bind to initializer_list<char>, not the
-    // (size_type, char) constructor we want.
+    // Braces would bind to initializer_list<char>, not (size_type, char).
     // NOLINTNEXTLINE(modernize-return-braced-init-list)
     return std::string(count, ' ');
 }

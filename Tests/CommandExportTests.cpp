@@ -1,10 +1,3 @@
-// Tests for the CommandExport formatters: backend module and server-
-// handlers module. Covers the four handler shapes (Res(Req) / Res() /
-// void(Req) / void()), empty-request elision, and namespace nesting in
-// the emitted module. Entries are hand-built — the runtime dispatch
-// path is exercised by ApiReflectorTests (Bridge::use installs the
-// pmf-based handlers end-to-end).
-
 #include "TestHelpers.h"
 
 #include <Miro/Miro.h>
@@ -40,8 +33,6 @@ struct CETEchoResponse
     MIRO_REFLECT(echoed)
 };
 
-// Helper for hand-building CommandEntry — formatter tests don't care
-// about thunks, they only consume the (name, type identity, shape) bits.
 CommandExport::CommandEntry makeEntry(std::string name,
                                       bool hasReq,
                                       std::string reqType,
@@ -62,8 +53,6 @@ CommandExport::CommandEntry makeEntry(std::string name,
 }
 
 } // namespace
-
-// ---------- formatBackendModule output ----------
 
 auto cetBackendImports =
     test("CommandExport: backend module imports types by basename") = []
@@ -210,8 +199,6 @@ auto cetBackendNamespaceNests =
     check(contains(out, "echo: (req: T.CETEchoRequest)"));
     check(contains(out, "invoke('api.v2.echo', req)"));
 };
-
-// ---------- formatServerHandlersModule output ----------
 
 auto cetHandlersImports =
     test("CommandExport: handlers module imports types and emits scaffolding") = []

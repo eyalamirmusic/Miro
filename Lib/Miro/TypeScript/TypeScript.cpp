@@ -17,9 +17,6 @@ using TypeTree::TypeNode;
 namespace
 {
 
-// Returns `name` ready to drop into a JS object literal or TS interface
-// as a property key. Bare identifier when possible; otherwise a JSON-
-// quoted string with `\` and `"` escaped.
 std::string formatPropertyKey(std::string_view name)
 {
     if (Detail::isJsIdentifier(name))
@@ -68,8 +65,6 @@ std::string_view tsPrimitive(TypeTree::PrimitiveKind kind)
     }
     return "unknown";
 }
-
-// ---------- Zod renderer ----------
 
 std::string renderZod(const TypeNode& node, bool fieldContext);
 
@@ -129,8 +124,8 @@ std::string renderZod(const TypeNode& node, bool fieldContext)
             break;
     }
 
-    // Disengaged optional serializes to null. Field: .nullish() (null|undefined,
-    // key optional); non-field (array/map value): .nullable(), no undefined.
+    // A disengaged optional serializes to null; only an object key may
+    // additionally be absent.
     if (node.optional)
         base += fieldContext ? ".nullish()" : ".nullable()";
 
@@ -157,9 +152,6 @@ std::string declareZodEnum(const TypeNode& node)
     return out.str();
 }
 
-// ---------- Plain TypeScript renderer ----------
-
-// Renders a node as a TypeScript type expression.
 std::string renderType(const TypeNode& node, bool fieldContext);
 
 std::string renderTypeObjectInline(const TypeNode& node)
@@ -221,8 +213,8 @@ std::string renderType(const TypeNode& node, bool fieldContext)
             break;
     }
 
-    // Disengaged optional serializes to null. Field: `?:` carries absent, add
-    // `| null`; non-field: wrap `(T | null)`, no `?:` to carry it.
+    // Only an object key can carry "absent" via `?:`; elsewhere the null has
+    // to be parenthesised into the type itself.
     if (node.optional)
         base = fieldContext ? base + " | null" : "(" + base + " | null)";
 
@@ -245,9 +237,6 @@ std::string declareTypeEnum(const TypeNode& node)
     return out.str();
 }
 
-// True if the root node was emitted as its own top-level declaration by
-// collectNamed — in that case we skip the default-export / Root-alias
-// fallback to avoid a redundant second name for the same shape.
 bool rootIsHoisted(const TypeNode& root)
 {
     if (root.typeName.empty())
@@ -298,9 +287,6 @@ std::string formatZodModule(TypeNode& root)
 {
     auto out = formatZodModule(std::span<TypeNode> {&root, 1});
 
-    // The bundled overload skips default exports (one-per-module rule);
-    // the single-root path adds one for anonymous roots like top-level
-    // vectors so the module isn't pointless.
     if (!rootIsHoisted(root))
         out += "export default " + renderZod(root, /*fieldContext=*/false) + ";\n";
 
@@ -335,8 +321,7 @@ std::string formatEventsModule(std::span<TypeNode> typeRoots,
     out << "export interface Events\n{\n";
     for (auto& ev: events)
     {
-        auto payload =
-            resolved.nameFor(ev.payloadQualifiedName, ev.payloadTypeName);
+        auto payload = resolved.nameFor(ev.payloadQualifiedName, ev.payloadTypeName);
         out << "    '" << ev.name << "': T." << payload << ";\n";
     }
     out << "}\n\n";

@@ -135,24 +135,20 @@ void reflectValue(Reflector& ref, std::optional<T>& value)
     }
 }
 
-// Vector wraps std::vector — delegate to the std::vector overload via
-// getVector() so dispatch logic lives in exactly one place.
 template <typename T, typename Allocator>
 void reflectValue(Reflector& ref, Vector<T, Allocator>& value)
 {
     reflectValue(ref, value.getVector());
 }
 
-// Array wraps std::array (with int Size → size_t under the hood) —
-// delegate the same way.
 template <typename T, int N>
 void reflectValue(Reflector& ref, Array<T, N>& value)
 {
     reflectValue(ref, value.getArray());
 }
 
-// EA::MapVector is a vector-of-pairs, not a std::map wrapper, so we walk
-// it directly. Iteration order is insertion order.
+// MapVector is a vector of pairs, not a map wrapper: keys are visited in
+// insertion order rather than sorted.
 template <typename V>
 void reflectValue(Reflector& ref, EA::MapVector<std::string, V>& value)
 {
@@ -182,8 +178,6 @@ void reflectValue(Reflector& ref, EA::MapVector<std::string, V>& value)
     }
 }
 
-// OwningPointer is a unique_ptr-like with a raw T* underneath — reflect
-// as a nullable slot (mirrors std::optional shape).
 template <typename T>
 void reflectValue(Reflector& ref, OwningPointer<T>& value)
 {

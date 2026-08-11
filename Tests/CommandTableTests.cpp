@@ -158,8 +158,6 @@ auto dispatchVoidNoArg = test("CommandTable dispatches void no-arg handler") = [
     check(kickCount == 1);
 };
 
-// ---------- async (Completer) handlers ----------
-
 namespace
 {
 struct AsyncOutcome
@@ -170,7 +168,6 @@ struct AsyncOutcome
     int settleCount = 0;
 };
 
-// A Resolve that records what (and how often) it was settled with.
 Resolve recordInto(AsyncOutcome& outcome)
 {
     return [&outcome](const JSON& result, const std::string* error)

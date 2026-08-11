@@ -10,34 +10,13 @@
 namespace Miro::CommandExport
 {
 
-// Emits a transport-agnostic TypeScript module exposing each
-// registered command as a typed wrapper around an Invoke callback.
-// Commands whose names contain "." become nested objects on the
-// returned shape (so api.ping → backend.api.ping). The '.' separator
-// matches what ApiReflector::joinedName produces for sub-APIs
-// declared via r.use("key", member). Empty-request types and
-// void-returning handlers collapse to no-arg / void signatures
-// respectively.
-//
-// typeRoots must be the TypeNode list for every type referenced by
-// the commands — the caller is responsible for building them via
-// TypeTree::buildTree<T> or equivalent. typeRoots is mutated in
-// place (collision-rewrites typeName), matching the convention of
-// the other Miro::TypeScript formatters.
-//
-// baseName is the stem of the matching schema.ts module (used to
-// construct the `import type * as T from './<baseName>'` line).
+// Both emitters mutate typeRoots in place (collision-rewrites typeName), and
+// take baseName as the stem of the schema module they `import type * as T`
+// from. Dotted command names ("api.ping") nest into sub-objects.
 std::string formatBackendModule(std::span<TypeTree::TypeNode> typeRoots,
                                 std::span<const CommandEntry> commands,
                                 std::string_view baseName);
 
-// Emits a TypeScript server-side dispatch module: a `Handlers`
-// interface with one method per registered command (typed Req in /
-// Res out, sync or async), plus an `async dispatch(handlers, command,
-// payload)` switch keyed on the wire command name. Server transports
-// (Node HTTP, etc.) stay hand-written; this module only generates the
-// typed dispatch core. typeRoots and baseName behave identically to
-// formatBackendModule.
 std::string formatServerHandlersModule(std::span<TypeTree::TypeNode> typeRoots,
                                        std::span<const CommandEntry> commands,
                                        std::string_view baseName);

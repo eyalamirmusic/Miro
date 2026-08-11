@@ -24,9 +24,8 @@ std::string primitiveToString(T* ptr)
     }
     else if constexpr (std::same_as<T, double>)
     {
-        // Match JSON printer behavior — emit integers without a decimal
-        // point so round-trips through int-backed reflect targets don't
-        // pick up "5.0" strings.
+        // Matches the JSON printer: whole numbers print without a decimal
+        // point, so int-backed reflect targets round-trip cleanly.
         if (std::isfinite(*ptr) && *ptr == std::floor(*ptr)
             && std::abs(*ptr) < 1e15)
         {
@@ -112,9 +111,6 @@ XmlReflector::~XmlReflector() = default;
 
 ValueKind XmlReflector::kind() const
 {
-    // We never report Null — XML has no native null representation.
-    // Optional dispatch sees Absent (slot missing) vs. any other kind
-    // (present, load the value).
     if (std::holds_alternative<MissingSlot>(slot))
         return ValueKind::Absent;
 
@@ -129,11 +125,8 @@ ValueKind XmlReflector::kind() const
 
 void XmlReflector::writeNull()
 {
-    // Lazy by design: AttributeSlot only writes on visit, so a writeNull
-    // means "skip the attribute". ElementSlot's node already exists (was
-    // pushed by atKey) — leaving it empty is the closest XML analogue of
-    // null. ArraySlot creates siblings only on atIndex, so writeNull
-    // leaves the parent untouched.
+    // Nothing to write: attributes and array siblings only appear once
+    // something visits them, and an empty element is XML's closest null.
 }
 
 void XmlReflector::visit(PrimitiveRef ref)
@@ -168,7 +161,6 @@ void XmlReflector::visit(PrimitiveRef ref)
                     },
                     ref.data);
             }
-            // ArraySlot / MissingSlot: visit is a no-op.
         },
         slot);
 }
@@ -258,9 +250,7 @@ Reflector& XmlReflector::atIndexOnArray(Xml::Node& parent,
     if (node == nullptr)
         return spawnMissing(childOpts);
 
-    // Nested arrays (vector-of-vector) have no field name for the inner
-    // axis — fall back to "item" so we can still emit/read repeated
-    // children inside the per-outer-element wrapper.
+    // A nested array has no field name for its inner axis.
     if (childOpts.shape == Shape::Array)
         return spawnArray(*node, "item", childOpts);
 
@@ -319,9 +309,6 @@ Vector<std::string> XmlReflector::mapKeys() const
 
     for (const auto& child: s->node->children)
     {
-        // Dedup against attribute keys — a Map<string, V> in XML mode
-        // could in principle have both an attribute and a child named
-        // the same; we don't want to walk the key twice.
         auto seen = false;
 
         for (const auto& existing: keys)

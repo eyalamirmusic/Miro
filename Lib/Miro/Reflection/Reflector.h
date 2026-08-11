@@ -56,12 +56,6 @@ enum class ValueKind
     Object
 };
 
-// Spawn-time configuration for a Reflector. Carried as a value member
-// of the base, so most queries (mode, shape, schema, nullable) are
-// non-virtual reads. When a parent spawns a child via atKey/atIndex,
-// the dispatcher constructs the child's Options from the parent's —
-// mode and schema propagate; shape and nullable are set per-child
-// based on the value type being reflected.
 struct Options
 {
     Mode mode = Mode::Save;
@@ -70,22 +64,13 @@ struct Options
     bool schema = false;
 };
 
-// Identity of a named C++ type announced through reflection. `shortName`
-// is the unqualified spelling (used as the default display name in
-// generated output); `qualifiedName` is the compiler-derived full path
-// from `__PRETTY_FUNCTION__`/`__FUNCSIG__` (e.g. "Ns::Inner::Foo"),
-// stable per type and used as the dedup key when two types in different
-// namespaces happen to share a short name.
+// qualifiedName is the dedup key: short names collide across namespaces.
 struct TypeId
 {
     std::string_view shortName;
     std::string_view qualifiedName;
 };
 
-// First-class primitive handle. Constructs implicitly from any built-in
-// primitive — `ref.visit(myInt)` Just Works. To support a new primitive
-// type, add another constructor + variant alternative below (or provide
-// a free `makePrimitiveRef(T&)` overload and a templated constructor).
 struct PrimitiveRef
 {
     using Variant = std::variant<bool*, int*, double*, std::string*, std::int64_t*>;
@@ -114,11 +99,8 @@ struct PrimitiveRef
     Variant data;
 };
 
-// A Reflector represents exactly one slot in a tree. Configuration
-// (mode, shape, schema, nullable) is committed at construction time
-// via Options and stored in the base — most queries are non-virtual.
-// Recursion happens via atKey/atIndex, which return a child reflector
-// owned by this one.
+// One Reflector is one slot in the tree, configured once at construction;
+// recursion happens through the child reflectors atKey/atIndex return.
 class Reflector
 {
 public:
@@ -140,59 +122,37 @@ public:
     bool isSchema() const { return opts.schema; }
     bool isNullable() const { return opts.nullable; }
 
-    // Per-slot operations that depend on the concrete reflector kind.
     virtual void visit(PrimitiveRef ref) = 0;
     virtual void writeNull() = 0;
     virtual ValueKind kind() const = 0;
 
-    // Called by the dispatch right before invoking a reflectable type's
-    // own reflect() body. `id` carries both the short and qualified C++
-    // names. Reflectors that care about type identity (TypeScript
-    // exporter, schema's $defs) override this. Returning false tells the
-    // dispatcher to skip the body — used to break recursion when the
-    // same type is already being walked further up the chain, or when
-    // the reflector has emitted a name reference instead of inlining.
+    // Called just before a reflectable type's own reflect() body runs.
+    // Returning false skips that body — how a reflector breaks recursion
+    // or emits a reference to the type instead of inlining it.
     virtual bool beginNamedType(TypeId /*id*/) { return true; }
 
-    // Called by the enum dispatcher in schema mode with the enum's
-    // identity and the ordered list of valid enumerator names.
-    // Reflectors that want first-class enum output (e.g. the TypeScript
-    // exporter) override this. The default falls back to a string slot,
-    // which is what the JSON-Schema reflector has historically emitted.
+    // Only called in schema mode; the default degrades to a string slot.
     virtual void visitEnum(TypeId /*id*/, const Vector<std::string_view>& /*names*/)
     {
         auto placeholder = std::string {"enum"};
         visit(placeholder);
     }
 
-    // Spawn a child reflector for a sub-slot. The returned reference is
-    // owned by this reflector and remains valid only until the next
-    // atKey/atIndex call on this reflector (or until this reflector is
-    // destroyed). The child commits its own shape from childOpts at
-    // construction.
+    // The child is owned by this reflector and stays valid only until the
+    // next atKey/atIndex call on it, or until this reflector dies.
     virtual Reflector& atKey(std::string_view key, Options childOpts) = 0;
     virtual Reflector& atIndex(std::size_t index, Options childOpts) = 0;
 
-    // Iteration helpers — only meaningful inside an Array / Map slot.
-    // Default to "empty" so reflectors with nothing useful to report
-    // (e.g. SchemaReflector) need not override.
     virtual std::size_t arraySize() const { return 0; }
     virtual void resizeArray(std::size_t /*newSize*/) {}
     virtual Vector<std::string> mapKeys() const { return {}; }
 
-    // Schema hint for fixed-size arrays. Called from the std::array /
-    // EA::Array dispatcher with the compile-time N as both min and max.
-    // Reflectors that don't care (the JSON reflector) keep the no-op
-    // default; the schema reflector translates this into minItems/maxItems.
+    // Schema-only hint; a fixed-size array passes N as both min and max.
     virtual void setArrayBounds(std::size_t /*min*/, std::size_t /*max*/) {}
 
-    // Gate called by reflectPolymorphic before it starts dispatching.
-    // Data-walking reflectors (Json, Xml) override with a no-op; schema-
-    // mode walkers (TypeReflector for Schema/TypeScript) keep the
-    // default, which throws — emitting a partial shape from a default-
-    // constructed polymorphic value would silently mislead callers, so
-    // we surface the misuse immediately. `context` identifies the call
-    // site for the error message.
+    // Data-walking reflectors override this with a no-op. The default
+    // throws because a schema walked from a default-constructed
+    // polymorphic value would describe only one arbitrary alternative.
     virtual void requirePolymorphicSupport(std::string_view context);
 
 protected:

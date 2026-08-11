@@ -8,44 +8,14 @@
 #include <string_view>
 #include <variant>
 
-// Polymorphic reflection: round-trips std::variant<Ts...> and inheritance
-// hierarchies (e.g. OwningPointer<Base> holding a Derived) through JSON
-// and XML reflectors. Wire format is externally tagged — `{"Circle":
-// {...}}`. The outer object has exactly one key (the tag identifying
-// the active alternative); its value is the alternative's body. This
-// maps cleanly onto the existing atKey/mapKeys Reflector contract, so
-// no new shape or slot kind is required.
-//
-// Three entry points, from low-level to high-level:
-//
-//   * `Miro::reflectPolymorphic(ref, value, callback)` — the baseline.
-//     `callback` receives a PolymorphicDispatcher and registers each
-//     alternative with `d.alt<T>(tag)`. Use this directly when the
-//     storage type is custom or the tags need to come from somewhere
-//     other than typeNameOf<T>(). User code can specialize
-//     PolymorphicAccess<V> to plug in unusual storage.
-//
-//   * `reflectValue(ref, std::variant<...>&)` — zero-config built-in.
-//     Each alternative's tag defaults to its short C++ type name.
-//
-//   * `Miro::Polymorphic<Base, Derived...>` — a thin OwningPointer<Base>
-//     wrapper that auto-registers each Derived as an alternative. Drop
-//     it into a struct as a member and reflect it like any other field.
+// Wire format is externally tagged: an object with exactly one key, the
+// tag of the active alternative, whose value is that alternative's body.
 
 namespace Miro::Detail
 {
 
-// Storage adapter for a polymorphic value. Specialize for new container
-// types (e.g. std::shared_ptr<Base>, a tagged-pointer type) to reuse
-// reflectPolymorphic with them.
-//
-// Contract:
-//   * isActive<T>(value) — true if the value currently holds a T.
-//   * get<T>(value)      — returns a mutable T& aliasing the active T.
-//                          Only called when isActive<T>(value) is true.
-//   * assign<T>(value)   — overwrite the value with a default-constructed
-//                          T (or otherwise put it into a state where a T
-//                          is now active) and return a mutable T&.
+// Customization point for polymorphic storage — specialize it for new
+// holder types; the specializations below spell out the contract.
 template <typename Value>
 struct PolymorphicAccess;
 
@@ -101,10 +71,6 @@ struct PolymorphicAccess<OwningPointer<Base>>
 namespace Miro
 {
 
-// Injected into the user's callback by reflectPolymorphic. The user
-// calls `d.alt<T>("tag")` once per alternative; dispatch happens eagerly
-// inside alt() so the user's lambda doesn't need any state machine — the
-// dispatcher locks itself after the first match.
 template <typename Value>
 class PolymorphicDispatcher
 {
@@ -169,10 +135,6 @@ void reflectPolymorphic(Reflector& ref, Value& value, Callback callback)
     callback(dispatcher);
 }
 
-// Thin OwningPointer<Base> holder that auto-registers each Derived as
-// an alternative using its short type name as the tag. Use this when
-// you want a polymorphic field with the default name-based tags and
-// don't want to hand-write a reflect() body.
 template <typename Base, typename... Derived>
 struct Polymorphic
 {
@@ -198,11 +160,6 @@ struct Polymorphic
 namespace Miro::Detail
 {
 
-// Zero-config std::variant overload: each alternative's tag is its
-// short C++ type name. For variants of named user types the tags are
-// clean ("Circle", "Square"); variants of primitives or std types get
-// whatever typeNameOf produces. Users who care write a custom reflect()
-// body that calls reflectPolymorphic with explicit tags.
 template <typename... Ts>
 void reflectValue(Reflector& ref, std::variant<Ts...>& value)
 {

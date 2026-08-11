@@ -15,15 +15,6 @@
 namespace Miro
 {
 
-// Bridge is the runtime primitive transports plug into. It owns a
-// CommandTable for incoming requests and an EA::Broadcaster (onEmit)
-// for outgoing events; transports (eacp WebView, HTTP RPC, WebSocket,
-// ...) are thin adapters that route their wire format through
-// dispatch() and an EA::Listener attached to onEmit.
-//
-// One Bridge can serve multiple transports simultaneously — a typical
-// app declares the Bridge once, binds its APIs via use(api), and hands
-// a reference to each transport's constructor.
 class Bridge
 {
 public:
@@ -65,10 +56,8 @@ public:
         commands.on(command, handler);
     }
 
-    // Async command handlers — own their threading and settle the supplied
-    // Completer (from any thread, possibly later). The reflected path
-    // (use(api)) picks these up automatically for void(Req, Completer<Res>)
-    // members; these overloads are for hand-registered handlers.
+    // Async handlers own their threading: they may settle the Completer
+    // later, from any thread.
     template <typename Req, typename Res>
     void onAsync(const std::string& command,
                  const std::function<void(const Req&, Completer<Res>)>& handler)
@@ -93,32 +82,14 @@ public:
 
     JSON dispatch(std::string_view command, const JSON& payloadToUse) const;
 
-    // Async dispatch transports call: an async command settles `resolve`
-    // later (from whatever thread marshals back); a sync command runs
-    // inline and forwards its result to `resolve` immediately. See
-    // CommandTable::dispatchAsync.
+    // A sync command resolves inline; an async one resolves later.
     void dispatchAsync(std::string_view command,
                        const JSON& payloadToUse,
                        const Resolve& resolve) const;
 
-    // Walks api.reflect(...) with a BindReflector — each command lands
-    // in this bridge's CommandTable, each event subscribes a Listener
-    // owned by the bridge (so subscriptions die with the bridge, not
-    // with the API instance).
-    //
-    // ⚠ The API must outlive this Bridge. Installed handlers hold
-    // &api, and bound listeners hold pointers into the API's event
-    // broadcasters. EA::Broadcaster does not currently null-out
-    // attached listeners on destruction, so if the API destructs
-    // first, the Bridge's listener teardown will read freed memory.
-    //
-    // Practical rule: declare the API before the Bridge in your app
-    // struct, so destruction happens Bridge → API. The same rule
-    // applies in tests:
-    //
-    //     auto api    = Todos {};      // declared first → destructed last
-    //     auto bridge = Bridge {};     // declared second → destructed first
-    //     bridge.use(api);
+    // The API must outlive this Bridge: handlers hold &api and listeners
+    // point into its broadcasters, which are not nulled out on destruction.
+    // Declare the API before the Bridge so it is destroyed last.
     template <typename Api>
     void use(Api& api)
     {
@@ -126,15 +97,8 @@ public:
         api.reflect(reflector);
     }
 
-    // Pre-serialized variant of emit. The templated emit<T> goes
-    // through toJSON; this one is for callers that already hold a JSON
-    // payload (e.g. the bind reflector's event subscriptions, which
-    // serialize once inside their listener body).
     void emitJson(const std::string& eventToUse, const JSON& payloadToUse);
 
-    // Adopts a Listener so its subscription stays alive as long as
-    // this bridge does. Called by BindReflector::eventImpl; rarely
-    // called by user code directly.
     void attachListener(OwningPointer<EA::Listener> listener)
     {
         boundListeners.add(std::move(listener));
@@ -142,9 +106,8 @@ public:
 
     CommandTable& commandTable() { return commands; }
 
-    // Fires on every emit. Transports attach an EA::Listener and read
-    // the current event/payload via currentEvent()/currentPayload()
-    // inside their callback.
+    // Carries no arguments: listeners read currentEvent()/currentPayload()
+    // from inside their callback.
     EA::Broadcaster onEmit;
 
     std::string_view currentEvent() const { return event; }

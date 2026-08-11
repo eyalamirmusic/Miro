@@ -1,7 +1,3 @@
-// Tests for the Zod / TypeScript exporter. Stage-1 strategy: make
-// substring-level assertions on the generated text. Real TS-compiler
-// validation is a future addition.
-
 #include "TestHelpers.h"
 #include "TestTypes.h"
 
@@ -39,8 +35,7 @@ auto tsPrimitiveSpellings = test("TypeScript: primitive Zod spellings") = []
     check(contains(out, "active: z.boolean()"));
 };
 
-auto tsInt64Zod =
-    test("TypeScript: 64-bit integer fields use z.number().int()") = []
+auto tsInt64Zod = test("TypeScript: 64-bit integer fields use z.number().int()") = []
 {
     auto out = TypeScript::toZod<ClassWithInt64>();
     check(contains(out, "epochMs: z.number().int()"));
@@ -71,8 +66,7 @@ auto tsOptionalPrimitive =
     check(contains(out, "note: z.string().nullish()"));
 };
 
-auto tsOptionalNamed =
-    test("TypeScript: optional named struct uses .nullish()") = []
+auto tsOptionalNamed = test("TypeScript: optional named struct uses .nullish()") = []
 {
     auto out = TypeScript::toZod<User>();
     check(contains(out, "shipping: Address.nullish()"));
@@ -90,8 +84,6 @@ auto tsTopLevelVector =
     auto out = TypeScript::toZod<std::vector<int>>();
     check(contains(out, "export default z.array(z.number().int())"));
 };
-
-// ---------- Plain-TS exporter tests ----------
 
 auto tsTypesInterfaces = test("TypeScript types: emits interfaces") = []
 {
@@ -147,18 +139,15 @@ auto tsTypesNamedReference =
     check(contains(out, "address: Address;"));
 };
 
-// A disengaged optional serializes to null, so the generated type/zod must
-// admit null. Each test pins both halves: serializer emits null, type accepts.
-auto tsTypesOptionalPrimitiveIsNullable =
-    test("TypeScript types: optional primitive admits the null it serializes to") = []
+auto tsTypesOptionalPrimitiveIsNullable = test(
+    "TypeScript types: optional primitive admits the null it serializes to") = []
 {
     check(contains(toJSONString(User {}), "\"note\":null"));
     check(contains(TypeScript::toTypes<User>(), "note?: string | null;"));
 };
 
-auto tsTypesOptionalNamedIsNullable =
-    test("TypeScript types: optional named struct admits the null it serializes to") =
-        []
+auto tsTypesOptionalNamedIsNullable = test(
+    "TypeScript types: optional named struct admits the null it serializes to") = []
 {
     check(contains(toJSONString(User {}), "\"shipping\":null"));
     check(contains(TypeScript::toTypes<User>(), "shipping?: Address | null;"));
@@ -181,8 +170,8 @@ auto tsTypesOptionalArrayElementIsNullable =
                    "slots: (number | null)[];"));
 };
 
-// Drift guard: types and zod must render the same nullability. Non-field
-// optionals are `.nullable()` (null only), not `.nullish()` (adds undefined).
+// Non-field optionals must be `.nullable()` (null only), never `.nullish()`,
+// which would also admit undefined and drift from the emitted TS type.
 auto tsZodTypesNoDriftOnOptionalArrayElement =
     test("TypeScript: zod and types agree on optional array element (no undefined "
          "drift)") = []
@@ -278,8 +267,6 @@ auto tsTypesTopLevelVector =
     check(contains(out, "export type Root = number[];"));
 };
 
-// ---------- Enum exporter tests ----------
-
 auto tsEnumDeclaresZodEnum =
     test("TypeScript: enum becomes top-level z.enum declaration") = []
 {
@@ -349,8 +336,6 @@ auto tsTypesEnumDependencyOrder =
     check(comesBefore(out, "export type Color", "export interface User"));
 };
 
-// ---------- Custom-key (MIRO_REFLECT_MEMBERS) tests ----------
-
 namespace
 {
 
@@ -397,16 +382,9 @@ auto tsTypesLeavesIdentifierKeysBare =
     check(!contains(out, "\"active\":"));
 };
 
-// ---------- Namespace-disambiguation tests ----------
-//
-// These namespaces live at file scope (rather than nested inside an
-// anonymous namespace like the other test types) because the
-// disambiguation pass sanitizes the raw qualified name returned by
-// __PRETTY_FUNCTION__. Wrapping them in an anonymous namespace would
-// pollute the qualified name with "(anonymous namespace)::" and break
-// the assertions below. The namespace names are unique-prefixed so
-// they can safely sit at file scope without colliding with anything
-// else in the test executable.
+// These sit at file scope on purpose: an enclosing anonymous namespace would
+// prefix the qualified name with "(anonymous namespace)::" and break the
+// sanitized-name assertions below.
 
 namespace TsCollAlpha
 {
@@ -469,7 +447,6 @@ auto tsZodDisambiguatesColliding =
     check(contains(out, "id: z.number().int(),"));
     check(contains(out, "flag: z.boolean(),"));
 
-    // The plain "Item" must not appear as a declaration anymore.
     check(!contains(out, "export const Item = "));
 };
 

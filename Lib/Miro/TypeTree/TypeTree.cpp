@@ -10,8 +10,6 @@
 namespace Miro::TypeTree
 {
 
-// ----- TypeReflector --------------------------------------------------
-
 TypeReflector::TypeReflector(TypeNode& nodeToUse,
                              Options optsToUse,
                              TypeReflector* parentToUse)
@@ -51,15 +49,9 @@ void TypeReflector::writeNull() {}
 
 bool TypeReflector::beginNamedType(TypeId id)
 {
-    // Set the names regardless: even when this is a back edge, the
-    // renderer needs them to print the type by name.
     node.typeName = std::string {id.shortName};
     node.qualifiedName = std::string {id.qualifiedName};
 
-    // Walk the parent chain — if any ancestor is currently inside a body
-    // for the same C++ type, this slot is a back edge and we must not
-    // descend or we'll infinite-recurse. The slot becomes a name
-    // reference; collectNamed dedups against the outer walk.
     for (auto* p = parent; p != nullptr; p = p->parent)
     {
         if (p->activeQualifiedName == id.qualifiedName)
@@ -130,23 +122,14 @@ void TypeReflector::setArrayBounds(std::size_t min, std::size_t max)
     node.maxItems = max;
 }
 
-// ----- prepareRoots and helpers ---------------------------------------
-
 namespace
 {
 
-// Identity used to dedup a node in collectNamed. Prefers the raw
-// qualified name (always unique per C++ type); falls back to the short
-// name for the rare anonymous-object case so an unnamed slot still
-// pairs with itself if encountered twice.
 const std::string& dedupKey(const TypeNode& node)
 {
     return node.qualifiedName.empty() ? node.typeName : node.qualifiedName;
 }
 
-// Collects every named (Object/Enum) node reachable from `node` in
-// post-order (deepest first). Re-encounters of the same C++ type (by
-// qualified name) become inline name references in rendered output.
 void collectNamed(const TypeNode& node,
                   Vector<std::string>& seen,
                   Vector<const TypeNode*>& outOrdered)
@@ -183,11 +166,6 @@ void collectNamed(const TypeNode& node,
     }
 }
 
-// Replaces every non-identifier run in `raw` with a single `_`, then
-// strips leading underscores or digits so the result is a legal
-// identifier. `Ns::Inner::Foo` → `Ns_Inner_Foo`. Strips a leading
-// "(anonymous namespace)::" so test types in anonymous namespaces
-// produce clean names.
 std::string sanitizeIdentifier(std::string_view raw)
 {
     constexpr auto anonPrefix = std::string_view {"(anonymous namespace)::"};
@@ -217,10 +195,6 @@ std::string sanitizeIdentifier(std::string_view raw)
 
 using NameMap = std::map<std::string, std::string>;
 
-// For each named type collected from the roots, decides what string
-// will be emitted for it. When several distinct C++ types share an
-// unqualified name (different namespaces), the colliding entries fall
-// back to a sanitized qualified name so each declaration is unique.
 NameMap chooseOutputNames(const Vector<const TypeNode*>& ordered)
 {
     auto byShortName = std::map<std::string, Vector<const TypeNode*>> {};
@@ -245,10 +219,6 @@ NameMap chooseOutputNames(const Vector<const TypeNode*>& ordered)
     return names;
 }
 
-// Walks every TypeNode reachable from `root` and rewrites typeName to
-// the chosen output name. References to a named type live as separate
-// TypeNodes (Object/Enum with typeName but no fields), so the walk has
-// to descend into fields and inner.
 void applyOutputNames(TypeNode& root, const NameMap& names)
 {
     if (!root.qualifiedName.empty())

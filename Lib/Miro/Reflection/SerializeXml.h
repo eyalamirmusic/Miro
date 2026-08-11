@@ -8,9 +8,6 @@
 #include <string>
 #include <string_view>
 
-// XML counterparts of the JSON helpers in Serialize.h. Kept separate
-// so JSON-only consumers don't compile the XML layer.
-
 namespace Miro
 {
 

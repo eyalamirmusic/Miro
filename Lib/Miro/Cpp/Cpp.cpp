@@ -30,10 +30,6 @@ std::string_view cppPrimitive(TypeTree::PrimitiveKind kind)
     return "int";
 }
 
-// Default initializer for primitive fields so the generated structs
-// produce predictable values without explicit construction. Containers
-// and optionals are already empty by default; named types fall back to
-// the user's own default constructor.
 std::string defaultInitFor(const TypeNode& field)
 {
     if (field.optional)
@@ -59,8 +55,6 @@ std::string defaultInitFor(const TypeNode& field)
 
 std::string renderType(const TypeNode& node);
 
-// Wraps `renderType(node)` in `std::optional<...>` when the node is
-// nullable. Used for fields and inner element types.
 std::string renderTypeWithOptional(const TypeNode& node)
 {
     auto base = renderType(node);

@@ -1,10 +1,3 @@
-// Tests for MethodInfo deduction + makePmfHandler thunk behaviour
-// against all four pmf shapes (Res(Req), Res(), void(Req), void()),
-// including const variants. Validates that pmf-based handlers carry
-// the same semantics as the existing free-function-based ones, so the
-// upcoming ApiReflector::command<&Class::method>(name) entry point
-// can be built on top.
-
 #include <Miro/Miro.h>
 #include <NanoTest/NanoTest.h>
 
@@ -40,10 +33,7 @@ public:
         return {req.text + "!"};
     }
 
-    MIRes status() const
-    {
-        return {lastLogged.empty() ? "idle" : "busy"};
-    }
+    MIRes status() const { return {lastLogged.empty() ? "idle" : "busy"}; }
 
     void log(const MIReq& req) { lastLogged = req.text; }
     void tick() { ticks++; }
@@ -55,10 +45,7 @@ public:
 
 } // namespace
 
-// ---------- Compile-time deductions ----------
-
-static_assert(
-    std::is_same_v<MethodInfo<decltype(&TestApi::echo)>::Class, TestApi>);
+static_assert(std::is_same_v<MethodInfo<decltype(&TestApi::echo)>::Class, TestApi>);
 static_assert(std::is_same_v<MethodInfo<decltype(&TestApi::echo)>::Req, MIReq>);
 static_assert(std::is_same_v<MethodInfo<decltype(&TestApi::echo)>::Res, MIRes>);
 static_assert(MethodInfo<decltype(&TestApi::echo)>::hasReq);
@@ -82,8 +69,6 @@ static_assert(std::is_same_v<MethodInfo<decltype(&TestApi::tick)>::Req, void>);
 static_assert(std::is_same_v<MethodInfo<decltype(&TestApi::tick)>::Res, void>);
 static_assert(!MethodInfo<decltype(&TestApi::tick)>::hasReq);
 static_assert(!MethodInfo<decltype(&TestApi::tick)>::hasRes);
-
-// ---------- Thunk shape adaptation ----------
 
 auto miThunkEcho = test("MethodInfo: Res(Req) thunk round-trips JSON") = []
 {
@@ -134,8 +119,6 @@ auto miThunkTick =
     check(api.ticks == 1);
 };
 
-// ---------- Instance identity across calls ----------
-
 auto miInstancePersists =
     test("MethodInfo: handler captures instance by address across calls") = []
 {
@@ -149,13 +132,6 @@ auto miInstancePersists =
     check(api.ticks == 3);
 };
 
-// ---------- Wire-up into CommandTable ----------
-//
-// Confirms makePmfHandler's return type matches CommandTable::on's
-// RawHandler overload — i.e. the same table that today carries
-// free-function-handler thunks can carry pmf-bound ones without any
-// further adaptation.
-
 auto miThroughCommandTable =
     test("MethodInfo: pmf handler installs into CommandTable") = []
 {
@@ -168,13 +144,6 @@ auto miThroughCommandTable =
 
     check(result["echoed"].asString() == "yo!");
 };
-
-// ---------- Runtime-pmf overload ----------
-//
-// Same semantics as the template-arg form, but the pmf is taken as a
-// regular value argument. This is the entry point ApiReflector::command
-// (pmf, name) will use — verifying that all four shapes produce
-// identical results without `<>` at the call site.
 
 auto miRuntimeEcho =
     test("MethodInfo (runtime pmf): Res(Req) thunk round-trips JSON") = []

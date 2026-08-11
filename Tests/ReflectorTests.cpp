@@ -7,8 +7,6 @@
 using namespace nano;
 using namespace Miro;
 
-// --- Save tests ---
-
 auto saveBool = test("Save bool") = []
 {
     auto val = ClassWithBool {};
@@ -45,8 +43,6 @@ auto saveString = test("Save string") = []
     check(json["name"].asString() == "hello");
 };
 
-// --- Load tests ---
-
 auto loadBool = test("Load bool") = []
 {
     auto val = createFromJSONString<ClassWithBool>(R"({"active": true})");
@@ -75,8 +71,6 @@ auto loadString = test("Load string") = []
     check(val.name == "world");
 };
 
-// --- Object tests ---
-
 auto saveObject = test("Save object") = []
 {
     auto val = Inner {5};
@@ -92,8 +86,6 @@ auto loadObject = test("Load object") = []
 
     check(val.x == 99);
 };
-
-// --- Nested object tests ---
 
 auto saveNested = test("Save nested objects") = []
 {
@@ -114,8 +106,6 @@ auto loadNested = test("Load nested objects") = []
     check(val.nested.x == 88);
     check(val.label == "loaded");
 };
-
-// --- Vector tests ---
 
 auto saveVectorOfInts = test("Save vector of ints") = []
 {
@@ -176,8 +166,6 @@ auto vectorRoundtrip = test("Vector roundtrip") = []
     check(loaded.tags[2] == "c");
 };
 
-// --- std::array tests ---
-
 auto saveArrayOfDoubles = test("Save array of doubles") = []
 {
     auto val = ClassWithArrayOfDoubles {};
@@ -222,8 +210,6 @@ auto loadArrayOfObjects = test("Load array of objects") = []
     check(val.items[1].x == 22);
 };
 
-// --- Roundtrip test ---
-
 auto roundtrip = test("Save then load roundtrip") = []
 {
     auto original = Outer {10, {20}, "hello"};
@@ -234,8 +220,6 @@ auto roundtrip = test("Save then load roundtrip") = []
     check(loaded.nested.x == original.nested.x);
     check(loaded.label == original.label);
 };
-
-// --- Map tests ---
 
 auto saveMapOfStrings = test("Save map of strings") = []
 {
@@ -287,8 +271,6 @@ auto mapRoundtrip = test("Map roundtrip") = []
     check(loaded.counts["bananas"] == 5);
 };
 
-// --- fromJSON test ---
-
 auto fromJSONTest = test("fromJSON into existing object") = []
 {
     auto val = Inner {99};
@@ -296,8 +278,6 @@ auto fromJSONTest = test("fromJSON into existing object") = []
 
     check(val.x == 42);
 };
-
-// --- JSON string tests ---
 
 auto toJSONStringTest = test("toJSONString") = []
 {
@@ -325,10 +305,6 @@ auto createFromJSONStringTest = test("createFromJSONString") = []
     check(val.label == "hi");
 };
 
-// --- Non-throwing load guarantees ---
-
-// A type whose reflect() throws, used to prove the load boundary
-// swallows exceptions coming from user code.
 struct ThrowingReflect
 {
     void reflect(Miro::Reflector& ref)
@@ -364,12 +340,9 @@ auto loadThrowingReflectIsCaught =
 {
     auto val = createFromJSONString<ThrowingReflect>(R"({"value": 42})");
 
-    // reflect() populated the field before throwing; the throw was
-    // swallowed at the load boundary rather than propagated.
+    // reflect() populated the field before throwing.
     check(val.value == 42);
 };
-
-// --- Missing property tests ---
 
 auto missingPropertyKeepsDefault = test("Missing property keeps existing value") = []
 {
@@ -380,8 +353,6 @@ auto missingPropertyKeepsDefault = test("Missing property keeps existing value")
     check(val.nested.x == 20);
     check(val.label == "original");
 };
-
-// --- MIRO_REFLECT macro tests ---
 
 auto saveMacroReflected = test("Save MIRO_REFLECT struct") = []
 {
@@ -440,8 +411,6 @@ auto macroEmpty = test("MIRO_REFLECT with no fields") = []
     check(json.asObject().empty());
 };
 
-// --- MIRO_FIELDS (inline-in-reflect) macro tests ---
-
 auto inlineFieldsSave = test("MIRO_FIELDS saves alongside custom logic") = []
 {
     auto val = InlineFieldsType {};
@@ -483,8 +452,6 @@ auto inlineFieldsRenamedRef =
     auto loaded = createFromJSONString<InlineFieldsRenamedRef>(R"({"value": 99})");
     check(loaded.value == 99);
 };
-
-// --- MIRO_REFLECT_EXTERNAL macro tests ---
 
 auto saveExternalReflected = test("Save MIRO_REFLECT_EXTERNAL struct") = []
 {
@@ -580,8 +547,6 @@ auto externalVectorOfExternal =
     check(loaded[1].y == 4);
 };
 
-// --- MIRO_REFLECT_MEMBERS macro tests ---
-
 auto saveNamedMembers = test("Save MIRO_REFLECT_MEMBERS struct") = []
 {
     auto val = NamedMembers {};
@@ -633,8 +598,6 @@ auto namedMembersEmpty = test("MIRO_REFLECT_MEMBERS with no pairs") = []
     check(json.asObject().empty());
 };
 
-// --- MIRO_REFLECT_EXTERNAL_MEMBERS macro tests ---
-
 auto saveExternalNamed = test("Save MIRO_REFLECT_EXTERNAL_MEMBERS struct") = []
 {
     auto val = ExternalNamed {};
@@ -680,8 +643,6 @@ auto externalNamedInVector =
     check(loaded[1].inStock == false);
 };
 
-// --- toJSON with const T& ---
-
 auto toJSONAcceptsConstRef = test("toJSON accepts const T&") = []
 {
     const auto val = Inner {5};
@@ -704,8 +665,6 @@ auto toJSONStringAcceptsConstRef = test("toJSONString accepts const T&") = []
 
     check(loaded.x == 3);
 };
-
-// --- Json::Any ---
 
 auto anyDefaultConstructs = test("Any default constructs to null") = []
 {
@@ -867,8 +826,6 @@ auto anyCopyConstructs = test("Any copy constructs from Any") = []
     check(original["x"].asNumber() == 4.0);
 };
 
-// --- Integral overloads (non-int, non-bool) ---
-
 auto saveIntegrals = test("Save non-int integral types as numbers") = []
 {
     auto val = ClassWithIntegrals {};
@@ -902,8 +859,6 @@ auto integralsRoundtrip = test("Integral types roundtrip") = []
     check(loaded.ll == original.ll);
     check(loaded.c == original.c);
 };
-
-// --- std::optional ---
 
 auto saveOptionalEmpty = test("Save empty std::optional as null") = []
 {
@@ -967,8 +922,6 @@ auto optionalRoundtrip = test("std::optional roundtrip") = []
     check(*loaded.maybeInt == 3);
     check(!loaded.maybeInner.has_value());
 };
-
-// --- Enum reflection ---
 
 auto enumToStringWorks = test("enumToString returns enumerator name") = []
 {

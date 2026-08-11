@@ -1,14 +1,3 @@
-// Examples + extensibility tests for the virtual Reflector base.
-//
-// These tests show two things:
-//   1. User code is unchanged: `void reflect(Reflector&)` with `ref["x"](x)`
-//      syntax, no templates, no virtuals visible.
-//   2. A new reflector kind is implemented as a small Reflector subclass.
-//      Each reflector instance represents one slot; recursion happens by
-//      asking the reflector for a child via atKey/atIndex. No internal
-//      stack, no cursor — the position is implicit in which instance
-//      you have.
-
 #include <Miro/Miro.h>
 #include <NanoTest/NanoTest.h>
 
@@ -16,8 +5,6 @@
 
 using namespace nano;
 using namespace Miro;
-
-// ─── Example user types — same shape as today's user code ─────────────
 
 namespace
 {
@@ -62,13 +49,10 @@ struct HandWritten
 
 } // namespace
 
-// ─── Round-trip examples — user-facing API unchanged ───────────────────
-
 auto roundtripStruct = test("Virtual API: struct round-trip") = []
 {
     auto original = Polygon {"triangle", {{0, 0}, {1, 0}, {0, 1}}};
-    auto restored =
-        createFromJSONString<Polygon>(toJSONString(original));
+    auto restored = createFromJSONString<Polygon>(toJSONString(original));
 
     check(restored.name == "triangle");
     check(restored.vertices.size() == 3);
@@ -84,8 +68,7 @@ auto roundtripContainersAndOptional =
                               .note = "ready",
                               .counters = {{"a", 1}, {"b", 2}}};
 
-    auto restored =
-        createFromJSONString<Settings>(toJSONString(original));
+    auto restored = createFromJSONString<Settings>(toJSONString(original));
 
     check(restored.enabled == false);
     check(restored.maxRetries == 7);
@@ -98,8 +81,7 @@ auto roundtripContainersAndOptional =
 auto handWrittenReflect = test("Virtual API: hand-written reflect method") = []
 {
     auto original = HandWritten {42, "hello"};
-    auto restored =
-        createFromJSONString<HandWritten>(toJSONString(original));
+    auto restored = createFromJSONString<HandWritten>(toJSONString(original));
 
     check(restored.count == 42);
     check(restored.label == "hello");
@@ -108,8 +90,7 @@ auto handWrittenReflect = test("Virtual API: hand-written reflect method") = []
 auto rootLevelVector = test("Virtual API: top-level vector serializes as array") = []
 {
     auto original = std::vector<int> {1, 2, 3};
-    auto restored =
-        createFromJSONString<std::vector<int>>(toJSONString(original));
+    auto restored = createFromJSONString<std::vector<int>>(toJSONString(original));
 
     check(restored.size() == 3);
     check(restored[0] == 1);
@@ -121,24 +102,16 @@ auto optionalNullRoundtrip = test("Virtual API: optional null round-trip") = []
     auto original = Settings {};
     original.note.reset();
 
-    auto restored =
-        createFromJSONString<Settings>(toJSONString(original));
+    auto restored = createFromJSONString<Settings>(toJSONString(original));
 
     check(!restored.note.has_value());
 };
 
-// ─── Custom reflector — implemented entirely as a Reflector subclass ───
-//
-// TracingReflector records every reflection step as text. Each instance
-// carries a label (its position in the tree) and a shared output stream.
-// The shape (committed via Options at construction) decides the open
-// bracket and the matching closer; the closer is emitted in the
-// destructor, with currentChild destroyed first so closes nest
-// correctly.
-
 namespace
 {
 
+// Resetting currentChild first flushes that child's closer, so opens and
+// closes stay correctly nested in the trace.
 struct TracingReflector : Reflector
 {
     std::ostringstream& out;
@@ -246,8 +219,7 @@ auto customReflectorTopLevelVector =
     auto trace = std::ostringstream {};
     {
         auto reflector = TracingReflector {
-            trace,
-            Detail::topLevelOptions<std::vector<int>>(Mode::Save)};
+            trace, Detail::topLevelOptions<std::vector<int>>(Mode::Save)};
         auto vec = std::vector<int> {10, 20, 30};
         Detail::reflectValue(reflector, vec);
     }

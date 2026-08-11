@@ -1,10 +1,3 @@
-// Tests for the codegen entrypoint:
-//   buildCodegen<Apis...>(baseName, formats) -> EmittedFile list
-//
-// The test exercises the full pipeline — DescribeReflector walk over
-// the listed APIs, format pipeline run against the resulting Context,
-// EmittedFile contents inspected directly (no filesystem).
-
 #include <Miro/Miro.h>
 #include <NanoTest/NanoTest.h>
 
@@ -58,7 +51,6 @@ public:
     int quitCalls = 0;
 };
 
-// Sub-API + composite parent for the prefixed-event codegen tests.
 class CMFilesSub
 {
 public:
@@ -112,13 +104,11 @@ auto cmTypesModule = test(
 auto cmBackendModule =
     test("codegenMain: backend format emits one typed call per command") = []
 {
-    auto files =
-        buildCodegen<CMTestApi>("schema", {"backend"});
+    auto files = buildCodegen<CMTestApi>("schema", {"backend"});
 
     auto* backend = findFile(files, ".backend.ts");
     check(backend != nullptr);
 
-    // All four pmf shapes round-trip into the right TS signatures.
     check(backend->contents.find("echo: (req: T.CMReq): Promise<T.CMRes>")
           != std::string::npos);
     check(backend->contents.find("status: (): Promise<T.CMRes>")
@@ -131,8 +121,7 @@ auto cmBackendModule =
 auto cmHandlersModule =
     test("codegenMain: ts-server format emits Handlers + dispatch") = []
 {
-    auto files =
-        buildCodegen<CMTestApi>("schema", {"ts-server"});
+    auto files = buildCodegen<CMTestApi>("schema", {"ts-server"});
 
     auto* handlers = findFile(files, ".handlers.ts");
     check(handlers != nullptr);
@@ -159,7 +148,6 @@ auto cmDefaultsToAllFormats =
 {
     auto files = buildCodegen<CMTestApi>("schema", {});
 
-    // Spot-check that the canonical suspects all turned up.
     check(findFile(files, ".ts") != nullptr);
     check(findFile(files, ".backend.ts") != nullptr);
     check(findFile(files, ".zod.ts") != nullptr);
@@ -170,8 +158,7 @@ auto cmDefaultsToAllFormats =
 auto cmCustomBasename =
     test("codegenMain: baseName threads through to emitted filenames") = []
 {
-    auto files =
-        buildCodegen<CMTestApi>("api", {"ts", "backend"});
+    auto files = buildCodegen<CMTestApi>("api", {"ts", "backend"});
 
     auto* ts = findFile(files, ".ts");
     check(ts != nullptr);
@@ -180,7 +167,6 @@ auto cmCustomBasename =
     auto* backend = findFile(files, ".backend.ts");
     check(backend != nullptr);
     check(backend->filename == "api.backend.ts");
-    // Backend module's import line should reference the new basename.
     check(backend->contents.find("import type * as T from './api';")
           != std::string::npos);
 };
@@ -188,16 +174,13 @@ auto cmCustomBasename =
 auto cmMultipleApis =
     test("codegenMain: parameter pack aggregates commands across APIs") = []
 {
-    // Second tiny API — distinct command names — to prove pack expansion
-    // collects everything into one Context.
     struct CMOtherApi
     {
         void reflect(ApiReflector& r) { r.command(&CMOtherApi::other, "other"); }
         CMRes other() const { return {"other"}; }
     };
 
-    auto files = buildCodegen<CMTestApi, CMOtherApi>(
-        "schema", {"backend"});
+    auto files = buildCodegen<CMTestApi, CMOtherApi>("schema", {"backend"});
 
     auto* backend = findFile(files, ".backend.ts");
     check(backend != nullptr);
@@ -205,11 +188,10 @@ auto cmMultipleApis =
     check(backend->contents.find("other:") != std::string::npos);
 };
 
-auto cmEventsModule = test(
-    "codegenMain: events format emits typed Events + EventBus interfaces") = []
+auto cmEventsModule =
+    test("codegenMain: events format emits typed Events + EventBus interfaces") = []
 {
-    auto files =
-        buildCodegen<CMTestApi>("schema", {"events"});
+    auto files = buildCodegen<CMTestApi>("schema", {"events"});
 
     auto* events = findFile(files, ".events.ts");
     check(events != nullptr);
@@ -227,15 +209,13 @@ auto cmEventsModule = test(
 auto cmEventsModuleSubApi = test(
     "codegenMain: events format emits sub-API events under the use() prefix") = []
 {
-    auto files =
-        buildCodegen<CMCompositeApi>("schema", {"events"});
+    auto files = buildCodegen<CMCompositeApi>("schema", {"events"});
 
     auto* events = findFile(files, ".events.ts");
     check(events != nullptr);
     check(events->contents.find("'topEvt': T.CMRes") != std::string::npos);
     check(events->contents.find("'files.changed': T.CMRes") != std::string::npos);
 
-    // The unprefixed sub-API name must not leak through.
     check(events->contents.find("'changed': T.CMRes") == std::string::npos);
 };
 

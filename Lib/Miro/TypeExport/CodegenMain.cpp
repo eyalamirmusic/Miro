@@ -75,7 +75,6 @@ Vector<CommandExport::CommandEntry> toCommandEntries(
         entry.hasResponse = bool(r.res);
         entry.responseTypeName = r.res.name;
         entry.responseQualifiedName = r.res.qualifiedName;
-        // thunk left empty: codegen path doesn't dispatch.
         entries.add(std::move(entry));
     }
 

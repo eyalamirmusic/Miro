@@ -9,28 +9,9 @@
 namespace Miro
 {
 
-// An XmlReflector targets one of four "slot" kinds, picked at spawn
-// time from the parent's atKey/atIndex call and the child's
-// childOpts.shape:
-//
-//   * ElementSlot   — a real <element> node. Created by atKey when
-//                     the child is Object/Map-shaped, by atIndex
-//                     under an ArraySlot, or supplied at the root.
-//                     visit() reads/writes the node's text content.
-//   * AttributeSlot — an attribute on a parent node. Created by atKey
-//                     when the child is Primitive-shaped. visit()
-//                     reads/writes the parent's attributes[name].
-//   * ArraySlot     — "repeated siblings named X under parent". Created
-//                     by atKey when the child is Array-shaped (or by
-//                     atIndex when the array element type is itself
-//                     array-shaped, using "item" as the fallback name).
-//                     atIndex(i) targets the i-th such sibling.
-//   * MissingSlot   — load-time sentinel for an absent attribute /
-//                     child / array sibling. All operations are no-ops.
-//
-// Like JsonReflector, the parent owns its currently-active child via
-// OwningPointer; the child is destroyed when the parent spawns a new
-// one (or when the parent is destroyed).
+// The mapping: primitive fields become attributes, object and map fields
+// become child elements, and array fields become repeated siblings named
+// after the field. MissingSlot is the load-time no-op for absent nodes.
 class XmlReflector final : public Reflector
 {
 public:

@@ -1,6 +1,4 @@
-// Self-containment check: <Miro/Reflect.h> must compile as the first
-// and only Miro include, and must supply MIRO_REFLECT plus the JSON
-// serialization helpers.
+// The real assertion is that this TU compiles with one Miro include.
 
 #include <Miro/Reflect.h>
 

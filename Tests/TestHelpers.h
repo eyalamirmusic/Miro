@@ -1,9 +1,5 @@
 #pragma once
 
-// Substring helpers for the export-format tests, which assert by
-// matching fragments of generated source. Defined inline so each test
-// TU can include this header without ODR fuss.
-
 #include <string>
 #include <string_view>
 

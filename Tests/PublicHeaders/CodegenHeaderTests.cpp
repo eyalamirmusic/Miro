@@ -1,5 +1,4 @@
-// Self-containment check: <Miro/Codegen.h> must compile as the first
-// and only Miro include, and must supply the type-export toolchain.
+// The real assertion is that this TU compiles with one Miro include.
 
 #include <Miro/Codegen.h>
 

@@ -6,12 +6,6 @@
 namespace Miro
 {
 
-// A JsonReflector represents a single JSON slot. The shape
-// (object/array/map/primitive) is fixed at construction via Options
-// and committed eagerly when saving — atKey/atIndex spawn children
-// that commit their own shape the same way. The child is owned by
-// the parent and lives until the next atKey/atIndex call (or until
-// the parent is destroyed).
 class JsonReflector final : public Reflector
 {
 public:
@@ -35,9 +29,6 @@ private:
     JSON& slot;
     bool absent = false;
 
-    // Sentinel used as the target slot when loading and the requested
-    // key/index isn't present. Operations on a child pointing at it
-    // become no-ops, matching the prior "skip body" semantics.
     JSON missingSlot;
 
     OwningPointer<JsonReflector> currentChild;

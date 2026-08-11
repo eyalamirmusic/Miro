@@ -46,9 +46,6 @@ void CommandTable::dispatchAsync(std::string_view command,
                                  const JSON& payload,
                                  const Resolve& resolve) const
 {
-    // Async handlers own the Resolve from here — the adapter built by
-    // onAsync wraps it in a Completer and reports its own errors, so we
-    // hand it off and return rather than settling on its behalf.
     auto async = asyncHandlers.find(std::string {command});
 
     if (async != asyncHandlers.end())

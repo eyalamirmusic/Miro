@@ -29,10 +29,6 @@ std::string_view jsonSchemaPrimitive(TypeTree::PrimitiveKind kind)
     return "string";
 }
 
-// Renders a single TypeNode as a JSON Schema fragment. Named types
-// (Object, Enum) become {"$ref": "#/$defs/<typeName>"}; the bodies live
-// in $defs and are emitted separately. Anonymous nodes (top-level
-// primitives, vectors, maps with no named root) get an inline body.
 JSON renderJsonNode(const TypeNode& node);
 
 void writeRequired(const TypeNode& node, JSON& out)
@@ -149,8 +145,7 @@ JSON renderJsonNode(const TypeNode& node)
                 return renderJsonMapBody(node);
 
             case TypeNode::Shape::Enum:
-                // Anonymous enum shouldn't happen — visitEnum always sets
-                // a name — but render inline if it does.
+                // visitEnum always names enums; inline is just a fallback.
                 return node.typeName.empty() ? renderJsonEnumBody(node)
                                              : makeRefTo(node.typeName);
         }
@@ -167,10 +162,6 @@ JSON renderJsonNode(const TypeNode& node)
 namespace
 {
 
-// Walks every named type reachable from the roots and returns a $defs
-// object. Mutates roots in place via prepareRoots — the per-node
-// disambiguation pass rewrites typeName when distinct types share a
-// short name.
 JSON buildDefs(std::span<TypeNode> roots)
 {
     auto ordered = TypeTree::prepareRoots(roots);
@@ -191,9 +182,6 @@ JSON buildDefs(std::span<TypeNode> roots)
 
 } // namespace
 
-// Multi-root variant — used by the type-export runner to bundle every
-// registered type into a single document. No type is privileged as
-// "the schema"; consumers point at one with {"$ref": "#/$defs/X"}.
 JSON formatJsonSchema(std::span<TypeNode> roots)
 {
     auto defs = buildDefs(roots);
@@ -205,13 +193,10 @@ JSON formatJsonSchema(std::span<TypeNode> roots)
     return out;
 }
 
-// Single-root: render the root (a $ref for named types, an inline body
-// for top-level vectors / primitives) and attach $defs alongside. Used
-// by `schemaOf<T>()`.
 JSON formatJsonSchema(TypeNode& root)
 {
-    // Build $defs first — prepareRoots rewrites typeName during this
-    // pass, and we need the renamed names when we render the root.
+    // $defs first: prepareRoots rewrites typeName, and rendering the root
+    // needs the rewritten names.
     auto defs = buildDefs(std::span {&root, 1});
 
     auto out = renderJsonNode(root);

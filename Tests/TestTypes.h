@@ -165,8 +165,6 @@ struct InlineFieldsRenamedRef
     void reflect(Miro::Reflector& myRef) { MIRO_FIELDS(myRef, value) }
 };
 
-// Types intentionally without any reflect() method — to be reflected via
-// MIRO_REFLECT_EXTERNAL below, simulating a third-party type.
 struct ExternalPoint
 {
     int x = 3;
@@ -254,7 +252,6 @@ struct ClassWithOptional
     std::optional<Inner> maybeInner;
 };
 
-// Optional as an array element — non-field position, renders `(T | null)`.
 struct ClassWithOptionalInArray
 {
     std::vector<std::optional<int>> slots;
@@ -292,7 +289,6 @@ struct ClassWithEnum
     UnscopedMode mode = ModeAuto;
 };
 
-// Optional named struct as an array element.
 struct ClassWithOptionalNamedInArray
 {
     std::vector<std::optional<Inner>> slots;
@@ -300,7 +296,6 @@ struct ClassWithOptionalNamedInArray
     MIRO_REFLECT(slots)
 };
 
-// Optional enum as an array element.
 struct ClassWithOptionalEnumInArray
 {
     std::vector<std::optional<Color>> slots;
@@ -308,19 +303,12 @@ struct ClassWithOptionalEnumInArray
     MIRO_REFLECT(slots)
 };
 
-// Optional as a map value — the value renders in non-field context too.
 struct ClassWithOptionalMapValue
 {
     std::map<std::string, std::optional<int>> slots;
 
     MIRO_REFLECT(slots)
 };
-
-// ---------- Types shared across the export-format tests ------------------
-// Address + User cover the cases the TypeScript / Schema / C++ exporters
-// each want to assert on (primitives, named refs, optionals of named
-// types, vectors, maps, enums). Each individual test file uses just
-// the slice of fields it cares about — extra fields are harmless.
 
 enum class Priority : int
 {

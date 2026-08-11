@@ -26,8 +26,6 @@ concept HasExternalReflect = requires(T& v, Reflector& r) { reflect(r, v); };
 template <typename T>
 concept Reflectable = HasReflectMember<T> || HasExternalReflect<T>;
 
-// Type traits for shape classification.
-
 template <typename T>
 struct IsOptional : std::false_type
 {
@@ -38,8 +36,7 @@ struct IsOptional<std::optional<T>> : std::true_type
 {
 };
 
-// OwningPointer behaves like std::optional for reflection — nullable
-// slot whose inner shape is decided by T.
+// A null OwningPointer reflects exactly like an empty optional.
 template <typename T>
 struct IsOptional<OwningPointer<T>> : std::true_type
 {
@@ -63,10 +60,8 @@ struct InnerOf<OwningPointer<T>>
     using type = T;
 };
 
-// Detects whether T derives (directly or indirectly) from some
-// EA::Vector<U, A>. Used so anything inheriting from EA::Vector — e.g.
-// EA::OwnedVector or a user's own subclass — is classified as array-
-// shaped without each one needing its own IsArrayLike specialization.
+// Probes for derivation from EA::Vector, so subclasses (EA::OwnedVector,
+// user types) are array-shaped without their own specialization.
 template <typename U, typename A>
 auto vectorDerivedProbe(const Vector<U, A>*) -> std::true_type;
 auto vectorDerivedProbe(...) -> std::false_type;
@@ -115,10 +110,8 @@ struct IsMapLike<EA::MapVector<std::string, V>> : std::true_type
 {
 };
 
-// Variant slots serialize as externally-tagged objects: `{"Tag": {...}}`,
-// one property whose key is the active alternative's tag. The slot is
-// genuinely Object-shaped, so the JsonReflector commits ensureObject()
-// before reflectPolymorphic writes the tag.
+// Variants serialize as externally tagged objects — `{"Tag": {...}}` —
+// so shapeOf reports them as Object.
 template <typename T>
 struct IsVariant : std::false_type
 {
@@ -152,8 +145,6 @@ consteval Shape shapeOf()
         return Shape::Primitive;
 }
 
-// Build child Options from a parent's Options. mode and schema
-// inherit; shape and nullable are decided by the value type T.
 template <typename T>
 constexpr Options childOptionsFor(const Options& parent)
 {
@@ -163,7 +154,6 @@ constexpr Options childOptionsFor(const Options& parent)
     return opts;
 }
 
-// Build top-level Options for a fresh root reflector reflecting T.
 template <typename T>
 constexpr Options topLevelOptions(Mode mode, bool schema = false)
 {
@@ -175,10 +165,8 @@ constexpr Options topLevelOptions(Mode mode, bool schema = false)
     };
 }
 
-// Forward declarations for container, optional and enum overloads. The
-// definitions live in ReflectContainers.h / ReflectEnum.h, but the
-// declarations must be visible here so Phase-1 lookup inside Property's
-// templated operator() can see them as candidates.
+// Defined in ReflectContainers.h / ReflectEnum.h, but declared here so
+// Phase-1 lookup in Property::operator() finds them as candidates.
 template <typename T>
 void reflectValue(Reflector& ref, std::vector<T>& value);
 
@@ -254,10 +242,6 @@ void reflectValue(Reflector& ref, T& value)
     value = static_cast<T>(wide);
 }
 
-// Default fallback: a reflectable struct (member reflect() or external
-// `Miro::reflect(Reflector&, T&)` free function). The slot is already
-// committed as Object by the parent's atKey/atIndex via Options.shape,
-// so the dispatcher just runs the user's reflect.
 template <typename T>
     requires Reflectable<T> && (!std::is_arithmetic_v<T>) && (!std::is_enum_v<T>)
 void reflectValue(Reflector& ref, T& value)
@@ -277,13 +261,9 @@ void reflectValue(Reflector& ref, T& value)
 namespace Miro
 {
 
-// Property/Element dispatch the value through an unqualified call to
-// `reflectValue`, with `using Detail::reflectValue` bringing the built-in
-// overloads into scope. Two-phase lookup for unqualified dependent calls
-// re-runs ADL at instantiation on the argument types, so users can teach
-// Miro about a new primitive (e.g. juce::String) by adding a free
-// `reflectValue(Reflector&, T&)` overload in namespace `Miro` or in `T`'s
-// own namespace, even after <Miro/Miro.h> has been included.
+// The call to reflectValue stays unqualified so ADL re-runs at
+// instantiation: users can add their own reflectValue(Reflector&, T&)
+// overload in namespace Miro or in T's namespace, even after including us.
 template <typename T>
 void Property::operator()(T& value)
 {

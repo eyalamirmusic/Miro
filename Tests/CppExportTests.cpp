@@ -1,8 +1,3 @@
-// Tests for Miro::Cpp — emits C++ headers from the same TypeNode tree
-// the TypeScript and JSON Schema renderers consume. Two flavours: a
-// pure-types header with no Miro dependency, and a "with Miro" header
-// that adds MIRO_REFLECT(...) lines + the umbrella include.
-
 #include "TestHelpers.h"
 #include "TestTypes.h"
 
@@ -11,8 +6,6 @@
 
 using namespace nano;
 using namespace Miro;
-
-// ---------- Plain (Miro-free) ----------
 
 auto cppPragmaOnce = test("Cpp: header begins with #pragma once") = []
 {
@@ -83,8 +76,6 @@ auto cppDependencyOrder =
     check(comesBefore(out, "enum class Color", "struct User"));
 };
 
-// ---------- With-Miro variant ----------
-
 auto cppMiroIncludes = test("Cpp (miro): includes Miro/Miro.h") = []
 {
     auto out = Cpp::toHeader<User>(Cpp::Modes::Miro);
@@ -101,8 +92,7 @@ auto cppMiroReflect =
                    "note, shipping, color, priority, accent)"));
 };
 
-auto cppInt64Field =
-    test("Cpp: 64-bit integer fields render as std::int64_t") = []
+auto cppInt64Field = test("Cpp: 64-bit integer fields render as std::int64_t") = []
 {
     auto out = Cpp::toHeader<ClassWithInt64>(Cpp::Modes::PureCPP);
     check(contains(out, "std::int64_t epochMs = 0;"));
@@ -112,7 +102,6 @@ auto cppMiroEnumNoReflect =
     test("Cpp (miro): enum classes do not get a MIRO_REFLECT line") = []
 {
     auto out = Cpp::toHeader<User>(Cpp::Modes::Miro);
-    // The enum block sits between "enum class Color" and the next "};"
     auto enumStart = out.find("enum class Color");
     auto enumEnd = out.find("};", enumStart);
     auto enumBlock = out.substr(enumStart, enumEnd - enumStart);

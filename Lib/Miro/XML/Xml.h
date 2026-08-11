@@ -10,16 +10,9 @@
 namespace Miro::Xml
 {
 
-// Minimal XML DOM. Each Node is one element:
-//   <name attr="...">text<child .../></name>
-// Mixed content (text interleaved with children) is not represented —
-// `text` is meaningful for leaf elements only.
-//
-// Parser scope is the subset Miro emits: elements, attributes
-// (single- and double-quoted), self-closing tags, text content, and
-// the five standard entity escapes (& < > " '). CDATA, comments,
-// namespaces, DOCTYPE, processing instructions, and validation are
-// out of scope.
+// Mixed content is not representable: `text` is meaningful for leaf elements
+// only. Out of scope for both parser and printer: CDATA, comments, namespaces,
+// DOCTYPE, processing instructions and validation.
 struct Node
 {
     std::string name;

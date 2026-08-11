@@ -1,15 +1,5 @@
 #pragma once
 
-// Concrete ApiReflector for the describe path: walks an API's
-// reflect() body and records each command / event into local lists.
-// Used in tests to assert what reflect() declares; also the basis
-// the eventual codegenMain<T> builds on (it forwards the recorded
-// metadata into the format pipeline instead of process-wide
-// registries).
-//
-// Header-only because it has no Bridge dependency — describe mode
-// records metadata, never installs handlers or attaches listeners.
-
 #include "../TypeTree/TypeTree.h"
 #include "ApiReflector.h"
 
@@ -23,12 +13,6 @@ namespace Miro::Detail
 class DescribeReflector : public ApiReflector
 {
 public:
-    // Record-side mirror of Detail::TypeInfo: owns its strings (the
-    // descriptor's string_views point into static type-name buffers,
-    // safe to capture here too, but std::string keeps the record
-    // self-contained for downstream codegen). `present` reflects
-    // whether the corresponding TypeInfo was populated on the
-    // descriptor — false for elided sides (void Req/Res).
     struct TypeInfoRecord
     {
         std::string name;
@@ -59,11 +43,8 @@ public:
     Vector<CommandRecord> commands;
     Vector<EventRecord> events;
 
-    // Structural TypeNodes for every Req / Res / event payload seen on
-    // this walk, in declaration order. Duplicates are deliberately kept
-    // — TypeTree::prepareRoots dedupes by qualifiedName at format time,
-    // so the same tree built twice is harmless and avoids a hash-set
-    // dependency here.
+    // Duplicates are deliberately kept — TypeTree::prepareRoots dedupes
+    // by qualifiedName at format time.
     Vector<TypeTree::TypeNode> typeRoots;
 
 protected:
@@ -89,10 +70,6 @@ protected:
     }
 
 private:
-    // Copy TypeInfo → TypeInfoRecord and, if the type is present, run
-    // its in-place tree factory into a fresh typeRoots slot. Centralises
-    // the (copy strings, conditionally emplace tree) idiom so each
-    // descriptor side is one call rather than a six-line block.
     void recordTypeInfo(const TypeInfo& src, TypeInfoRecord& dst)
     {
         if (!src)

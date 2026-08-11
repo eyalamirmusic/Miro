@@ -1,5 +1,4 @@
-// Self-containment check: <Miro/Bridge.h> must compile as the first
-// and only Miro include, and must supply the runtime bridge surface.
+// The real assertion is that this TU compiles with one Miro include.
 
 #include <Miro/Bridge.h>
 

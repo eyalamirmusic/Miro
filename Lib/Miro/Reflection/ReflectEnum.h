@@ -14,14 +14,9 @@
 namespace Miro
 {
 
-// Specialize this to shrink or extend the probed enumerator range for a
-// given enum type. The default covers [-128, 127].
-//
-// Note: an unscoped enum without a fixed underlying type
-// (e.g. `enum Foo { ... }`) has a value range determined by its
-// enumerators, and casting out-of-range values in a constant expression
-// is UB. Give such enums an explicit base (`enum Foo : int { ... }`) or
-// use `enum class` to reflect them.
+// Specialize to change the enumerator range probed for an enum type.
+// An unscoped enum with no fixed underlying type must not be probed
+// outside its enumerators (UB) — give it a base or use `enum class`.
 template <typename E>
 struct EnumRange
 {
@@ -55,12 +50,9 @@ constexpr std::string_view enumNameRaw()
 
     auto name = sig.substr(start, end - start);
 
-    // Find the rightmost "::" at paren-depth 0 — i.e. the separator
-    // between the qualifier and the enumerator. Counting depth lets us
-    // ignore the `::` inside an "(anonymous namespace)::Foo" qualifier,
-    // and lets us recognize "((anonymous namespace)::Foo)42" cast
-    // spellings (their inner `::` lives at depth 1, so it's skipped and
-    // the leading `(` survives the front-paren check below).
+    // Rightmost "::" at paren depth 0, so the one inside an "(anonymous
+    // namespace)::Foo" qualifier is skipped — which also leaves a cast
+    // spelling like "((Ns)::Foo)42" with the leading '(' rejected below.
     auto depth = 0;
     auto lastColon = std::string_view::npos;
 

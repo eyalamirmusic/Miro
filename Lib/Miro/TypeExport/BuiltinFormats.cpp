@@ -1,14 +1,5 @@
-// Built-in format registrations for the Miro codegen runner.
-//
-// Each registerFormat() call lands in a [[maybe_unused]] constant whose
-// initialization runs at program startup, populating the format
-// registry that codegenMain<Apis...> walks. Downstream libraries plug
-// in additional formats from their own TUs using the same Format.h API.
-//
-// This TU lives in the MiroFormats OBJECT library, not in the Miro
-// static library — OBJECT-library TUs are always linked into the final
-// executable in full, so the static-init format registrations are
-// guaranteed to run without needing a force-link anchor.
+// Belongs to the MiroFormats OBJECT library, not the Miro static lib, so
+// these static-init registrations are always linked into the executable.
 
 #include "Format.h"
 

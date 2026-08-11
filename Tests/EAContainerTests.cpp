@@ -1,7 +1,3 @@
-// Round-trip coverage for the Miro::Vector / Miro::Array / EA::MapVector /
-// Miro::OwningPointer reflect overloads (Miro:: aliases come from
-// Lib/Miro/Containers.h; EA:: spellings continue to work too).
-
 #include <Miro/Miro.h>
 #include <NanoTest/NanoTest.h>
 
@@ -54,9 +50,6 @@ struct WithEAOwnedVector
     MIRO_REFLECT(items)
 };
 
-// A user-defined class inheriting from EA::Vector<T>. The dispatch and
-// shape trait should recognize it as an array via its base class without
-// any per-subclass registration.
 class IntList : public Vector<int>
 {
 public:

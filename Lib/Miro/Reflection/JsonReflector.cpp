@@ -95,7 +95,6 @@ void JsonReflector::commitShape()
     switch (opts.shape)
     {
         case Shape::Primitive:
-            // visit() will write the value directly into the slot.
             break;
         case Shape::Object:
         case Shape::Map:
@@ -141,9 +140,8 @@ void JsonReflector::loadPrimitive(PrimitiveRef ref)
 Reflector&
     JsonReflector::spawnChild(JSON& targetSlot, Options childOpts, bool absentToUse)
 {
-    // Destroy the previous child *before* constructing the new one so
-    // any subclass with destructor side effects (e.g. emitting close
-    // brackets) sees a strict open-then-close ordering.
+    // Reset before constructing so a child with destructor side effects
+    // always closes before the next one opens.
     currentChild.reset();
     currentChild = new JsonReflector(targetSlot, childOpts, absentToUse);
     return *currentChild;

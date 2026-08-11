@@ -1,15 +1,5 @@
-// Tests around self-referencing types. JSON Save/Load already work —
-// both branches walk the actual data (which is finite by construction),
-// so recursion terminates. The Schema and TypeScript exporters do not:
-// their schema-mode branch in ReflectContainers.h synthesizes an inner
-// T{} regardless of the data, so a `struct Node { vector<Node> children; }`
-// recurses forever during reflection and stack-overflows.
-//
-// These tests live in their own executable so the SIGSEGV from the
-// crashing exporters is contained to its own CTest entries — the main
-// MiroTests binary keeps running. Once the bug is fixed, the
-// assertions below describe the minimum behavior the exporters should
-// produce; they can be tightened as the fix lands.
+// Own executable (MiroRecursionTests): a runaway exporter recursion here
+// crashes the process, so it must not take the main MiroTests binary down.
 
 #include "TestHelpers.h"
 
@@ -50,7 +40,6 @@ auto recursiveSchema =
 {
     auto schema = schemaOf<Node>();
 
-    // Top-level $ref into the $defs entry for Node.
     check(schema["$ref"].asString() == "#/$defs/Node");
 
     auto& body = schema["$defs"]["Node"];
@@ -58,7 +47,6 @@ auto recursiveSchema =
     check(body["properties"]["value"]["type"].asString() == "integer");
     check(body["properties"]["children"]["type"].asString() == "array");
 
-    // The recursive back-edge — children's items should reference Node.
     check(body["properties"]["children"]["items"]["$ref"].asString()
           == "#/$defs/Node");
 };

@@ -1,11 +1,3 @@
-// Tests for SchemaReflector — proves the same MIRO_REFLECT-annotated type
-// can describe its own structure as JSON Schema.
-//
-// The schema format hoists every named user-defined type into a
-// top-level "$defs" map; references everywhere become {"$ref": "..."}.
-// `defOf(schema, "Foo")` is a helper for navigating into the body of
-// a named type's definition; everything else hangs off the root.
-
 #include "TestTypes.h"
 
 #include <NanoTest/NanoTest.h>
@@ -15,9 +7,6 @@ using namespace Miro;
 
 namespace
 {
-
-// Schema-only fixtures — types that don't show up in the cross-test
-// shared header because they're shaped specifically for one assertion.
 
 struct NestedArrays
 {
@@ -134,7 +123,7 @@ auto schemaForTopLevelVector = test("Schema: top-level vector") = []
 {
     auto schema = schemaOf<std::vector<int>>();
 
-    // No named types reachable, so $defs is omitted.
+    // $defs is omitted because no named type is reachable from a vector<int>.
     check(schema.asObject().find("$defs") == schema.asObject().end());
     check(schema["type"].asString() == "array");
     check(schema["items"]["type"].asString() == "integer");
@@ -163,7 +152,6 @@ auto schemaPrintRoundtrip = test("Schema: prints + reparses as valid JSON") = []
 auto schemaPaintsSaveLoadStillWorks =
     test("Schema reflector does not interfere with toJSON/fromJSON") = []
 {
-    // Sanity: existing JSON path still works for the same type.
     auto user = User {};
     user.name = "ada";
     user.age = 36;
@@ -268,8 +256,6 @@ auto schemaRequiredInsideOptionalStruct =
     auto schema = schemaOf<User>();
     auto& shipping = defOf(schema, "User")["properties"]["shipping"];
 
-    // The reference slot carries the nullable bit; the referenced
-    // type's body still requires its inner fields.
     check(shipping["$ref"].asString() == "#/$defs/Address");
     check(shipping["nullable"].asBool() == true);
     check(defOf(schema, "Address")["required"].asArray().size() == 2);
@@ -321,7 +307,6 @@ auto schemaDedupsRepeatedStructs =
     auto schema = schemaOf<AddressPair>();
     auto& defs = schema["$defs"].asObject();
 
-    // Address only appears once, both AddressPair fields reference it.
     check(defs.contains("Address"));
     check(defOf(schema, "AddressPair")["properties"]["first"]["$ref"].asString()
           == "#/$defs/Address");

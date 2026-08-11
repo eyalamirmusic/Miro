@@ -1,6 +1,4 @@
-// Self-containment check: <Miro/Xml.h> must compile as the first and
-// only Miro include, and must supply the XML value layer plus the
-// toXML / fromXML reflection serializers.
+// The real assertion is that this TU compiles with one Miro include.
 
 #include <Miro/Xml.h>
 

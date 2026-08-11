@@ -76,17 +76,13 @@ class ParseError : public std::runtime_error
 Value* find(Object& object, std::string_view key);
 const Value* find(const Object& object, std::string_view key);
 
-// Helper used at the JSON-in seam of every command thunk. Lets handlers
-// accept `null` as a stand-in for "no fields" — fromJSON would otherwise
-// reject null when loading an object-shaped Req.
+// Lets `null` stand in for "no fields": fromJSON rejects null when loading
+// an object-shaped type.
 Value payloadOrEmpty(const Value& payload);
 
 Value parse(std::string_view inputToUse);
 
-// Like parse(), but never throws. On malformed input it catches the
-// ParseError (and any other exception) internally and returns a null
-// Value instead. Use this at boundaries where a default-constructed
-// result is preferable to handling a thrown ParseError.
+// Never throws: malformed input yields a null Value.
 Value getParsedValue(std::string_view inputToUse);
 
 std::string print(const Value& valueToUse, int indentToUse = 0);

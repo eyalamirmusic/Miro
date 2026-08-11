@@ -1,18 +1,3 @@
-// End-to-end tests for the ApiReflector inversion: a user-defined API
-// class with a reflect() method declares its commands and events; the
-// library walks that method polymorphically — Bridge::use(api) binds
-// each command into the bridge's CommandTable and each event to a
-// Listener that emits the snapshot, while DescribeReflector records
-// the same declarations for codegen consumption.
-//
-// These tests cover the full round-trip:
-//   1. dispatching the bridge's command table calls into the API
-//      instance's methods
-//   2. publishing on a Miro::Event<T> member triggers a bridge.onEmit
-//      broadcast carrying the event name + serialized snapshot
-//   3. the describe path records identical metadata (names, type
-//      identities, req/res shape) without touching the instance
-
 #include <Miro/Miro.h>
 #include <NanoTest/NanoTest.h>
 
@@ -42,10 +27,6 @@ struct ARRes
     MIRO_REFLECT(echoed)
 };
 
-// One representative class with one of each pmf shape plus an event
-// member. All four shape paths through MethodInfo + the event-member
-// path through EventMemberInfo are exercised together — if any one
-// of them mis-deduces, the corresponding test fails.
 class TodosTestApi
 {
 public:
@@ -82,9 +63,6 @@ public:
     int calls = 0;
 };
 
-// Helper: captures (event-name, payload) on every bridge.onEmit fire.
-// Reads the bridge's currentEvent/currentPayload inside the listener
-// body, matching how real transports observe emits.
 struct EmitCapture
 {
     EmitCapture(Bridge& b)
@@ -105,8 +83,6 @@ struct EmitCapture
 };
 
 } // namespace
-
-// ---------- Bind mode: command dispatch ----------
 
 auto arBindDispatchesEcho =
     test("ApiReflector: Bridge::use installs Res(Req) handler") = []
@@ -160,8 +136,6 @@ auto arBindDispatchesTick =
     check(api.ticks == 2);
 };
 
-// ---------- Bind mode: event emission ----------
-
 auto arBindEventEmitsOnPublish = test(
     "ApiReflector: publishing on an Event<T> member triggers bridge.onEmit") = []
 {
@@ -192,8 +166,6 @@ auto arBindEventViaCommand =
     check(capture.lastPayload["echoed"].asString() == "logged:abc");
 };
 
-// ---------- Bind mode: listener lifetime ----------
-
 auto arBindListenerSurvivesUseCall =
     test("ApiReflector: subscription outlives the BindReflector itself") = []
 {
@@ -208,8 +180,6 @@ auto arBindListenerSurvivesUseCall =
     check(capture.lastEvent == "changes");
     check(capture.lastPayload["echoed"].asString() == "still alive");
 };
-
-// ---------- Describe mode ----------
 
 namespace
 {
@@ -305,13 +275,10 @@ auto arDescribeDoesNotInvoke = test(
     check(api.lastLogged.empty());
 };
 
-// ---------- Describe mode: TypeNode collection ----------
-
 namespace
 {
-// The test types live in an anonymous namespace, so their qualifiedName
-// is "(anonymous namespace)::ARReq" etc. Match on the short typeName
-// for readability.
+// Matches on short typeName: these types live in an anonymous namespace,
+// so qualifiedName is "(anonymous namespace)::ARReq".
 bool hasTypeRoot(const EA::Vector<TypeTree::TypeNode>& roots,
                  std::string_view typeName)
 {
@@ -330,8 +297,6 @@ auto arDescribeBuildsTypeRoots = test(
     auto api = TodosTestApi {};
     api.reflect(describe);
 
-    // ARReq appears on echo (Req) and log (Req).
-    // ARRes appears on echo (Res), status (Res), and changes (payload).
     check(hasTypeRoot(describe.typeRoots, "ARReq"));
     check(hasTypeRoot(describe.typeRoots, "ARRes"));
 };
@@ -363,23 +328,6 @@ auto arDescribeTypeRootsAreStructural =
     check(ares->fields.size() == 1);
     check(ares->fields[0].name == "echoed");
 };
-
-// ---------- End-to-end: DescribeReflector → existing formatBackendModule ----------
-//
-// Proves the inversion can drive the existing format pipeline: we
-// build a CommandEntry list from DescribeReflector's records and feed
-// it (along with the collected type roots) into the same
-// formatBackendModule the static-init path uses. If the output text
-// has all the typed signatures we'd expect from the test API, the
-// reflector-to-formatter integration is wired.
-
-// ---------- RefEvent<T>: non-owning event member, bound end-to-end ----------
-//
-// The API class owns the state; RefEvent refers to it. Bridge::use
-// should attach a listener exactly as for Event<T>, and publish() on
-// the RefEvent should route the externally-mutated snapshot through
-// bridge.onEmit. EventMemberInfo's RefEvent specialization is what
-// makes this work without any change to ApiReflector.
 
 namespace
 {
@@ -432,13 +380,6 @@ auto arRefEventDescribeMatchesEvent = test(
     check(changes->payload.name == "ARRes");
 };
 
-// ---------- NTTP form: explicit-name overload still works for renames ----------
-//
-// The string overload remains available for cases where the wire name
-// must differ from the C++ member name. This class declares both a
-// renamed command and a renamed event to confirm the legacy path is
-// untouched by the new NTTP defaults.
-
 namespace
 {
 class RenameTestApi
@@ -468,11 +409,6 @@ auto arRenameStringOverloadStillWorks = test(
     check(describe.events.size() == 1);
     check(describe.events[0].name == "pulse");
 };
-
-// ---------- NTTP form: events<...> variadic ----------
-//
-// TodosTestApi covers the commands<...> fan-out and the singular event<>
-// form; this case verifies that events<...> walks multiple pmds.
 
 namespace
 {
@@ -529,20 +465,11 @@ auto arDescribeDrivesBackendFormat =
         entries,
         "schema");
 
-    // Each command shape appears with the right signature.
     check(out.find("echo: (req: T.ARReq): Promise<T.ARRes>") != std::string::npos);
     check(out.find("status: (): Promise<T.ARRes>") != std::string::npos);
     check(out.find("log: (req: T.ARReq): Promise<void>") != std::string::npos);
     check(out.find("tick: (): Promise<void>") != std::string::npos);
 };
-
-// ---------- Sub-APIs: r.use("key", member) recursion ----------
-//
-// A reflect() body can defer to a member's own reflect() via
-// r.use("key", member); all commands/events the sub declares land
-// under "key.<name>". The same dual dispatch as the data layer is
-// supported — intrusive Sub::reflect(ApiReflector&) or a free
-// reflect(ApiReflector&, Sub&) overload.
 
 namespace
 {
@@ -679,14 +606,10 @@ auto arSubApiDescribeNamesArePrefixed =
 
     check(findEvt(describe.events, "files.changed") != nullptr);
 
-    // The unprefixed names must not appear — would mean we leaked the
-    // local name through alongside the prefixed one.
     check(findCmd(describe.commands, "read") == nullptr);
     check(findCmd(describe.commands, "write") == nullptr);
     check(findEvt(describe.events, "changed") == nullptr);
 };
-
-// ---------- Nested use(): prefixes accumulate with '.' ----------
 
 namespace
 {
@@ -737,13 +660,6 @@ auto arSubApiNestedDescribeNames = test(
     check(describe.commands[0].name == "outer.inner.ping");
 };
 
-// ---------- Free-function reflect overload (non-intrusive) ----------
-//
-// A sub-API doesn't have to declare its own reflect() method. A free
-// reflect(ApiReflector&, T&) overload in the same namespace (or
-// Miro::) is picked up by ADL — mirrors MIRO_REFLECT_EXTERNAL on the
-// data side.
-
 namespace
 {
 class ExternalSubApi
@@ -752,10 +668,8 @@ public:
     ARRes hello() const { return {"external"}; }
 };
 
-// Free function in the same namespace, found via ADL from
-// ApiReflector::use<>(). Marked [[maybe_unused]] because clang's
-// pre-instantiation pass can't see the ADL caller and would otherwise
-// flag the definition as unneeded.
+// [[maybe_unused]]: clang's pre-instantiation pass can't see the ADL
+// caller in ApiReflector::use<>() and would flag this as unneeded.
 [[maybe_unused]] inline void reflect(ApiReflector& r, ExternalSubApi& sub)
 {
     (void) sub;
@@ -780,8 +694,6 @@ auto arSubApiFreeFunctionDispatch = test(
 
     check(bridge.dispatch("ext.hello", {})["echoed"].asString() == "external");
 };
-
-// ---------- Flat use(sub): split one API across helpers, no prefix ----------
 
 namespace
 {
@@ -831,14 +743,6 @@ auto arSubApiFlatDescribeNoPrefix = test(
     check(findCmd(describe.commands, "helperCmd") != nullptr);
 };
 
-// ---------- MIRO_API macro: identifier-as-prefix shortcut ----------
-//
-// MIRO_API(r, a, b) expands to r.use("a", a); r.use("b", b); — same
-// expansion machinery as MIRO_FIELDS, just calling use() instead of
-// the bracket dispatcher. Verifies the macro's name lifting matches
-// the hand-written r.use("files", files) / r.use("users", users)
-// pairs in the CompositeApi tests above.
-
 namespace
 {
 class MacroCompositeApi
@@ -886,14 +790,6 @@ auto arSubApiMacroDescribePrefixed = test(
     check(findCmd(describe.commands, "users.list") != nullptr);
     check(findEvt(describe.events, "files.changed") != nullptr);
 };
-
-// ---------- MIRO_REFLECT_API: unified pmf / pmd / sub-API dispatch ----------
-//
-// MIRO_REFLECT_API(a, b, c) generates a `reflect(ApiReflector&)` body
-// that classifies each listed member by its kind and dispatches to the
-// right overload — pmf → command, pmd to Event<T> → event, pmd to an
-// ApiReflectable type → use(memberName, *this.field). Hand-written
-// reflect() bodies can call r.api<&T::field>(*this) directly.
 
 namespace
 {
@@ -1000,14 +896,6 @@ auto unifiedApiDirectVariadic = test(
     check(capture.lastEvent == "beep");
 };
 
-// ---------- Free-function and lambda commands ----------
-//
-// r.command<&freeFn>() handles free-function pointers (template form,
-// name auto-derived via memberNameOf). r.command(callable, name)
-// handles anything else with operator() — capturing lambdas,
-// captureless lambdas, std::function — using MethodInfo<&Lambda::
-// operator()> to recover the Req/Res shape.
-
 namespace
 {
 ARRes freeEcho(const ARReq& req)
@@ -1029,14 +917,11 @@ public:
 
     void reflect(ApiReflector& r)
     {
-        // Members via api<>
         r.api<&FreeFnHostApi::beat>(*this);
 
-        // Free functions via command<> (template form, auto-named)
         r.command<&freeEcho>();
         r.command<&freeTick>();
 
-        // Capturing lambda — closes over *this to count invocations.
         r.command(
             [this](const ARReq& req) -> ARRes
             {
@@ -1045,8 +930,6 @@ public:
             },
             "lambdaCmd");
 
-        // Captureless lambda — implicitly convertible to fn ptr but
-        // value form should accept it directly.
         r.command([](const ARReq& req) -> ARRes { return {"clean:" + req.text}; },
                   "cleanCmd");
     }
@@ -1138,13 +1021,6 @@ auto freeFnApiDispatcher =
     check(capture.lastEvent == "tick");
 };
 
-// ---------- Async commands: void(Req, Completer<Res>) members ----------
-//
-// An async member handler owns its threading and settles a Completer.
-// Bind mode must route it through CommandTable::onAsync (so dispatchAsync
-// reaches it), while describe mode records the same Req/Res as a sync
-// command — async-ness never crosses into codegen.
-
 namespace
 {
 class AsyncReflectApi
@@ -1156,14 +1032,12 @@ public:
         r.commands<&T::echoAsync, &T::pingAsync>();
     }
 
-    // void(Req, Completer<Res>) — resolves later from a worker thread.
     void echoAsync(const ARReq& req, Completer<ARRes> done)
     {
         calls++;
         std::thread([req, done] { done.resolve({req.text + "!"}); }).detach();
     }
 
-    // void(Completer<Res>) — no request, resolves inline.
     void pingAsync(Completer<ARRes> done) { done.resolve({"pong"}); }
 
     int calls = 0;
