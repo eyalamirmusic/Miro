@@ -8,8 +8,6 @@
 using namespace nano;
 using namespace Miro;
 
-// A leaf type that, on save, emits whatever custom tag drilled down to
-// it into a "tag" field — so a test can read it back out of the JSON.
 struct SaveTagEmitter
 {
     void reflect(Miro::Reflector& ref)
@@ -26,9 +24,8 @@ struct SaveTagOuter
     void reflect(Miro::Reflector& ref) { ref["inner"](inner); }
 };
 
-// A leaf type that records the drilled-down tag into a member that is
-// NOT part of reflection, so the load path can't overwrite it — the
-// test inspects it directly after fromJSON.
+// seenTag is deliberately left out of reflect(), so the load path cannot
+// overwrite what the reflect() body observed.
 struct LoadTagSpy
 {
     int x = 0;
@@ -55,8 +52,6 @@ struct LoadTagVec
     void reflect(Miro::Reflector& ref) { ref["items"](items); }
 };
 
-// --- Defaults ---
-
 auto customDefaultsEmptyOnSave = test("Custom tag defaults to empty (save)") = []
 {
     auto json = toJSON(SaveTagOuter {});
@@ -72,8 +67,6 @@ auto customDefaultsEmptyOnLoad = test("Custom tag defaults to empty (load)") = [
     check(outer.inner.seenTag == "");
 };
 
-// --- Drill-down on save ---
-
 auto customDrillsDownOnSave =
     test("Custom tag drills down to nested type (save)") = []
 {
@@ -81,8 +74,6 @@ auto customDrillsDownOnSave =
 
     check(json["inner"]["tag"].asString() == "session:abc");
 };
-
-// --- Drill-down on load ---
 
 auto customDrillsDownOnLoad =
     test("Custom tag drills down to nested type (load)") = []
@@ -102,8 +93,6 @@ auto customFactoryOverloadCarriesTag =
 
     check(outer.inner.seenTag == "factory-tag");
 };
-
-// --- Drill-down through a container ---
 
 auto customDrillsThroughContainer =
     test("Custom tag drills down through vector elements") = []

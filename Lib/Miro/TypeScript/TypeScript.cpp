@@ -317,9 +317,8 @@ std::string formatEventsModule(std::span<TypeNode> typeRoots,
 
     auto out = std::ostringstream {};
 
-    // Only the event payloads below name `T`, so an API with no events would
-    // import a module it never references — which fails any tsc running
-    // noUnusedLocals.
+    // Only event payloads name `T`: an unconditional import would leave an
+    // unused local, a hard error under tsc's noUnusedLocals.
     if (!events.empty())
         out << "import type * as T from './" << baseName << "';\n\n";
 
