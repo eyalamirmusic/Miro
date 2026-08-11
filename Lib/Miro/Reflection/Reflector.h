@@ -56,12 +56,22 @@ enum class ValueKind
     Object
 };
 
+// Caller-supplied payload seeded at the top-level toJSON/toXML call and
+// readable from any reflect() body via ref.customOptions().
+struct CustomOptions
+{
+    std::string tag {};
+};
+
 struct Options
 {
     Mode mode = Mode::Save;
     Shape shape = Shape::Primitive;
     bool nullable = false;
     bool schema = false;
+
+    // Propagated parent -> child unchanged (see CustomOptions).
+    CustomOptions custom {};
 };
 
 // qualifiedName is the dedup key: short names collide across namespaces.
@@ -115,6 +125,7 @@ public:
     Element operator[](std::size_t index);
 
     const Options& options() const { return opts; }
+    const CustomOptions& customOptions() const { return opts.custom; }
     Mode mode() const { return opts.mode; }
     Shape shape() const { return opts.shape; }
     bool isSaving() const { return opts.mode == Mode::Save; }

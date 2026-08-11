@@ -354,6 +354,16 @@ auto missingPropertyKeepsDefault = test("Missing property keeps existing value")
     check(val.label == "original");
 };
 
+auto loadIgnoresUnknownKeys = test("Load ignores unknown keys") = []
+{
+    auto val = Outer {10, {20}, "original"};
+    fromJSONString(val, R"({"a": 99, "renamed": 5, "extra": {"x": 7}})");
+
+    check(val.a == 99);
+    check(val.nested.x == 20);
+    check(val.label == "original");
+};
+
 auto saveMacroReflected = test("Save MIRO_REFLECT struct") = []
 {
     auto val = MacroReflected {};

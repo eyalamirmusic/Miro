@@ -7,51 +7,56 @@
 
 #include <string>
 #include <string_view>
+#include <utility>
 
 namespace Miro
 {
 
 template <typename T>
-Xml::Node toXML(const T& value)
+Xml::Node toXML(const T& value, CustomOptions custom = {})
 {
     auto root = Xml::Node {.name = std::string(Detail::typeNameOf<T>())};
-    auto ref = XmlReflector {root, Detail::topLevelOptions<T>(Mode::Save)};
+    auto ref = XmlReflector {
+        root,
+        Detail::topLevelOptions<T>(Mode::Save, /*schema=*/false, std::move(custom))};
     Detail::reflectValue(ref, const_cast<T&>(value));
     return root;
 }
 
 template <typename T>
-void fromXML(T& value, const Xml::Node& node)
+void fromXML(T& value, const Xml::Node& node, CustomOptions custom = {})
 {
     auto mutableNode = node;
-    auto ref = XmlReflector {mutableNode, Detail::topLevelOptions<T>(Mode::Load)};
+    auto ref = XmlReflector {
+        mutableNode,
+        Detail::topLevelOptions<T>(Mode::Load, /*schema=*/false, std::move(custom))};
     Detail::reflectValue(ref, value);
 }
 
 template <typename T>
-T createFromXML(const Xml::Node& node)
+T createFromXML(const Xml::Node& node, CustomOptions custom = {})
 {
     auto value = T {};
-    fromXML(value, node);
+    fromXML(value, node, std::move(custom));
     return value;
 }
 
 template <typename T>
-std::string toXMLString(const T& value, int indent = 0)
+std::string toXMLString(const T& value, int indent = 0, CustomOptions custom = {})
 {
-    return Xml::print(toXML(value), indent);
+    return Xml::print(toXML(value, std::move(custom)), indent);
 }
 
 template <typename T>
-void fromXMLString(T& value, std::string_view xmlString)
+void fromXMLString(T& value, std::string_view xmlString, CustomOptions custom = {})
 {
-    fromXML(value, Xml::parse(xmlString));
+    fromXML(value, Xml::parse(xmlString), std::move(custom));
 }
 
 template <typename T>
-T createFromXMLString(std::string_view xmlString)
+T createFromXMLString(std::string_view xmlString, CustomOptions custom = {})
 {
-    return createFromXML<T>(Xml::parse(xmlString));
+    return createFromXML<T>(Xml::parse(xmlString), std::move(custom));
 }
 
 } // namespace Miro
