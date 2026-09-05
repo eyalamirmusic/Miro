@@ -20,6 +20,7 @@ add_library(Miro STATIC
     Miro/Reflection/Any.cpp
     Miro/Reflection/CommandTable.cpp
     Miro/Reflection/JsonReflector.cpp
+    Miro/Reflection/ReflectJson.cpp
     Miro/Reflection/XmlReflector.cpp
     Miro/Reflection/Reflector.cpp
     Miro/Schema/Schema.cpp

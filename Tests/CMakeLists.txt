@@ -20,8 +20,12 @@ nano_add_executable(MiroTests SOURCES
         CppClientTests.cpp
         EAContainerTests.cpp
         PolymorphicTests.cpp
+        TaggedUnionTests.cpp
         UserPrimitiveTests.cpp
         CustomOptionsTests.cpp
+        EnumFormatTests.cpp
+        RawJsonTests.cpp
+        OmittableTests.cpp
         PublicHeaders/JsonHeaderTests.cpp
         PublicHeaders/ReflectHeaderTests.cpp
         PublicHeaders/XmlHeaderTests.cpp
