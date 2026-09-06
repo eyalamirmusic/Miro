@@ -69,8 +69,8 @@ void reflectValue(Reflector& ref, std::array<T, N>& value)
     }
 }
 
-template <typename V>
-void reflectValue(Reflector& ref, std::map<std::string, V>& value)
+template <typename V, typename Compare>
+void reflectValue(Reflector& ref, std::map<std::string, V, Compare>& value)
 {
     auto childOpts = childOptionsFor<V>(ref.options());
 

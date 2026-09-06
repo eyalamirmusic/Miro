@@ -32,6 +32,7 @@ public:
     void writeNull() override;
     void markPresent() override;
     ValueKind kind() const override;
+    bool isIntegerNumber() const override;
 
     Reflector& atKey(std::string_view key, Options childOpts) override;
     Reflector& atIndex(std::size_t index, Options childOpts) override;

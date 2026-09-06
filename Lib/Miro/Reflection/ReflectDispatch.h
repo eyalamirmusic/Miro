@@ -137,8 +137,8 @@ struct IsMapLike : std::false_type
 {
 };
 
-template <typename V>
-struct IsMapLike<std::map<std::string, V>> : std::true_type
+template <typename V, typename Compare>
+struct IsMapLike<std::map<std::string, V, Compare>> : std::true_type
 {
 };
 
@@ -243,8 +243,8 @@ void reflectValue(Reflector& ref, std::vector<T>& value);
 template <typename T, std::size_t N>
 void reflectValue(Reflector& ref, std::array<T, N>& value);
 
-template <typename V>
-void reflectValue(Reflector& ref, std::map<std::string, V>& value);
+template <typename V, typename Compare>
+void reflectValue(Reflector& ref, std::map<std::string, V, Compare>& value);
 
 template <typename T>
 void reflectValue(Reflector& ref, std::optional<T>& value);

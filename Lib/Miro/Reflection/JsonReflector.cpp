@@ -42,14 +42,13 @@ Json::Object& ensureObject(JSON& slot)
     return slot.asObject();
 }
 
+// Every alternative of PrimitiveRef has a Value constructor that stores
+// it exactly — an integral one reaches the int64 alternative — so
+// nothing is widened through double on the way out.
 template <typename T>
 void writeSlotFromPrimitive(JSON& slot, T* ptr)
 {
-    if constexpr (std::same_as<T, bool> || std::same_as<T, std::string>
-                  || std::same_as<T, double>)
-        slot = JSON {*ptr};
-    else
-        slot = JSON {static_cast<double>(*ptr)};
+    slot = JSON {*ptr};
 }
 
 template <typename T>
@@ -64,6 +63,15 @@ void readSlotIntoPrimitive(const JSON& slot, T* ptr)
     {
         if (slot.isString())
             *ptr = slot.asString();
+    }
+    else if constexpr (std::integral<T>)
+    {
+        // An integer slot is read exactly; a double one still converts,
+        // so {"n": 5.0} keeps loading into an int field.
+        if (slot.isInteger())
+            *ptr = static_cast<T>(slot.asInteger());
+        else if (slot.isNumber())
+            *ptr = static_cast<T>(slot.asNumber());
     }
     else
     {
@@ -120,6 +128,11 @@ ValueKind JsonReflector::kind() const
         return ValueKind::Absent;
 
     return kindOf(*slot);
+}
+
+bool JsonReflector::isIntegerNumber() const
+{
+    return !absent && slot->isInteger();
 }
 
 void JsonReflector::writeNull()

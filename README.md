@@ -53,12 +53,13 @@ target_link_libraries(YourTarget PRIVATE Miro)
 | `<Miro/Xml.h>` | XML value type + XML serialization (`toXML` / `fromXML`) |
 | `<Miro/Bridge.h>` | Runtime command/event bridge (`Bridge`, `ApiReflector`, `Event`) |
 | `<Miro/Codegen.h>` | Type-export / codegen toolchain (`codegenMain()`, TypeScript / schema / C++ emitters) |
+| `<Miro/Unicode.h>` | Unicode character properties (`generalCategory()`, `isLetter()`, ...) and UTF-8 decode / encode |
 
 Each entry header is self-contained. Headers in subdirectories (`Miro/Reflection/...`, `Miro/JSON/...`, ...) are implementation details and should not be included directly.
 
 ## The `Json` layer
 
-The core type is `Miro::Json::Value`, a variant over `Null`, `bool`, `double`, `std::string`, `Array` (`std::vector<Value>`), and `Object` (`std::map<std::string, Value>`).
+The core type is `Miro::Json::Value`, a variant over `Null`, `bool`, `std::int64_t`, `double`, `std::string`, `Array` (`std::vector<Value>`), and `Object` (`std::map<std::string, Value>`).
 
 ```cpp
 #include <Miro/Miro.h>
@@ -79,9 +80,29 @@ auto compact = print(value);       // minified
 auto pretty = print(value, 4);     // indented with 4 spaces
 ```
 
-Accessors (`asBool`, `asNumber`, `asString`, `asArray`, `asObject`) throw `std::bad_variant_access` on type mismatch. Use the `is*` predicates to check first, or use `find(object, key)` to look up an optional value by key.
+The typed accessors (`asBool` / `asNumber` / `asInteger` / `asString` / `asArray` / `asObject`, and the implicit conversions) throw `Miro::Json::AccessError` on a type mismatch, with a message that names both sides: `expected string but value is number`. Use the `is*` predicates to check first.
 
-`ParseError` is thrown on malformed input.
+`operator[]` is unchecked, like the standard containers it forwards to: a key that is not there or an index past the end is the caller's error, not a checked condition. Use `find(object, key)` to look up an optional value by key, and write through `toObject()`.
+
+`ParseError` is thrown on malformed input. Both it and `AccessError` derive from `Miro::Json::Error`, so one `catch (const Miro::Json::Error&)` covers everything this layer throws; `Error` itself derives from `std::runtime_error`.
+
+### Numbers
+
+A number is stored either as a `std::int64_t` or as a `double`, and `isNumber()` is true for both. A digits-only spelling with no fraction and no exponent parses as an integer, so a 64-bit byte offset or a snowflake ID survives a round trip that `double` would round away; anything wider than `int64` (or carrying a fraction or an exponent) is a `double`. `Value` constructs from every integral width — `int`, `unsigned`, `short`, `long long`, `std::size_t` — with an unsigned value past `INT64_MAX` widening to `double`, the only spelling left for it.
+
+```cpp
+auto id = parse("9007199254740993");   // 2^53 + 1
+
+id.isNumber();    // true
+id.isInteger();   // true — stored as an int64
+id.asInteger();   // 9007199254740993
+id.asNumber();    // 9007199254740992.0, the nearest double
+print(id);        // "9007199254740993"
+```
+
+`isInteger()` reports the storage; `asInteger()` reports the value, so it also reads a `double` that names an exact integer (`parse("42.0").asInteger()` is `42`) and throws when the value has a fractional part, falls outside `int64`, or is not a number at all. Equality is numeric across the two: `Value{1} == Value{1.0}`.
+
+Printing round-trips. Integers print in full, and a `double` prints in the shortest form that reads back as the same `double` — `print(parse("3.141592653589793"))` is `3.141592653589793`, not a six-digit approximation. A `double` with no fractional part that fits in `int64` prints without a decimal point, and infinity and NaN print as `null`, having no JSON spelling of their own.
 
 ## The reflection layer
 
@@ -608,6 +629,46 @@ add_dependencies(MyApp MySchema_Codegen)
 ```
 
 When cross-compiling, `miro_export()` creates the INTERFACE library but skips the codegen executable (a foreign-arch binary can't run on the build host). Consumers continue to consume committed generated files.
+
+## The `Unicode` layer
+
+C++ has no way to ask a code point for its Unicode general category, so anything doing text layout, IME handling, or a `\p{L}` / `\p{N}` style pre-tokenizer ends up generating a private table. `<Miro/Unicode.h>` answers it once, with all 30 categories rather than a two-class approximation.
+
+```cpp
+#include <Miro/Unicode.h>
+
+using namespace Miro::Unicode;
+
+generalCategory(U'A');      // GeneralCategory::UppercaseLetter
+shortName(generalCategory(U'7'));  // "Nd"
+
+isLetter(0x4F60);  // true  — Lo
+isNumber(0x2160);  // true  — Nl (Roman numeral one)
+isSymbol(0x1F600); // true  — So
+```
+
+`isLetter`, `isMark`, `isNumber`, `isPunctuation`, `isSymbol`, `isSeparator` and `isOther` are the `\p{..}` major classes. `isWhitespace` is the `White_Space` property — what `\s` means in a Unicode-aware regex — which is not the same set as `Z*`: it includes `U+0009..U+000D` and `U+0085`, and excludes `U+200B`.
+
+UTF-8 conversion comes in the same header. `decodeUtf8` reports invalid, truncated, overlong, surrogate-encoded and out-of-range sequences by returning the lead byte with `byteLength == 1` and `valid == false`, so a caller slicing input can pass the byte through verbatim instead of losing it:
+
+```cpp
+auto text = std::string_view {"h\xC3\xA9llo"};
+
+for (auto position = std::size_t {0}; position < text.size();)
+{
+    auto decoded = decodeUtf8(text, position);
+    position += (std::size_t) decoded.byteLength;
+}
+
+auto out = std::string {};
+appendUtf8(out, 0x1F600);
+```
+
+The category table is generated from Python's `unicodedata` by `Tools/GenerateUnicodeTable.py`. It is a sorted array of run starts, each packing `(codePoint << 5) | category` into one `std::uint32_t`; a lookup is a single binary search. Regenerate it rather than editing it by hand:
+
+```bash
+python3 Tools/GenerateUnicodeTable.py
+```
 
 ## License
 

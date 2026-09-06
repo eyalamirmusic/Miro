@@ -4,6 +4,12 @@ find_package(NanoTest REQUIRED)
 
 nano_add_executable(MiroTests SOURCES
         JsonTests.cpp
+        JsonUnicodeEscapeTests.cpp
+        JsonAccessTests.cpp
+        UnicodeTests.cpp
+        JsonNumberTests.cpp
+        JsonNumberReflectionTests.cpp
+        JsonObjectTests.cpp
         XmlTests.cpp
         ReflectorTests.cpp
         XmlReflectorTests.cpp
@@ -27,6 +33,7 @@ nano_add_executable(MiroTests SOURCES
         RawJsonTests.cpp
         OmittableTests.cpp
         PublicHeaders/JsonHeaderTests.cpp
+        PublicHeaders/UnicodeHeaderTests.cpp
         PublicHeaders/ReflectHeaderTests.cpp
         PublicHeaders/XmlHeaderTests.cpp
         PublicHeaders/BridgeHeaderTests.cpp

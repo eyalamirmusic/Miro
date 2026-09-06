@@ -2,6 +2,7 @@
 
 #include <charconv>
 #include <cstdlib>
+#include <optional>
 
 namespace Miro::Json
 {
@@ -138,8 +139,15 @@ private:
 
         parseNumberSign();
         parseNumberIntegerPart();
-        parseNumberFractionPart();
-        parseNumberExponentPart();
+
+        auto hasFraction = parseNumberFractionPart();
+        auto hasExponent = parseNumberExponentPart();
+
+        if (!hasFraction && !hasExponent)
+        {
+            if (auto integer = integerFrom(start))
+                return {*integer};
+        }
 
         const char* parsed = nullptr;
         auto value = fromChars(start, parsed);
@@ -148,6 +156,20 @@ private:
             error("failed to parse number");
 
         return {value};
+    }
+
+    // Digits only, so the spelling names an integer — unless it is wider
+    // than int64, in which case from_chars reports the overflow and the
+    // caller falls back to the double path.
+    std::optional<std::int64_t> integerFrom(const char* start) const
+    {
+        auto integer = std::int64_t {};
+        auto [ptr, ec] = std::from_chars(start, pos, integer);
+
+        if (ec != std::errc {} || ptr != pos)
+            return std::nullopt;
+
+        return integer;
     }
 
     void parseNumberSign()
@@ -169,10 +191,10 @@ private:
             error("invalid number");
     }
 
-    void parseNumberFractionPart()
+    bool parseNumberFractionPart()
     {
         if (pos >= end || *pos != '.')
-            return;
+            return false;
 
         ++pos;
 
@@ -180,12 +202,13 @@ private:
             error("expected digit after decimal point");
 
         skipDigits();
+        return true;
     }
 
-    void parseNumberExponentPart()
+    bool parseNumberExponentPart()
     {
         if (pos >= end || (*pos != 'e' && *pos != 'E'))
-            return;
+            return false;
 
         ++pos;
 
@@ -196,6 +219,7 @@ private:
             error("expected digit in exponent");
 
         skipDigits();
+        return true;
     }
 
     // --- Strings ---
@@ -290,19 +314,46 @@ private:
 
     void parseUnicodeEscape(std::string& result)
     {
+        auto codepoint = parseHexCodeUnit();
+
+        if (isLowSurrogate(codepoint))
+            error("unpaired low surrogate in unicode escape");
+
+        if (isHighSurrogate(codepoint))
+            codepoint = combineSurrogates(codepoint, parseLowSurrogateEscape());
+
+        appendUtf8(result, codepoint);
+    }
+
+    unsigned parseHexCodeUnit()
+    {
         if (remaining() < 4)
             error("unexpected end of unicode escape");
 
         auto hex = Miro::Array<char, 4> {pos[0], pos[1], pos[2], pos[3]};
         pos += 4;
 
-        auto codepoint = unsigned {};
-        auto [ptr, ec] = std::from_chars(hex.data(), hex.data() + 4, codepoint, 16);
+        auto codeUnit = unsigned {};
+        auto [ptr, ec] = std::from_chars(hex.data(), hex.data() + 4, codeUnit, 16);
 
-        if (ec != std::errc {})
+        if (ec != std::errc {} || ptr != hex.data() + 4)
             error("invalid unicode escape");
 
-        appendUtf8(result, codepoint);
+        return codeUnit;
+    }
+
+    unsigned parseLowSurrogateEscape()
+    {
+        if (remaining() < 2 || pos[0] != '\\' || pos[1] != 'u')
+            error("expected a low surrogate escape after a high surrogate");
+
+        pos += 2;
+        auto codeUnit = parseHexCodeUnit();
+
+        if (!isLowSurrogate(codeUnit))
+            error("expected a low surrogate after a high surrogate");
+
+        return codeUnit;
     }
 
     // --- Containers ---
@@ -367,6 +418,21 @@ private:
 
     // --- Helpers ---
 
+    static bool isHighSurrogate(unsigned codeUnit)
+    {
+        return codeUnit >= 0xD800 && codeUnit <= 0xDBFF;
+    }
+
+    static bool isLowSurrogate(unsigned codeUnit)
+    {
+        return codeUnit >= 0xDC00 && codeUnit <= 0xDFFF;
+    }
+
+    static unsigned combineSurrogates(unsigned high, unsigned low)
+    {
+        return 0x10000 + ((high - 0xD800) << 10) + (low - 0xDC00);
+    }
+
     static void appendUtf8(std::string& result, unsigned codepoint)
     {
         if (codepoint <= 0x7F)
@@ -378,9 +444,16 @@ private:
             result += static_cast<char>(0xC0 | (codepoint >> 6));
             result += static_cast<char>(0x80 | (codepoint & 0x3F));
         }
-        else
+        else if (codepoint <= 0xFFFF)
         {
             result += static_cast<char>(0xE0 | (codepoint >> 12));
+            result += static_cast<char>(0x80 | ((codepoint >> 6) & 0x3F));
+            result += static_cast<char>(0x80 | (codepoint & 0x3F));
+        }
+        else
+        {
+            result += static_cast<char>(0xF0 | (codepoint >> 18));
+            result += static_cast<char>(0x80 | ((codepoint >> 12) & 0x3F));
             result += static_cast<char>(0x80 | ((codepoint >> 6) & 0x3F));
             result += static_cast<char>(0x80 | (codepoint & 0x3F));
         }

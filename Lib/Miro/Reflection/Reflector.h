@@ -202,6 +202,13 @@ public:
     virtual void writeNull() = 0;
     virtual ValueKind kind() const = 0;
 
+    // Refines ValueKind::Number for a format that stores an exact
+    // integer apart from a double, the way the JSON layer does. Only a
+    // Shape::Raw walk has to ask — a typed field already knows which C++
+    // type it is reading into — so a format with a single numeric kind
+    // keeps the default and its raw numbers stay doubles.
+    virtual bool isIntegerNumber() const { return false; }
+
     // Called by the Omittable dispatcher on a save, for an engaged value
     // only, before the inner T is reflected. A reflector that staged
     // this slot (because Options::omittable was set) commits it to the

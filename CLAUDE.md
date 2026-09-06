@@ -6,7 +6,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 Miro is a lightweight C++20 JSON library. It provides two layers:
 
-- `Miro::Json` — a `std::variant`-based `Value` type supporting null, bool, double, string, Array (`std::vector<Value>`), and Object (`std::map<std::string, Value>`), plus `parse()` and `print()` (with optional indent).
+- `Miro::Json` — a `std::variant`-based `Value` type supporting null, bool, `std::int64_t`, double, string, Array (`std::vector<Value>`), and Object (`std::map<std::string, Value>`), plus `parse()` and `print()` (with optional indent). The two numeric alternatives are one JSON number: `isNumber()` and `asNumber()` answer for both, `isInteger()` / `asInteger()` for the exact one, and integers past 2^53 survive the parser, the printer and the reflection layer alike.
 - `Miro` — a reflection layer (`Reflector`, `toJSON` / `fromJSON`, `toJSONString` / `fromJSONString`, `createFromJSON[String]`) that serializes user types via an intrusive `reflect(Miro::Reflector&)` method. Built-in support for primitives (`bool`, `int`, `double`, `std::string`), `std::vector<T>`, `std::array<T, N>`, `std::map<std::string, V>`, `std::optional<T>` (nullable), `Miro::Omittable<T>` (the key may be absent), enums, and `Miro::JSON` / `Miro::Json::Any` (a raw JSON value carried through verbatim).
 
 ## Build Commands
@@ -36,6 +36,7 @@ Public surface — the entry headers at `Lib/Miro/*.h`. Each is self-contained (
 - `Miro/Xml.h` — XML value layer + XML serialization (`toXML` / `fromXML`).
 - `Miro/Bridge.h` — runtime command/event bridge (`Bridge`, `ApiReflector`, `Event`, `CommandTable`).
 - `Miro/Codegen.h` — type-export / codegen toolchain (`DescribeReflector`, `TypeTree`, TypeScript / schema / C++ emitters, `codegenMain()`).
+- `Miro/Unicode.h` — Unicode character properties: `generalCategory()` (all 30 categories), the `\p{..}` class predicates, the `White_Space` property, and UTF-8 `decodeUtf8` / `appendUtf8`. The category table is generated from Python's `unicodedata` by `Tools/GenerateUnicodeTable.py` into `Unicode/GeneralCategoryTable.h` — regenerate it, never hand-edit it.
 
 Headers in subdirectories (`Lib/Miro/Reflection/`, `Lib/Miro/JSON/`, `Lib/Miro/Bridge/`, ...) are implementation details — user code includes only the entry headers. Layering notes:
 - `Reflection/Reflector.h` (the abstract `Reflector` base) is format-agnostic — it must not include the JSON layer. Neither does `Reflection/ReflectDispatch.h`: raw-JSON classification lives behind the `Detail::IsRawJson` trait, specialized in `Reflection/ReflectJson.h`.

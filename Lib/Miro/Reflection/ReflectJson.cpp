@@ -1,6 +1,7 @@
 #include "ReflectJson.h"
 
 #include <cstddef>
+#include <cstdint>
 #include <string>
 #include <utility>
 #include <variant>
@@ -44,6 +45,11 @@ void saveRawJson(Reflector& ref, Json::Value& value)
     if (value.isBool())
     {
         auto data = value.asBool();
+        ref.visit(data);
+    }
+    else if (value.isInteger())
+    {
+        auto data = value.asInteger();
         ref.visit(data);
     }
     else if (value.isNumber())
@@ -114,6 +120,16 @@ void loadRawJson(Reflector& ref, Json::Value& value)
 
         case ValueKind::Number:
         {
+            // The slot decides which of the two numeric kinds comes
+            // back, exactly as it decides object against array above.
+            if (ref.isIntegerNumber())
+            {
+                auto integer = std::int64_t {0};
+                ref.visit(integer);
+                value = integer;
+                return;
+            }
+
             auto data = 0.0;
             ref.visit(data);
             value = data;
