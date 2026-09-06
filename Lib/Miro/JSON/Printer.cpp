@@ -3,6 +3,7 @@
 #include <charconv>
 #include <cmath>
 #include <cstdio>
+#include <cstdlib>
 #include <iostream>
 
 namespace Miro::Json
@@ -74,9 +75,39 @@ void printInteger(std::string& output, std::int64_t number)
     printWithToChars(output, number);
 }
 
-// to_chars gives the shortest spelling that reads back as the same
-// double, so every finite number round-trips. Infinity and NaN have no
-// JSON spelling at all, so they go out as null.
+bool readsBackAs(const char* text, double number)
+{
+    char* end = nullptr;
+    auto parsed = std::strtod(text, &end);
+
+    return end != text && *end == '\0' && parsed == number;
+}
+
+// The shortest spelling that reads back as the same double, found by
+// trying the three precisions that can produce one. 17 significant
+// digits always round-trips, so the last attempt needs no check.
+//
+// std::to_chars would say this in one call, but libc++ marks its
+// floating-point overloads unavailable before macOS 13.3, and an
+// availability attribute is invisible to a feature-test macro.
+void printShortestRoundTrip(std::string& output, double number)
+{
+    auto buffer = Miro::Array<char, 64> {};
+    auto size = static_cast<std::size_t>(buffer.size());
+
+    for (auto precision = 15; precision <= 17; ++precision)
+    {
+        std::snprintf(buffer.data(), size, "%.*g", precision, number);
+
+        if (readsBackAs(buffer.data(), number))
+            break;
+    }
+
+    output += buffer.data();
+}
+
+// Every finite number round-trips. Infinity and NaN have no JSON
+// spelling at all, so they go out as null.
 void printDouble(std::string& output, double number)
 {
     if (!std::isfinite(number))
@@ -93,7 +124,7 @@ void printDouble(std::string& output, double number)
         return;
     }
 
-    printWithToChars(output, number);
+    printShortestRoundTrip(output, number);
 }
 
 void writeIndent(std::string& output, int indent, int depth)

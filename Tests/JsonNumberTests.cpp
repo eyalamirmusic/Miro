@@ -254,6 +254,29 @@ auto printLargeDoubles = test("Print large doubles") = []
     check(print(Value {1e20}) == "1e+20");
 };
 
+// 0.1 + 0.2 is the classic case that needs all 17 digits: "%.16g" spells
+// it 0.3, which reads back as a different double.
+auto printSeventeenDigitDouble = test("Print a double needing 17 digits") = []
+{
+    check(print(parse("0.30000000000000004")) == "0.30000000000000004");
+    check(parse(print(Value {0.1 + 0.2})).asNumber() == 0.1 + 0.2);
+};
+
+auto printSmallAndFractionalDoubles = test("Print small and fractional doubles") = []
+{
+    check(parse(print(Value {1e-7})).asNumber() == 1e-7);
+    check(print(Value {123456.789}) == "123456.789");
+};
+
+auto printDoubleExtremes = test("Print the extremes of the double range") = []
+{
+    auto smallestDenormal = 5e-324;
+    auto largestFinite = 1.7976931348623157e308;
+
+    check(parse(print(Value {smallestDenormal})).asNumber() == smallestDenormal);
+    check(parse(print(Value {largestFinite})).asNumber() == largestFinite);
+};
+
 auto printNonFinite = test("Print non-finite doubles as null") = []
 {
     check(print(Value {std::numeric_limits<double>::infinity()}) == "null");
