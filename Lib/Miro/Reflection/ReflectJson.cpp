@@ -26,11 +26,16 @@ Shape rawJsonShapeOf(const Json::Value& value)
     return Shape::Primitive;
 }
 
+// The slot's own nullable and omittable flags describe the raw field, not
+// what it contains: a child of a raw value is always present in it, so it
+// is spawned as a plain slot. Left on, `omittable` would stage every
+// object child as a key that nothing ever claims, and it would vanish.
 Options rawJsonChildOptions(const Reflector& ref, Shape shapeToUse)
 {
     auto opts = ref.options();
     opts.shape = shapeToUse;
     opts.nullable = false;
+    opts.omittable = false;
     return opts;
 }
 

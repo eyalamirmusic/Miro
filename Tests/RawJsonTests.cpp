@@ -72,6 +72,15 @@ struct OptionalRaw
     MIRO_REFLECT(value)
 };
 
+// The Discord shape for a field that may be missing, and when present is
+// whatever the server chose to send - an audit-log change's new_value.
+struct OmittableRaw
+{
+    Omittable<JSON> value;
+
+    MIRO_REFLECT(value)
+};
+
 // Round-trips `text` (any JSON value) through a raw field and returns
 // what the field ended up holding.
 JSON loadRaw(std::string_view text)
@@ -305,6 +314,26 @@ auto rawJsonOptionalField = test("Raw JSON: optional<Miro::JSON> field") = []
 
     check(loaded.value.has_value());
     check(loaded.value->asArray().size() == 2);
+};
+
+auto rawJsonOmittableField = test("Raw JSON: Omittable<Miro::JSON> field") = []
+{
+    check(toJSONString(OmittableRaw {}) == "{}");
+
+    // Every kind of nesting: an object, an array of objects, and empties.
+    // The omittable flag of the slot must not leak onto the raw children,
+    // or an object child is staged as omittable and never claimed.
+    auto text = std::string {R"({"value":{"a":[{"b":1},{}],"o":{"k":"v"},"e":[]}})"};
+    auto engaged = createFromJSONString<OmittableRaw>(text);
+
+    check(engaged.value.has_value());
+    check(toJSON(engaged) == Json::parse(text));
+
+    auto null = createFromJSONString<OmittableRaw>(R"({"value":null})");
+
+    check(null.value.has_value());
+    check(null.value->isNull());
+    check(toJSONString(null) == R"({"value":null})");
 };
 
 // --- Through the XML reflector ---
