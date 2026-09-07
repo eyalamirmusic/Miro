@@ -221,13 +221,14 @@ auto implicitConversionsFromInteger =
     check(asFloat == 42.0f);
 };
 
-// `long long` is exactly std::int64_t here, so the new conversion
-// operator resolves it. `long` and `std::size_t` stay ambiguous, as
-// they already were before it existed.
+// The conversion operator is declared for std::int64_t exactly, so
+// only that spelling resolves — it is `long` on LP64 and `long long`
+// on the Apple/Windows models. Every other integer type, `long` and
+// `std::size_t` included, stays ambiguous as it already was.
 auto implicitConversionToInt64 = test("Implicit conversion to int64") = []
 {
     std::int64_t wide = Value {std::int64_t {1} << 62};
-    long long alsoWide = Value {9007199254740993LL};
+    std::int64_t alsoWide = Value {9007199254740993LL};
 
     check(wide == std::int64_t {1} << 62);
     check(alsoWide == 9007199254740993LL);
