@@ -2,11 +2,29 @@ name: CI
 
 on:
   push:
-    branches: [main]
+    branches: [main, develop]
   pull_request:
-    branches: [main]
+    branches: [main, develop]
 
 jobs:
+  # Only develop may be merged into main. This job is a required status
+  # check on main, so a pull request from any other branch is blocked.
+  source-branch:
+    name: Source branch
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
+    steps:
+      - name: Check that pull requests into main come from develop
+        env:
+          BASE: ${{ github.base_ref }}
+          HEAD: ${{ github.head_ref }}
+        run: |
+          if [ "$BASE" = "main" ] && [ "$HEAD" != "develop" ]; then
+            echo "::error::Only 'develop' may be merged into 'main' (got '$HEAD')."
+            exit 1
+          fi
+          echo "OK: '$HEAD' -> '$BASE'"
+
   build:
     name: ${{ matrix.name }}
     runs-on: ${{ matrix.os }}
