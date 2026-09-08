@@ -8,22 +8,27 @@ on:
 
 jobs:
   # Only develop may be merged into main. This job is a required status
-  # check on main, so a pull request from any other branch is blocked.
-  source-branch:
-    name: Source branch
+  # check on main, and main accepts a commit only if that commit already
+  # carries passing checks. A commit earns this check by being pushed to
+  # develop (or by a develop -> main pull request), so fast-forwarding
+  # main to develop passes, while pushing any other branch does not.
+  merge-gate:
+    name: Verified on develop
     runs-on: ubuntu-latest
-    if: github.event_name == 'pull_request'
     steps:
-      - name: Check that pull requests into main come from develop
+      - name: Check the source of this commit
         env:
+          EVENT: ${{ github.event_name }}
+          REF: ${{ github.ref }}
           BASE: ${{ github.base_ref }}
           HEAD: ${{ github.head_ref }}
         run: |
-          if [ "$BASE" = "main" ] && [ "$HEAD" != "develop" ]; then
+          if [ "$EVENT" = "pull_request" ] && [ "$BASE" = "main" ] \
+             && [ "$HEAD" != "develop" ]; then
             echo "::error::Only 'develop' may be merged into 'main' (got '$HEAD')."
             exit 1
           fi
-          echo "OK: '$HEAD' -> '$BASE'"
+          echo "OK: event=$EVENT ref=$REF head=$HEAD base=$BASE"
 
   build:
     name: ${{ matrix.name }}
