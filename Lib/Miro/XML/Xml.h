@@ -17,7 +17,8 @@ namespace Miro::Xml
 //
 // Parser scope is the subset Miro emits: elements, attributes
 // (single- and double-quoted), self-closing tags, text content, and
-// the five standard entity escapes (& < > " '). Comments and
+// the five standard entity escapes (& < > " ') plus numeric character
+// references (&#233; / &#xE9;, decoded to UTF-8). Comments and
 // processing instructions (including the <?xml ...?> declaration)
 // are accepted and skipped — they are not represented in the tree.
 // CDATA, namespaces, DOCTYPE, and validation are out of scope.

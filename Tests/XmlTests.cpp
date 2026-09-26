@@ -368,3 +368,99 @@ auto parsePresetDocument = test("Parse plugin preset document") = []
     check(*findAttribute(*meta, "category") == "BASS");
     check(*findAttribute(*meta, "Author") == "Nahum");
 };
+
+auto parseDecimalCharRef = test("Parse decimal character reference") = []
+{
+    auto node = parse("<x>caf&#233;</x>");
+    check(node.text == "caf\xC3\xA9");
+};
+
+auto parseHexCharRef = test("Parse hex character reference") = []
+{
+    auto node = parse("<x>caf&#xE9;</x>");
+    check(node.text == "caf\xC3\xA9");
+};
+
+auto parseHexCharRefUppercaseX =
+    test("Parse hex character reference accepts uppercase X and digits") = []
+{
+    auto node = parse("<x>&#XE9;&#xe9;</x>");
+    check(node.text == "\xC3\xA9\xC3\xA9");
+};
+
+auto parseNewlineCharRef = test("Parse newline character reference") = []
+{
+    auto node = parse("<x>a&#10;b</x>");
+    check(node.text == "a\nb");
+};
+
+auto parseAstralCharRef = test("Parse character reference beyond the BMP") = []
+{
+    auto node = parse("<x>&#x1F3B5;</x>");
+    check(node.text == "\xF0\x9F\x8E\xB5");
+};
+
+auto parseCharRefInAttribute = test("Parse character reference in attribute") = []
+{
+    auto node = parse(R"(<x name="Ren&#233;e&#x20;&#65;"/>)");
+    check(*findAttribute(node, "name")
+          == "Ren\xC3\xA9"
+             "e A");
+};
+
+auto parseCharRefMixedWithEntities =
+    test("Parse character references mixed with named entities") = []
+{
+    auto node = parse("<x>&lt;&#60;&#x3C;&gt;</x>");
+    check(node.text == "<<<>");
+};
+
+auto parseCharRefRoundTrip =
+    test("Character reference text survives a print/parse round trip") = []
+{
+    auto node = parse("<x>caf&#233; &#x1F3B5;</x>");
+    auto reparsed = parse(print(node));
+    check(reparsed == node);
+};
+
+static bool parseThrows(const char* input)
+{
+    try
+    {
+        parse(input);
+    }
+    catch (const ParseError&)
+    {
+        return true;
+    }
+
+    return false;
+}
+
+auto parseRejectsEmptyCharRef = test("Parse rejects empty character reference") = []
+{
+    check(parseThrows("<x>&#;</x>"));
+    check(parseThrows("<x>&#x;</x>"));
+};
+
+auto parseRejectsBadDigitsCharRef =
+    test("Parse rejects character reference with invalid digits") = []
+{
+    check(parseThrows("<x>&#12a;</x>"));
+    check(parseThrows("<x>&#xZZ;</x>"));
+    check(parseThrows("<x>&#-1;</x>"));
+};
+
+auto parseRejectsInvalidCodePoint =
+    test("Parse rejects character reference to an invalid code point") = []
+{
+    check(parseThrows("<x>&#0;</x>"));
+    check(parseThrows("<x>&#xD800;</x>"));
+    check(parseThrows("<x>&#xDFFF;</x>"));
+    check(parseThrows("<x>&#x110000;</x>"));
+    check(parseThrows("<x>&#99999999999999999999;</x>"));
+};
+
+auto parseRejectsUnknownNamedEntity =
+    test("Parse still rejects unknown named entity") = []
+{ check(parseThrows("<x>&nbsp;</x>")); };
