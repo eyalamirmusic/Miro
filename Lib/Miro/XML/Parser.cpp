@@ -15,12 +15,29 @@ public:
 
     Node parseDocument()
     {
-        skipWhitespace();
+        skipMisc();
 
         if (atEnd())
             error("expected root element");
 
         return parseElement();
+    }
+
+    // Skips whitespace, comments and processing instructions (including
+    // the XML declaration) — everything allowed around the root element.
+    void skipMisc()
+    {
+        while (true)
+        {
+            skipWhitespace();
+
+            if (startsWith("<!--"))
+                skipComment();
+            else if (startsWith("<?"))
+                skipProcessingInstruction();
+            else
+                return;
+        }
     }
 
     void skipWhitespace()
@@ -36,8 +53,8 @@ public:
 
     [[noreturn]] void error(const std::string& messageToUse) const
     {
-        throw ParseError("XML parse error at position "
-                         + std::to_string(pos - input) + ": " + messageToUse);
+        throw ParseError("XML parse error at position " + std::to_string(pos - input)
+                         + ": " + messageToUse);
     }
 
 private:
@@ -121,7 +138,15 @@ private:
                 return;
             }
 
-            if (*pos == '<')
+            if (startsWith("<!--"))
+            {
+                skipComment();
+            }
+            else if (startsWith("<?"))
+            {
+                skipProcessingInstruction();
+            }
+            else if (*pos == '<')
             {
                 node.children.add(parseElement());
             }
@@ -150,6 +175,33 @@ private:
 
         skipWhitespace();
         expect('>');
+    }
+
+    void skipComment()
+    {
+        consume("<!--");
+
+        while (pos < end && !startsWith("-->"))
+            ++pos;
+
+        if (pos >= end)
+            error("unterminated comment");
+
+        consume("-->");
+    }
+
+    void skipProcessingInstruction()
+    {
+        consume("<?");
+        parseName();
+
+        while (pos < end && !startsWith("?>"))
+            ++pos;
+
+        if (pos >= end)
+            error("unterminated processing instruction");
+
+        consume("?>");
     }
 
     std::string parseName()
@@ -257,7 +309,7 @@ Node parse(std::string_view inputToUse)
 {
     auto parser = Parser(inputToUse);
     auto result = parser.parseDocument();
-    parser.skipWhitespace();
+    parser.skipMisc();
 
     if (!parser.atEnd())
         parser.error("unexpected trailing content");

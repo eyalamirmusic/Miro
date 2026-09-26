@@ -39,10 +39,9 @@ auto printNestedIndented = test("Print nested children indented") = []
     auto root = Node {.name = "Person"};
     root.children.add(child);
 
-    auto expected = std::string {
-        "<Person>\n"
-        "  <name>Alice</name>\n"
-        "</Person>"};
+    auto expected = std::string {"<Person>\n"
+                                 "  <name>Alice</name>\n"
+                                 "</Person>"};
 
     check(print(root, 2) == expected);
 };
@@ -113,10 +112,9 @@ auto parseNested = test("Parse nested children") = []
 
 auto parseNestedWithWhitespace = test("Parse nested children with whitespace") = []
 {
-    auto input = std::string {
-        "<Person>\n"
-        "  <name>Alice</name>\n"
-        "</Person>"};
+    auto input = std::string {"<Person>\n"
+                              "  <name>Alice</name>\n"
+                              "</Person>"};
     auto node = parse(input);
     check(node.children.size() == 1);
     check(node.children[0].name == "name");
@@ -182,4 +180,191 @@ auto parseRejectsUnterminated = test("Parse rejects unterminated tag") = []
     }
 
     check(threw);
+};
+
+auto parseXmlDeclaration = test("Parse skips XML declaration") = []
+{
+    auto node = parse(R"(<?xml version="1.0" encoding="UTF-8"?><x/>)");
+    check(node.name == "x");
+};
+
+auto parseXmlDeclarationWithBlankLines =
+    test("Parse skips XML declaration followed by blank lines") = []
+{
+    auto input = std::string {"<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n"
+                              "\n"
+                              "<x/>\n"};
+    auto node = parse(input);
+    check(node.name == "x");
+};
+
+auto parseProcessingInstructionInBody =
+    test("Parse skips processing instructions in element body") = []
+{
+    auto node = parse("<x><?target data?><y/><?other?></x>");
+    check(node.children.size() == 1);
+    check(node.children[0].name == "y");
+    check(node.text.empty());
+};
+
+auto parseProcessingInstructionAfterRoot =
+    test("Parse skips processing instructions after root") = []
+{
+    auto node = parse("<x/><?pi after root?>");
+    check(node.name == "x");
+};
+
+auto parseRejectsUnterminatedPI =
+    test("Parse rejects unterminated processing instruction") = []
+{
+    auto threw = false;
+
+    try
+    {
+        parse("<?xml version=\"1.0\"<x/>");
+    }
+    catch (const ParseError&)
+    {
+        threw = true;
+    }
+
+    check(threw);
+};
+
+auto parseRejectsPIWithoutTarget =
+    test("Parse rejects processing instruction without a target") = []
+{
+    auto threw = false;
+
+    try
+    {
+        parse("<? ?><x/>");
+    }
+    catch (const ParseError&)
+    {
+        threw = true;
+    }
+
+    check(threw);
+};
+
+auto parseCommentBeforeRoot = test("Parse skips comment before root") = []
+{
+    auto node = parse("<!-- a comment --><x/>");
+    check(node.name == "x");
+};
+
+auto parseCommentAfterRoot = test("Parse skips comment after root") = []
+{
+    auto node = parse("<x/>\n<!-- trailing -->\n");
+    check(node.name == "x");
+};
+
+auto parseCommentBetweenChildren = test("Parse skips comments between children") = []
+{
+    auto input = std::string {"<Person>\n"
+                              "  <!-- the name -->\n"
+                              "  <name>Alice</name>\n"
+                              "  <!-- <age>99</age> disabled -->\n"
+                              "  <age>30</age>\n"
+                              "</Person>"};
+    auto node = parse(input);
+    check(node.children.size() == 2);
+    check(node.children[0].name == "name");
+    check(node.children[0].text == "Alice");
+    check(node.children[1].name == "age");
+    check(node.children[1].text == "30");
+    check(node.text.empty());
+};
+
+auto parseCommentInsideText = test("Parse skips comment inside text") = []
+{
+    auto node = parse("<x>hel<!-- gap -->lo</x>");
+    check(node.text == "hello");
+    check(node.children.empty());
+};
+
+auto parseCommentWithDashes = test("Parse comment containing single dashes") = []
+{
+    auto node = parse("<x><!-- a - b -> c --></x>");
+    check(node.name == "x");
+    check(node.text.empty());
+};
+
+auto parseRejectsUnterminatedComment =
+    test("Parse rejects unterminated comment") = []
+{
+    auto threw = false;
+
+    try
+    {
+        parse("<x><!-- never closed </x>");
+    }
+    catch (const ParseError&)
+    {
+        threw = true;
+    }
+
+    check(threw);
+};
+
+auto parseRejectsMalformedComment =
+    test("Parse rejects malformed comment opener") = []
+{
+    auto threw = false;
+
+    try
+    {
+        parse("<!-x--><x/>");
+    }
+    catch (const ParseError&)
+    {
+        threw = true;
+    }
+
+    check(threw);
+};
+
+auto parsePresetDocument = test("Parse plugin preset document") = []
+{
+    auto input = std::string {
+        "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n"
+        "\n"
+        "<Root version=\"1\">\n"
+        "  <Params>\n"
+        "    <bassEnhance RealWorld=\"27%\"/>\n"
+        "    <bassEnhanceEnabled RealWorld=\"On\"/>\n"
+        "    <dbMax RealWorld=\"96.0000000\"/>\n"
+        "    <inGain RealWorld=\"12.00 dB\"/>\n"
+        "    <lowLatency/>\n"
+        "    <output RealWorld=\"-12.00 dB\"/>\n"
+        "    <thickTone RealWorld=\"0.7637834\"/>\n"
+        "  </Params>\n"
+        "  <Globals/>\n"
+        "  <Meta name=\"Extremities\" category=\"BASS\" Author=\"Nahum\"/>\n"
+        "</Root>\n"};
+
+    auto root = parse(input);
+    check(root.name == "Root");
+    check(*findAttribute(root, "version") == "1");
+    check(root.children.size() == 3);
+
+    auto* params = findChild(root, "Params");
+    check(params != nullptr);
+    check(params->children.size() == 7);
+    check(*findAttribute(params->children[0], "RealWorld") == "27%");
+    check(*findAttribute(params->children[3], "RealWorld") == "12.00 dB");
+    check(params->children[4].name == "lowLatency");
+    check(params->children[4].attributes.empty());
+    check(*findAttribute(params->children[5], "RealWorld") == "-12.00 dB");
+
+    auto* globals = findChild(root, "Globals");
+    check(globals != nullptr);
+    check(globals->children.empty());
+
+    auto* meta = findChild(root, "Meta");
+    check(meta != nullptr);
+    check(*findAttribute(*meta, "name") == "Extremities");
+    check(*findAttribute(*meta, "category") == "BASS");
+    check(*findAttribute(*meta, "Author") == "Nahum");
 };
