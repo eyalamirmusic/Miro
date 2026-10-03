@@ -161,6 +161,11 @@ struct IsVariant<std::variant<Ts...>> : std::true_type
 {
 };
 
+template <typename... Ts>
+struct IsVariant<EA::Variant<Ts...>> : std::true_type
+{
+};
+
 // Raw JSON slots carry their structure in the value, not in the C++
 // type, so they classify as Shape::Raw. Specialized in ReflectJson.h
 // (for Miro::Json::Value and anything derived from it, e.g. Json::Any)
@@ -266,6 +271,9 @@ void reflectValue(Reflector& ref, OwningPointer<T>& value);
 
 template <typename... Ts>
 void reflectValue(Reflector& ref, std::variant<Ts...>& value);
+
+template <typename... Ts>
+void reflectValue(Reflector& ref, EA::Variant<Ts...>& value);
 
 template <typename T>
     requires std::is_enum_v<T>
