@@ -9,6 +9,7 @@ nano_add_executable(MiroTests SOURCES
         UnicodeTests.cpp
         JsonNumberTests.cpp
         JsonNumberReflectionTests.cpp
+        JsonNumberLocaleTests.cpp
         JsonObjectTests.cpp
         XmlTests.cpp
         ReflectorTests.cpp

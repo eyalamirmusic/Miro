@@ -12,6 +12,7 @@ add_library(Miro STATIC
     Miro/Cpp/CppClient.cpp
     Miro/Detail/StringUtilities.cpp
     Miro/JSON/Json.cpp
+    Miro/JSON/Number.cpp
     Miro/JSON/Parser.cpp
     Miro/JSON/Printer.cpp
     Miro/XML/Xml.cpp

@@ -1,19 +1,11 @@
 #include "Json.h"
+#include "Number.h"
 
 #include <charconv>
-#include <cstdlib>
 #include <optional>
 
 namespace Miro::Json
 {
-
-double fromChars(const char* start, const char*& parsed)
-{
-    char* numEnd = nullptr;
-    auto value = std::strtod(start, &numEnd);
-    parsed = numEnd;
-    return value;
-}
 
 class Parser
 {
@@ -149,13 +141,13 @@ private:
                 return {*integer};
         }
 
-        const char* parsed = nullptr;
-        auto value = fromChars(start, parsed);
+        auto token = std::string_view(start, static_cast<std::size_t>(pos - start));
+        auto value = Detail::parseDouble(token);
 
-        if (parsed != pos)
+        if (!value)
             error("failed to parse number");
 
-        return {value};
+        return {*value};
     }
 
     // Digits only, so the spelling names an integer — unless it is wider

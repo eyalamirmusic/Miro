@@ -40,6 +40,7 @@ Public surface — the entry headers at `Lib/Miro/*.h`. Each is self-contained (
 
 Headers in subdirectories (`Lib/Miro/Reflection/`, `Lib/Miro/JSON/`, `Lib/Miro/Bridge/`, ...) are implementation details — user code includes only the entry headers. Layering notes:
 - `Reflection/Reflector.h` (the abstract `Reflector` base) is format-agnostic — it must not include the JSON layer. Neither does `Reflection/ReflectDispatch.h`: raw-JSON classification lives behind the `Detail::IsRawJson` trait, specialized in `Reflection/ReflectJson.h`.
+- `JSON/Number.h` is the only place the JSON layer calls `strtod` / `snprintf`. Both honour `LC_NUMERIC`, and `strtod` has no length bound, so `parseDouble` works from a NUL-terminated copy and translates the decimal point, and `appendShortestDouble` normalises it back to `.`. `std::from_chars` / `std::to_chars` for doubles are off limits: libc++ marks them unavailable below macOS 13.3 and CI targets 10.13.
 - `Reflection/Serialize.h` holds the JSON helpers only; the XML counterparts live in `Reflection/SerializeXml.h` so the bridge/JSON path never drags in XML.
 - `Shape::Raw` is the slot shape for a raw `Miro::JSON` field — the structure comes from the value, not the C++ type. Every `Reflector` that switches on `Options::shape` has to answer for it, and `TypeTree::TypeNode::Shape::Any` is its schema-mode counterpart (`{}` / `unknown`).
 

@@ -79,6 +79,13 @@ jobs:
         if: runner.os == 'Windows'
         uses: ilammy/msvc-dev-cmd@v1
 
+      # The JSON number tests select a decimal-comma locale to prove the
+      # parser and printer ignore LC_NUMERIC. Ubuntu runners ship only
+      # C and en_US, so one has to be generated.
+      - name: Install a decimal-comma locale
+        if: runner.os == 'Linux'
+        run: sudo locale-gen de_DE.UTF-8
+
       - name: Configure
         run: >
           cmake -B build
