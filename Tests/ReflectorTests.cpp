@@ -1132,3 +1132,44 @@ auto lazyBodyDoesNotBlockSiblings =
     auto loaded = createFromJSONString<EagerSiblingType>(R"({"value": 8})");
     check(loaded.value == 8);
 };
+
+// --- Enum names inside an anonymous namespace ---
+//
+// Pins the cast-spelling early exit in Detail::enumNameRaw. A value with
+// no enumerator prints as "((anonymous namespace)::E)42" and must be
+// rejected; a real enumerator prints as "(anonymous namespace)::E::A" —
+// also opening with a paren — and must keep its name. Both spellings
+// start with '(' so a first-character check would get this wrong.
+
+namespace
+{
+enum class AnonLevel
+{
+    Low,
+    High
+};
+
+struct AnonLevelHolder
+{
+    AnonLevel level = AnonLevel::High;
+
+    MIRO_REFLECT(level)
+};
+} // namespace
+
+static_assert(enumToString(AnonLevel::High) == "High");
+static_assert(enumToString(static_cast<AnonLevel>(42)).empty());
+static_assert(enumFromString<AnonLevel>("Low") == AnonLevel::Low);
+
+auto anonymousNamespaceEnumRoundTrips =
+    test("Enum in an anonymous namespace saves and loads by name") = []
+{
+    auto json = toJSON(AnonLevelHolder {});
+    check(json["level"].asString() == "High");
+
+    auto loaded = createFromJSONString<AnonLevelHolder>(R"({"level": "Low"})");
+    check(loaded.level == AnonLevel::Low);
+
+    auto unnamed = AnonLevelHolder {static_cast<AnonLevel>(42)};
+    check(toJSON(unnamed)["level"].asNumber() == 42.0);
+};
