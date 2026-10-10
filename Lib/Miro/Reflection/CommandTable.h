@@ -226,6 +226,10 @@ std::function<void(const JSON&, Resolve)> makeAsyncJsonAdapter(Callable callable
 class CommandTable
 {
 public:
+    // Defined in CommandTable.cpp: see the note on Json::Value.
+    CommandTable();
+    ~CommandTable();
+
     using RawHandler = std::function<JSON(const JSON& payload)>;
 
     template <typename Req, typename Res>

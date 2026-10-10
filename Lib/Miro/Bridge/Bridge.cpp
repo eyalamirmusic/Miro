@@ -3,6 +3,14 @@
 namespace Miro
 {
 
+Bridge::Bridge() = default;
+Bridge::~Bridge() = default;
+
+void Bridge::attachListener(OwningPointer<EA::Listener> listener)
+{
+    boundListeners.add(std::move(listener));
+}
+
 JSON Bridge::dispatch(std::string_view command, const JSON& payloadToUse) const
 {
     return commands.dispatch(command, payloadToUse);
