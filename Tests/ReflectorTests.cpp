@@ -1083,3 +1083,52 @@ auto outOfRangeEnumRoundtrip =
 
     check(static_cast<int>(loaded.color) == 77);
 };
+
+// --- MIRO_REFLECT emits a template: the body is instantiated lazily ---
+//
+// The macro-generated reflect() is a constrained member template, so a
+// TU that merely defines (or includes) a reflected type pays nothing for
+// its fields until something actually reflects it. The proof is a type
+// with a field the dispatcher cannot handle: defining it compiles, and
+// the error only appears if a toJSON / fromJSON of it is ever written.
+
+namespace
+{
+struct NotReflectableAtAll
+{
+    int x = 0;
+};
+
+struct LazyBodyType
+{
+    NotReflectableAtAll broken;
+    int fine = 1;
+
+    MIRO_REFLECT(broken, fine)
+};
+
+// The concept checks the call, not the body: the template accepts any
+// Reflector-derived argument, so this still holds even though an actual
+// instantiation would fail on `broken`.
+static_assert(Reflectable<LazyBodyType>);
+static_assert(Detail::HasReflectMember<LazyBodyType>);
+
+struct EagerSiblingType
+{
+    int value = 3;
+
+    MIRO_REFLECT(value)
+};
+} // namespace
+
+auto lazyBodyDoesNotBlockSiblings =
+    test("MIRO_REFLECT body is a template: unreflected types cost nothing") = []
+{
+    // LazyBodyType is deliberately never serialized. A sibling in the
+    // same TU still round-trips, which is all that has to work here.
+    auto json = toJSON(EagerSiblingType {});
+    check(json["value"].asNumber() == 3.0);
+
+    auto loaded = createFromJSONString<EagerSiblingType>(R"({"value": 8})");
+    check(loaded.value == 8);
+};
