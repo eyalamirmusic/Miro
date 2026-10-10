@@ -31,7 +31,7 @@ template <typename T>
 concept HasExternalReflect = requires(T& v, Reflector& r) { reflect(r, v); };
 
 template <typename T>
-concept Reflectable = HasReflectMember<T> || HasExternalReflect<T>;
+concept AbleToReflect = HasReflectMember<T> || HasExternalReflect<T>;
 
 // Type traits for shape classification.
 
@@ -200,7 +200,7 @@ consteval Shape shapeOf()
     else if constexpr (IsMapLike<U>::value)
         return Shape::Map;
     else if constexpr (IsVariant<U>::value
-                       || (Reflectable<U> && !std::is_arithmetic_v<U>
+                       || (AbleToReflect<U> && !std::is_arithmetic_v<U>
                            && !std::is_enum_v<U>) )
         return Shape::Object;
     else
@@ -332,7 +332,7 @@ void reflectValue(Reflector& ref, T& value)
 // committed as Object by the parent's atKey/atIndex via Options.shape,
 // so the dispatcher just runs the user's reflect.
 template <typename T>
-    requires Reflectable<T> && (!std::is_arithmetic_v<T>) && (!std::is_enum_v<T>)
+    requires AbleToReflect<T> && (!std::is_arithmetic_v<T>) && (!std::is_enum_v<T>)
 void reflectValue(Reflector& ref, T& value)
 {
     if constexpr (isNamedUserType<T>())
@@ -344,6 +344,16 @@ void reflectValue(Reflector& ref, T& value)
     else
         reflect(ref, value);
 }
+
+// "The dispatcher knows how to reflect a T." Spelled unqualified from
+// inside Detail for the same reason Property::operator() is: ordinary
+// lookup sees every built-in overload above, and ADL at the point of use
+// also sees a user's late `reflectValue(Reflector&, T&)` in namespace Miro
+// or in T's own namespace. A qualified Detail::reflectValue would say
+// "no" for exactly the types the dispatcher does handle.
+template <typename T>
+concept HasReflectValue =
+    requires(Reflector& ref, T& value) { reflectValue(ref, value); };
 
 } // namespace Miro::Detail
 
@@ -374,5 +384,8 @@ void Element::operator()(T& value)
         reflector.atIndex(index, Detail::childOptionsFor<T>(reflector.options())),
         value);
 }
+
+template <typename T>
+concept Reflectable = Detail::HasReflectValue<T>;
 
 } // namespace Miro
