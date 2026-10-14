@@ -134,6 +134,9 @@ struct OaRuntimeApi
         throw std::runtime_error("station offline");
     }
 
+    // MethodInfo only recognises an async handler by its by-value
+    // Completer<Res> parameter, so this one can't be a const ref.
+    // NOLINTNEXTLINE(performance-unnecessary-value-param)
     void forecastLater(const OaForecastReq& req, Completer<OaForecastRes> done)
     {
         std::thread([req, done] { done.resolve(summarize(req)); }).detach();
