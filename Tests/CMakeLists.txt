@@ -22,6 +22,7 @@ nano_add_executable(MiroTests SOURCES
         CodegenMainTests.cpp
         VirtualReflectorTests.cpp
         SchemaReflectorTests.cpp
+        SchemaDialectTests.cpp
         TypeScriptTests.cpp
         CppExportTests.cpp
         CppClientTests.cpp
