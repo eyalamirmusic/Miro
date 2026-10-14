@@ -44,6 +44,13 @@ struct OmittableStruct
     MIRO_REFLECT(inner, trailing)
 };
 
+struct OmittableRaw
+{
+    Omittable<JSON> payload;
+
+    MIRO_REFLECT(payload)
+};
+
 struct OmittableEmptyStruct
 {
     Omittable<MacroEmpty> body;
@@ -451,6 +458,34 @@ auto omittableTriStateRoundTrip = test("Omittable: three-state round trip") = []
         auto restored = createFromJSONString<TriState>(toJSONString(state));
         check(restored.value == state.value);
     }
+};
+
+auto omittableNullReadsAsAbsent =
+    test("Omittable: null loads as absent when T can't hold a null") = []
+{
+    auto patch = Patch {};
+    patch.name = std::string {"stale"};
+    patch.count = 4;
+
+    fromJSONString(patch, R"({"name": null, "count": null})");
+    check(!patch.name.has_value());
+    check(!patch.count.has_value());
+
+    auto nested = createFromJSONString<OmittableStruct>(R"({"inner": null})");
+    check(!nested.inner.has_value());
+
+    // A raw JSON value carries the null verbatim instead.
+    auto raw = createFromJSONString<OmittableRaw>(R"({"payload": null})");
+    check(raw.payload.has_value());
+    check(raw.payload->isNull());
+};
+
+auto omittableNullStaysNullForOptional =
+    test("Omittable: null still engages Omittable<optional<T>>") = []
+{
+    auto nulled = createFromJSONString<TriState>(R"({"value": null})");
+    check(nulled.value.has_value());
+    check(!nulled.value->has_value());
 };
 
 auto omittableOptionalUnchanged =

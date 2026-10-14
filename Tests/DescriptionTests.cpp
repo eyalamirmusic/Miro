@@ -282,3 +282,32 @@ auto docCommandEntryAndBackend =
     check(contains(out, "        /** Lambda command */\n        lambda: "));
     check(!contains(out, "*/\n        reset"));
 };
+
+auto docCommandRootIndices =
+    test("DescribeReflector: command records index their type roots") = []
+{
+    auto describe = Detail::DescribeReflector {};
+    auto api = DocWeatherApi {};
+    api.reflect(describe);
+
+    auto& weather = findRecord(describe, "getWeather");
+    check(weather.reqRoot == std::optional<std::size_t> {0});
+    check(weather.resRoot == std::optional<std::size_t> {1});
+
+    for (auto& c: describe.commands)
+    {
+        check(c.reqRoot.has_value() == c.req.present);
+        check(c.resRoot.has_value() == c.res.present);
+
+        if (c.reqRoot)
+            check(describe.typeRoots[*c.reqRoot].qualifiedName
+                  == c.req.qualifiedName);
+        if (c.resRoot)
+            check(describe.typeRoots[*c.resRoot].qualifiedName
+                  == c.res.qualifiedName);
+    }
+
+    auto& reset = findRecord(describe, "reset");
+    check(!reset.reqRoot.has_value());
+    check(!reset.resRoot.has_value());
+};
