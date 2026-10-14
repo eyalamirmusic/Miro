@@ -42,6 +42,8 @@ nano_add_executable(MiroTests SOURCES
         PublicHeaders/XmlHeaderTests.cpp
         PublicHeaders/BridgeHeaderTests.cpp
         PublicHeaders/CodegenHeaderTests.cpp
+        PublicHeaders/OpenAIHeaderTests.cpp
+        OpenAITests.cpp
         TARGETS Miro)
 
 # MiroFormats is an OBJECT library carrying the static-init format
