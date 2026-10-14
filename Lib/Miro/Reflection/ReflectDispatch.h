@@ -227,7 +227,8 @@ Options childOptionsFor(const Options& parent)
 // custom payload defaults to empty; the JSON/XML entry points pass the
 // caller-supplied CustomOptions here so it drills down to every child.
 template <typename T>
-Options topLevelOptions(Mode mode, bool schema = false, CustomOptions custom = {})
+Options
+    topLevelOptions(Mode mode, bool schema = false, const CustomOptions& custom = {})
 {
     return Options {
         .mode = mode,
@@ -235,7 +236,7 @@ Options topLevelOptions(Mode mode, bool schema = false, CustomOptions custom = {
         .nullable = isOptional<T>(),
         .omittable = isOmittable<T>(),
         .schema = schema,
-        .custom = std::move(custom),
+        .custom = custom,
     };
 }
 

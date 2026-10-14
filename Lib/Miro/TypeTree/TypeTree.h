@@ -171,7 +171,7 @@ private:
     // against this to detect cycles.
     std::string activeQualifiedName;
 
-    Reflector& spawnChild(TypeNode& targetNode, Options childOpts);
+    Reflector& spawnChild(TypeNode& targetNode, const Options& childOpts);
 
     // Shared by the two visitEnum overrides: turns this slot into an
     // Enum node carrying the type's identity, with the value lists reset.

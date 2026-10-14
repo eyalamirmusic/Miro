@@ -9,7 +9,6 @@
 
 #include <concepts>
 #include <cstdint>
-#include <optional>
 #include <string>
 #include <string_view>
 #include <type_traits>

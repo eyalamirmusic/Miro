@@ -6,6 +6,7 @@
 #include <cstdint>
 #include <string>
 #include <string_view>
+#include <utility>
 #include <variant>
 
 namespace Miro
@@ -193,7 +194,7 @@ class Reflector
 {
 public:
     explicit Reflector(Options optsToUse)
-        : opts(optsToUse)
+        : opts(std::move(optsToUse))
     {
     }
 
