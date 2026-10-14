@@ -269,6 +269,13 @@ JSON renderJsonNode(const TypeNode& node)
     }();
 
     markNullable(out, node.optional);
+
+    // Rendered at the use site only — a named type's $defs body comes
+    // from buildDefs, which never adds it, so a slot's description
+    // can't leak into a shared definition.
+    if (!node.description.empty())
+        out.asObject()["description"] = JSON {node.description};
+
     return out;
 }
 

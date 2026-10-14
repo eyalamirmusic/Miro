@@ -41,6 +41,10 @@ public:
     struct CommandRecord
     {
         std::string name;
+
+        // From the command's Miro::Doc; empty when none was given.
+        std::string description;
+
         TypeInfoRecord req;
         TypeInfoRecord res;
     };
@@ -71,6 +75,7 @@ protected:
     {
         auto record = CommandRecord {};
         record.name = std::string {d.name};
+        record.description = d.description;
         recordTypeInfo(d.req, record.req);
         recordTypeInfo(d.res, record.res);
         commands.add(std::move(record));

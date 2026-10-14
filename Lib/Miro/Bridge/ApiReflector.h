@@ -68,6 +68,17 @@ namespace Miro
 class Bridge;
 class ApiReflector;
 
+// Human-readable description of a command, passed as the trailing
+// argument of any ApiReflector::command overload:
+//   r.command<&T::getWeather>(Miro::Doc {"Current weather for a city"});
+//   r.command(&T::m, "wire_name", Miro::Doc {"..."});
+// The descriptor copies the text, so a temporary is fine. Codegen
+// (DescribeReflector, CommandEntry) carries it; BindReflector ignores it.
+struct Doc
+{
+    std::string_view text;
+};
+
 namespace Detail
 {
 
@@ -154,6 +165,9 @@ struct CommandDescriptor
 
     std::string_view name;
 
+    // From a trailing Miro::Doc argument; empty when none was given.
+    std::string description;
+
     // Empty TypeInfo (operator bool == false) when the shape elides
     // that side: Res() / void(Req) / void().
     TypeInfo req;
@@ -208,7 +222,7 @@ public:
 
     template <typename Pmf>
         requires std::is_member_function_pointer_v<Pmf>
-    void command(Pmf method, std::string_view name)
+    void command(Pmf method, std::string_view name, Doc doc = {})
     {
         using Info = MethodInfo<Pmf>;
 
@@ -216,6 +230,7 @@ public:
 
         auto d = Detail::CommandDescriptor {};
         d.name = fullName;
+        d.description = std::string {doc.text};
 
         if constexpr (Info::hasReq)
             d.req = Detail::makeTypeInfo<typename Info::Req>();
@@ -248,9 +263,17 @@ public:
     // bodies — the string overload above stays available for renames.
     template <auto Pmf>
         requires std::is_member_function_pointer_v<decltype(Pmf)>
-    void command()
+    void command(Doc doc = {})
     {
-        command(Pmf, Detail::memberNameOf<Pmf>());
+        command(Pmf, Detail::memberNameOf<Pmf>(), doc);
+    }
+
+    // Same, with an explicit wire name: r.command<&T::m>("wire", Doc {..}).
+    template <auto Pmf>
+        requires std::is_member_function_pointer_v<decltype(Pmf)>
+    void command(std::string_view name, Doc doc = {})
+    {
+        command(Pmf, name, doc);
     }
 
     // Free-function command: same wiring as the pmf overload, but with
@@ -260,14 +283,22 @@ public:
     // hasRes / Req / Res shape MethodInfo provides for pmfs.
     template <auto Func>
         requires std::is_function_v<std::remove_pointer_t<decltype(Func)>>
-    void command()
+    void command(Doc doc = {})
+    {
+        command<Func>(Detail::memberNameOf<Func>(), doc);
+    }
+
+    template <auto Func>
+        requires std::is_function_v<std::remove_pointer_t<decltype(Func)>>
+    void command(std::string_view name, Doc doc = {})
     {
         using Info = FunctionInfo<decltype(Func)>;
 
-        auto fullName = joinedName(Detail::memberNameOf<Func>());
+        auto fullName = joinedName(name);
 
         auto d = Detail::CommandDescriptor {};
         d.name = fullName;
+        d.description = std::string {doc.text};
 
         if constexpr (Info::hasReq)
             d.req = Detail::makeTypeInfo<typename Info::Req>();
@@ -296,7 +327,7 @@ public:
         requires(!std::is_member_function_pointer_v<Callable>
                  && !std::is_function_v<std::remove_pointer_t<Callable>>
                  && requires { &Callable::operator(); })
-    void command(Callable callable, std::string_view name)
+    void command(Callable callable, std::string_view name, Doc doc = {})
     {
         using Pmf = decltype(&Callable::operator());
         using Info = MethodInfo<Pmf>;
@@ -305,6 +336,7 @@ public:
 
         auto d = Detail::CommandDescriptor {};
         d.name = fullName;
+        d.description = std::string {doc.text};
 
         if constexpr (Info::hasReq)
             d.req = Detail::makeTypeInfo<typename Info::Req>();

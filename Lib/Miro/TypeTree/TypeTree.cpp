@@ -42,6 +42,7 @@ TypeReflector::TypeReflector(TypeNode& nodeToUse,
 
     node.optional = opts.nullable;
     node.omittable = opts.omittable;
+    node.description = std::string {opts.description};
 }
 
 TypeReflector::~TypeReflector() = default;

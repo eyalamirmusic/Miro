@@ -14,11 +14,20 @@ class Reflector;
 
 struct Property
 {
+    // Attaches a human-readable description to this field:
+    //   ref["city"].doc("City and country")(city);
+    // The text travels to the child slot through Options::description,
+    // so it is held by view and must outlive the reflect() call —
+    // normally a string literal. Data reflectors ignore it; schema
+    // walkers (TypeTree) record it on the field's node.
+    Property doc(std::string_view text) const { return {reflector, key, text}; }
+
     template <typename T>
     void operator()(T& value);
 
     Reflector& reflector;
     std::string_view key;
+    std::string_view description {};
 };
 
 struct Element
@@ -101,6 +110,13 @@ struct Options
 
     // Propagated parent -> child unchanged (see CustomOptions).
     CustomOptions custom {};
+
+    // Human-readable description of this slot, set by Property::doc().
+    // Per-child like `shape` — childOptionsFor clears it, so it never
+    // leaks into nested slots. Held by view: the text must outlive the
+    // reflect() call that supplied it (normally a string literal).
+    // Data reflectors ignore it; TypeTree copies it onto the TypeNode.
+    std::string_view description {};
 };
 
 // The discriminator value of one alternative of an internally tagged

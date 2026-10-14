@@ -219,6 +219,7 @@ Options childOptionsFor(const Options& parent)
     opts.shape = shapeOf<T>();
     opts.nullable = isOptional<T>();
     opts.omittable = isOmittable<T>();
+    opts.description = {};
     return opts;
 }
 
@@ -371,9 +372,9 @@ template <typename T>
 void Property::operator()(T& value)
 {
     using Detail::reflectValue;
-    reflectValue(
-        reflector.atKey(key, Detail::childOptionsFor<T>(reflector.options())),
-        value);
+    auto childOpts = Detail::childOptionsFor<T>(reflector.options());
+    childOpts.description = description;
+    reflectValue(reflector.atKey(key, childOpts), value);
 }
 
 template <typename T>

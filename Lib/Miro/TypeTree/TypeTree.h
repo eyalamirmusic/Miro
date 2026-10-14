@@ -65,6 +65,13 @@ struct TypeNode
     // Primitive only.
     PrimitiveKind primitive = PrimitiveKind::String;
 
+    // Description of the slot this node sits in (Property::doc()). It
+    // belongs to the field, not to the type: a named struct's slot
+    // node doubles as the body renderers hoist into a declaration, so
+    // renderers print it at the use site only, never on the hoisted
+    // definition. Empty when the field carries no description.
+    std::string description;
+
     // Object / Enum only: the display name emitted in generated source.
     // Defaults to the unqualified C++ type name; on collision the
     // disambiguation pass rewrites it to a sanitized qualified form.
