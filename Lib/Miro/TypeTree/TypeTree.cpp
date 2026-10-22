@@ -15,7 +15,7 @@ namespace Miro::TypeTree
 TypeReflector::TypeReflector(TypeNode& nodeToUse,
                              Options optsToUse,
                              TypeReflector* parentToUse)
-    : Reflector(optsToUse)
+    : Reflector(std::move(optsToUse))
     , node(nodeToUse)
     , parent(parentToUse)
 {
@@ -42,6 +42,7 @@ TypeReflector::TypeReflector(TypeNode& nodeToUse,
 
     node.optional = opts.nullable;
     node.omittable = opts.omittable;
+    node.description = std::string {opts.description};
 }
 
 TypeReflector::~TypeReflector() = default;
@@ -143,7 +144,7 @@ void TypeReflector::visit(PrimitiveRef ref)
         ref.data);
 }
 
-Reflector& TypeReflector::spawnChild(TypeNode& targetNode, Options childOpts)
+Reflector& TypeReflector::spawnChild(TypeNode& targetNode, const Options& childOpts)
 {
     currentChild.reset();
     currentChild.create(targetNode, childOpts, this);

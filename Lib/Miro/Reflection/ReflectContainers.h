@@ -146,11 +146,16 @@ void reflectValue(Reflector& ref, std::optional<T>& value)
 //
 // Loading is the one place where "absent" carries meaning rather than
 // being ignored: a missing key resets the value instead of leaving it
-// untouched. Anything present — null included — engages, so
-// Omittable<std::optional<T>> reads a null key back as engaged-but-empty.
+// untouched. A null key reads as absent too when T itself can't hold a
+// null (Omittable<int>) — schema dialects that require every key, like
+// OpenAI strict mode, send null for "left out". Where T can hold one
+// (std::optional, OwningPointer, raw JSON), a null key engages, so
+// Omittable<std::optional<T>> reads it back as engaged-but-empty.
 template <typename T>
 void reflectValue(Reflector& ref, Omittable<T>& value)
 {
+    constexpr auto nullMeansAbsent = !isOptional<T>() && shapeOf<T>() != Shape::Raw;
+
     if (ref.isSaving())
     {
         if (ref.isSchema())
@@ -164,7 +169,8 @@ void reflectValue(Reflector& ref, Omittable<T>& value)
             reflectValue(ref, *value);
         }
     }
-    else if (ref.kind() == ValueKind::Absent)
+    else if (ref.kind() == ValueKind::Absent
+             || (nullMeansAbsent && ref.kind() == ValueKind::Null))
     {
         value.reset();
     }

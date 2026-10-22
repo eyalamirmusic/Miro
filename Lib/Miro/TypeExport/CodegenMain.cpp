@@ -73,6 +73,7 @@ Vector<CommandExport::CommandEntry> toCommandEntries(
         // empty either way — the codegen path doesn't dispatch.
         entries.add(CommandExport::CommandEntry {
             .name = r.name,
+            .description = r.description,
             .hasRequest = bool(r.req),
             .requestTypeName = r.req.name,
             .requestQualifiedName = r.req.qualifiedName,
