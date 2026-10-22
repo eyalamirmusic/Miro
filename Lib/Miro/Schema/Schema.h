@@ -19,9 +19,10 @@ namespace Miro::Schema
 // in strict mode: every object closed, every property required (an
 // optional or omittable field becomes nullable instead), null spelled
 // as a type union, unions as an anyOf of flattened, closed arms, and
-// no vendor "x-" keywords. Maps and raw JSON (Miro::JSON) fields can't
-// be expressed there; reaching one throws std::invalid_argument naming
-// the field path.
+// no vendor "x-" keywords, and a described field of a named type
+// inlined rather than referenced, since nothing may sit beside a $ref.
+// Maps and raw JSON (Miro::JSON) fields can't be expressed there;
+// reaching one throws std::invalid_argument naming the field path.
 struct Dialect
 {
     enum class NullStyle
@@ -60,6 +61,11 @@ struct Dialect
 
     // Leave out vendor extension keywords ("x-enumNames").
     bool stripExtensions {};
+
+    // A described, non-nullable field of a named type carries the type's
+    // body instead of {"$ref": ...}, so the description has somewhere
+    // legal to go in a subset that allows no keyword beside $ref.
+    bool inlineDescribedRefs {};
 
     NullStyle nullStyle {};
     UnionStyle unionStyle {};

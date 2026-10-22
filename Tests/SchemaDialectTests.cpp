@@ -209,7 +209,10 @@ auto sdStrictWholeDocument =
                         "items": {"type": "integer"}
                     },
                     "inner": {
-                        "$ref": "#/$defs/SdInner",
+                        "type": "object",
+                        "additionalProperties": false,
+                        "properties": {"x": {"type": "integer"}},
+                        "required": ["x"],
                         "description": "The inner value"
                     },
                     "maybeInner": {
@@ -266,6 +269,27 @@ auto sdStrictWholeDocument =
     })");
 
     check(schema == expected);
+};
+
+// OpenAI rejects a $ref with any sibling keyword, so the description has
+// to travel with an inlined body — but only where it would otherwise sit
+// beside the $ref.
+auto sdStrictInlinesDescribedRefs =
+    test("Schema dialect: openAiStrict inlines a described named type") = []
+{
+    auto strict = schemaOf<SdAll>(Schema::Dialect::openAiStrict());
+    auto& props = strict["$defs"]["SdAll"]["properties"];
+
+    check(!props["inner"].asObject().contains("$ref"));
+    check(props["inner"]["description"].asString() == "The inner value");
+    check(props["maybeInner"]["anyOf"][0]
+          == Json::parse(R"({"$ref": "#/$defs/SdInner"})"));
+    check(props["color"] == Json::parse(R"({"$ref": "#/$defs/SdColor"})"));
+
+    auto standard = schemaOf<SdAll>();
+    check(standard["$defs"]["SdAll"]["properties"]["inner"]
+          == Json::parse(
+              R"({"$ref": "#/$defs/SdInner", "description": "The inner value"})"));
 };
 
 auto sdStandardUnchanged =
