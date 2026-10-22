@@ -23,6 +23,7 @@ Dialect Dialect::openAiStrict()
     dialect.closedObjects = true;
     dialect.allRequired = true;
     dialect.stripExtensions = true;
+    dialect.inlineDescribedRefs = true;
     dialect.nullStyle = NullStyle::TypeUnion;
     dialect.unionStyle = UnionStyle::AnyOf;
     return dialect;
@@ -108,7 +109,7 @@ public:
     // goes through here, so neither leaks into a shared definition.
     JSON slot(const TypeNode& node, const std::string& path) const
     {
-        auto out = value(node, path);
+        auto out = isInlinedReference(node) ? declaration(node) : value(node, path);
 
         if (isNullable(node))
             out = withNull(std::move(out));
@@ -140,6 +141,24 @@ private:
     bool isRequired(const TypeNode& node) const
     {
         return dialect.allRequired || (!node.optional && !node.omittable);
+    }
+
+    static bool isNamedType(const TypeNode& node)
+    {
+        return !node.typeName.empty()
+               && (node.shape == TypeNode::Shape::Object
+                   || node.shape == TypeNode::Shape::Enum
+                   || node.shape == TypeNode::Shape::Union);
+    }
+
+    // A nullable slot wraps its $ref in an anyOf, which may carry the
+    // description itself. Inlining terminates without a guard: a
+    // by-value field cannot hold its own type, and array items and
+    // nullable fields keep their $ref.
+    bool isInlinedReference(const TypeNode& node) const
+    {
+        return dialect.inlineDescribedRefs && !node.description.empty()
+               && isNamedType(node) && !isNullable(node);
     }
 
     JSON withNull(JSON out) const

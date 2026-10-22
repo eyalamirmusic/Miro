@@ -285,7 +285,13 @@ const auto expectedWeatherTools = R"([
                 "unit": {"$ref": "#/$defs/OaUnit"},
                 "days": {"type": "array", "items": {"type": "integer"}},
                 "home": {
-                    "$ref": "#/$defs/OaPlace",
+                    "type": "object",
+                    "additionalProperties": false,
+                    "properties": {
+                        "city": {"type": "string", "description": "City name"},
+                        "country": {"type": "string"}
+                    },
+                    "required": ["city", "country"],
                     "description": "Where the user lives"
                 }
             },
