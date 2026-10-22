@@ -15,6 +15,8 @@
 
 #include <ea_data_structures/Structures/Vector.h>
 
+#include <cstddef>
+#include <optional>
 #include <string>
 
 namespace Miro::Detail
@@ -41,8 +43,17 @@ public:
     struct CommandRecord
     {
         std::string name;
+
+        // From the command's Miro::Doc; empty when none was given.
+        std::string description;
+
         TypeInfoRecord req;
         TypeInfoRecord res;
+
+        // Indices into typeRoots of the trees built for req / res;
+        // nullopt for an elided side.
+        std::optional<std::size_t> reqRoot;
+        std::optional<std::size_t> resRoot;
     };
 
     struct EventRecord
@@ -71,8 +82,9 @@ protected:
     {
         auto record = CommandRecord {};
         record.name = std::string {d.name};
-        recordTypeInfo(d.req, record.req);
-        recordTypeInfo(d.res, record.res);
+        record.description = d.description;
+        record.reqRoot = recordTypeInfo(d.req, record.req);
+        record.resRoot = recordTypeInfo(d.res, record.res);
         commands.add(std::move(record));
     }
 
@@ -92,15 +104,20 @@ private:
     // Copy TypeInfo → TypeInfoRecord and, if the type is present, run
     // its in-place tree factory into a fresh typeRoots slot. Centralises
     // the (copy strings, conditionally emplace tree) idiom so each
-    // descriptor side is one call rather than a six-line block.
-    void recordTypeInfo(const TypeInfo& src, TypeInfoRecord& dst)
+    // descriptor side is one call rather than a six-line block. Returns
+    // the new tree's index in typeRoots, nullopt when the side is elided.
+    std::optional<std::size_t> recordTypeInfo(const TypeInfo& src,
+                                              TypeInfoRecord& dst)
     {
         if (!src)
-            return;
+            return std::nullopt;
         dst.name = std::string {src.name};
         dst.qualifiedName = std::string {src.qualifiedName};
         dst.present = true;
+
+        auto index = static_cast<std::size_t>(typeRoots.size());
         src.buildTree(typeRoots.emplace_back());
+        return index;
     }
 };
 

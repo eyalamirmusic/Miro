@@ -1,9 +1,34 @@
 #include "Schema.h"
 
+#include "../Detail/StringUtilities.h"
+
 #include <cstdlib>
+#include <map>
+#include <stdexcept>
 #include <string>
 #include <string_view>
 #include <utility>
+
+namespace Miro::Schema
+{
+
+Dialect Dialect::standard()
+{
+    return Dialect {};
+}
+
+Dialect Dialect::openAiStrict()
+{
+    auto dialect = Dialect {};
+    dialect.closedObjects = true;
+    dialect.allRequired = true;
+    dialect.stripExtensions = true;
+    dialect.nullStyle = NullStyle::TypeUnion;
+    dialect.unionStyle = UnionStyle::AnyOf;
+    return dialect;
+}
+
+} // namespace Miro::Schema
 
 namespace Miro
 {
@@ -30,273 +55,482 @@ std::string_view jsonSchemaPrimitive(TypeTree::PrimitiveKind kind)
     return "string";
 }
 
-// Renders a single TypeNode as a JSON Schema fragment. Named types
-// (Object, Enum) become {"$ref": "#/$defs/<typeName>"}; the bodies live
-// in $defs and are emitted separately. Anonymous nodes (top-level
-// primitives, vectors, maps with no named root) get an inline body.
-JSON renderJsonNode(const TypeNode& node);
-
-void writeRequired(const TypeNode& node, JSON& out)
+JSON makeObject()
 {
-    auto required = Json::Array {};
-
-    // Nullable fields have always been left out; an omittable one may
-    // legitimately not appear at all, which is what "required" is about.
-    for (auto& field: node.fields)
-        if (!field.type->optional && !field.type->omittable)
-            required.emplace_back(field.name);
-
-    if (!required.empty())
-        out.asObject()["required"] = JSON {std::move(required)};
+    return JSON {Json::Object {}};
 }
 
-JSON renderJsonObjectBody(const TypeNode& node)
+JSON makeString(std::string_view text)
 {
-    auto out = JSON {Json::Object {}};
-    out.asObject()["type"] = JSON {std::string {"object"}};
-
-    auto props = JSON {Json::Object {}};
-    for (auto& field: node.fields)
-        props.asObject()[field.name] = renderJsonNode(*field.type);
-
-    out.asObject()["properties"] = std::move(props);
-
-    writeRequired(node, out);
-
-    return out;
-}
-
-// Names of an integer enum's members. JSON Schema has no keyword for
-// them, so they go out under the conventional "x-enumNames" extension —
-// validators ignore it, code generators can pick the names back up.
-void writeEnumNames(const TypeNode& node, Json::Object& obj)
-{
-    auto names = Json::Array {};
-    names.reserve(node.enumValues.size());
-
-    for (auto& name: node.enumValues)
-        names.emplace_back(name);
-
-    obj["x-enumNames"] = JSON {std::move(names)};
-}
-
-JSON renderJsonIntegerEnumBody(const TypeNode& node)
-{
-    auto out = JSON {Json::Object {}};
-    auto& obj = out.asObject();
-    obj["type"] = JSON {std::string {"integer"}};
-
-    if (!node.enumNumbers.empty())
-    {
-        auto values = Json::Array {};
-        values.reserve(node.enumNumbers.size());
-
-        for (auto number: node.enumNumbers)
-            values.emplace_back(static_cast<double>(number));
-
-        obj["enum"] = JSON {std::move(values)};
-        writeEnumNames(node, obj);
-    }
-
-    return out;
-}
-
-JSON renderJsonEnumBody(const TypeNode& node)
-{
-    if (node.enumIsInteger)
-        return renderJsonIntegerEnumBody(node);
-
-    auto out = JSON {Json::Object {}};
-    auto& obj = out.asObject();
-    obj["type"] = JSON {std::string {"string"}};
-
-    if (!node.enumValues.empty())
-    {
-        auto values = Json::Array {};
-        values.reserve(node.enumValues.size());
-        for (auto& v: node.enumValues)
-            values.emplace_back(v);
-        obj["enum"] = JSON {std::move(values)};
-    }
-
-    return out;
-}
-
-void markNullable(JSON& out, bool optional)
-{
-    if (optional)
-        out.asObject()["nullable"] = JSON {true};
+    return JSON {std::string {text}};
 }
 
 JSON makeRefTo(const std::string& typeName)
 {
-    auto out = JSON {Json::Object {}};
+    auto out = makeObject();
     out.asObject()["$ref"] = JSON {std::string {"#/$defs/"} + typeName};
     return out;
 }
 
-JSON renderJsonPrimitive(const TypeNode& node)
+JSON makeNullType()
 {
-    auto out = JSON {Json::Object {}};
-    out.asObject()["type"] =
-        JSON {std::string {jsonSchemaPrimitive(node.primitive)}};
+    auto out = makeObject();
+    out.asObject()["type"] = makeString("null");
     return out;
 }
 
-JSON renderJsonArrayBody(const TypeNode& node)
+std::string fieldPath(const std::string& parent, std::string_view field)
 {
-    auto out = JSON {Json::Object {}};
-    auto& obj = out.asObject();
-
-    obj["type"] = JSON {std::string {"array"}};
-    obj["items"] = renderJsonNode(*node.inner);
-
-    if (node.minItems)
-        obj["minItems"] = JSON {static_cast<double>(*node.minItems)};
-    if (node.maxItems)
-        obj["maxItems"] = JSON {static_cast<double>(*node.maxItems)};
-
+    auto out = parent;
+    out += '.';
+    out += field;
     return out;
 }
 
-JSON renderJsonMapBody(const TypeNode& node)
+// Renders TypeNodes as JSON Schema fragments in one Dialect. Named
+// types (Object, Enum, Union) become {"$ref": "#/$defs/<typeName>"} at
+// their use sites; their bodies are rendered once by declaration() into
+// $defs. `path` threads the dotted field path down for error messages.
+class Renderer
 {
-    auto out = JSON {Json::Object {}};
-    auto& obj = out.asObject();
+public:
+    Renderer(const Schema::Dialect& dialectToUse,
+             const Vector<const TypeNode*>& declaredToUse)
+        : dialect(dialectToUse)
+    {
+        for (auto* node: declaredToUse)
+            if (!node->qualifiedName.empty())
+                declarations[node->qualifiedName] = node;
+    }
 
-    obj["type"] = JSON {std::string {"object"}};
-    obj["additionalProperties"] = renderJsonNode(*node.inner);
+    // A slot: the value's schema plus whatever belongs to the slot —
+    // nullability and the field description. A named type's body never
+    // goes through here, so neither leaks into a shared definition.
+    JSON slot(const TypeNode& node, const std::string& path) const
+    {
+        auto out = value(node, path);
 
-    return out;
-}
+        if (isNullable(node))
+            out = withNull(std::move(out));
 
-// `{"properties": {"type": {"const": 2}}, "required": ["type"]}` — the
-// half of a union arm that pins the discriminator.
-JSON renderJsonTagConstraint(const TypeNode& node, const TypeNode::Variant& variant)
-{
-    auto constant = JSON {Json::Object {}};
-    constant.asObject()["const"] =
-        variant.tagIsString ? JSON {variant.tag}
-                            : JSON {std::strtod(variant.tag.c_str(), nullptr)};
+        if (!node.description.empty())
+            out.asObject()["description"] = JSON {node.description};
 
-    auto props = JSON {Json::Object {}};
-    props.asObject()[node.tagKey] = std::move(constant);
+        return out;
+    }
 
-    auto required = Json::Array {};
-    required.emplace_back(node.tagKey);
+    // The $defs body of a named type.
+    JSON declaration(const TypeNode& node) const
+    {
+        if (node.shape == TypeNode::Shape::Enum)
+            return enumBody(node);
 
-    auto out = JSON {Json::Object {}};
-    auto& obj = out.asObject();
-    obj["type"] = JSON {std::string {"object"}};
-    obj["properties"] = std::move(props);
-    obj["required"] = JSON {std::move(required)};
+        if (node.shape == TypeNode::Shape::Union)
+            return unionBody(node, node.typeName);
 
-    return out;
-}
+        return objectBody(node, node.typeName);
+    }
 
-JSON renderJsonUnionArm(const TypeNode& node, const TypeNode::Variant& variant)
-{
-    auto parts = Json::Array {};
-    parts.emplace_back(renderJsonTagConstraint(node, variant));
-    parts.emplace_back(renderJsonNode(*variant.type));
+private:
+    bool isNullable(const TypeNode& node) const
+    {
+        return node.optional || (dialect.allRequired && node.omittable);
+    }
 
-    auto out = JSON {Json::Object {}};
-    out.asObject()["allOf"] = JSON {std::move(parts)};
+    bool isRequired(const TypeNode& node) const
+    {
+        return dialect.allRequired || (!node.optional && !node.omittable);
+    }
 
-    return out;
-}
+    JSON withNull(JSON out) const
+    {
+        if (dialect.nullStyle == Schema::Dialect::NullStyle::Keyword)
+        {
+            out.asObject()["nullable"] = JSON {true};
+            return out;
+        }
 
-// A discriminated union is a oneOf over "tag pinned to this literal,
-// and the alternative's own body". Plain keys the same reflect() body
-// wrote next to the discriminator apply to every arm, so they join as
-// an outer allOf.
-JSON renderJsonUnionBody(const TypeNode& node)
-{
-    auto arms = Json::Array {};
-    for (auto& variant: node.variants)
-        arms.emplace_back(renderJsonUnionArm(node, variant));
+        // A plain `"type": "x"` widens in place. Anything else — a $ref,
+        // an enum list (which would reject null on its own), a
+        // composition — gets wrapped.
+        auto& obj = out.asObject();
+        auto* type = Json::find(obj, "type");
 
-    auto oneOf = JSON {Json::Object {}};
-    oneOf.asObject()["oneOf"] = JSON {std::move(arms)};
+        if (type != nullptr && type->isString() && !obj.contains("enum"))
+        {
+            auto types = Json::Array {};
+            types.emplace_back(type->asString());
+            types.emplace_back(std::string {"null"});
+            *type = JSON {std::move(types)};
+            return out;
+        }
 
-    if (node.fields.empty())
-        return oneOf;
+        auto options = Json::Array {};
+        options.emplace_back(std::move(out));
+        options.emplace_back(makeNullType());
 
-    auto parts = Json::Array {};
-    parts.emplace_back(renderJsonObjectBody(node));
-    parts.emplace_back(std::move(oneOf));
+        auto wrapped = makeObject();
+        wrapped.asObject()["anyOf"] = JSON {std::move(options)};
+        return wrapped;
+    }
 
-    auto out = JSON {Json::Object {}};
-    out.asObject()["allOf"] = JSON {std::move(parts)};
+    [[noreturn]] void throwUnsupported(std::string_view what,
+                                       const std::string& path) const
+    {
+        throw std::invalid_argument(
+            "JSON Schema dialect with closed objects cannot express "
+            + std::string {what} + " (at '" + path + "')");
+    }
 
-    return out;
-}
-
-JSON renderJsonNode(const TypeNode& node)
-{
-    auto out = [&]
+    JSON value(const TypeNode& node, const std::string& path) const
     {
         switch (node.shape)
         {
             case TypeNode::Shape::Primitive:
-                return renderJsonPrimitive(node);
+                return primitive(node);
 
             case TypeNode::Shape::Object:
-                return node.typeName.empty() ? renderJsonObjectBody(node)
+                return node.typeName.empty() ? objectBody(node, path)
                                              : makeRefTo(node.typeName);
 
             case TypeNode::Shape::Array:
-                return renderJsonArrayBody(node);
+                return arrayBody(node, path);
 
             case TypeNode::Shape::Map:
-                return renderJsonMapBody(node);
+                return mapBody(node, path);
 
             case TypeNode::Shape::Enum:
                 // Anonymous enum shouldn't happen — visitEnum always sets
                 // a name — but render inline if it does.
-                return node.typeName.empty() ? renderJsonEnumBody(node)
+                return node.typeName.empty() ? enumBody(node)
                                              : makeRefTo(node.typeName);
 
             case TypeNode::Shape::Any:
+                if (dialect.closedObjects)
+                    throwUnsupported("a raw JSON value", path);
+
                 // The empty schema is JSON Schema's "anything goes".
-                return JSON {Json::Object {}};
+                return makeObject();
+
             case TypeNode::Shape::Union:
-                return node.typeName.empty() ? renderJsonUnionBody(node)
+                return node.typeName.empty() ? unionBody(node, path)
                                              : makeRefTo(node.typeName);
         }
 
-        return JSON {Json::Object {}};
-    }();
+        return makeObject();
+    }
 
-    markNullable(out, node.optional);
-    return out;
-}
+    JSON primitive(const TypeNode& node) const
+    {
+        auto out = makeObject();
+        out.asObject()["type"] = makeString(jsonSchemaPrimitive(node.primitive));
+        return out;
+    }
 
-} // namespace
+    void addProperties(const Vector<TypeNode::Field>& fields,
+                       const std::string& path,
+                       Json::Object& props,
+                       Json::Array& required) const
+    {
+        for (auto& field: fields)
+        {
+            props[field.name] = slot(*field.type, fieldPath(path, field.name));
 
-namespace
-{
+            if (isRequired(*field.type))
+                addRequired(required, field.name);
+        }
+    }
+
+    static void addRequired(Json::Array& required, const std::string& name)
+    {
+        for (auto& existing: required)
+            if (existing.asString() == name)
+                return;
+
+        required.emplace_back(name);
+    }
+
+    // type / properties / required (/ additionalProperties) — the common
+    // tail of an object body and a flattened union arm.
+    JSON objectFrom(Json::Object props, Json::Array required) const
+    {
+        auto out = makeObject();
+        auto& obj = out.asObject();
+        obj["type"] = makeString("object");
+        obj["properties"] = JSON {std::move(props)};
+
+        // An empty list has always been left out; a dialect that lists
+        // every property states the empty one explicitly.
+        if (!required.empty() || dialect.allRequired)
+            obj["required"] = JSON {std::move(required)};
+
+        if (dialect.closedObjects)
+            obj["additionalProperties"] = JSON {false};
+
+        return out;
+    }
+
+    JSON objectBody(const TypeNode& node, const std::string& path) const
+    {
+        auto props = Json::Object {};
+        auto required = Json::Array {};
+        addProperties(node.fields, path, props, required);
+        return objectFrom(std::move(props), std::move(required));
+    }
+
+    // Names of an integer enum's members. JSON Schema has no keyword for
+    // them, so they go out under the conventional "x-enumNames"
+    // extension — validators ignore it, code generators can pick the
+    // names back up.
+    void writeEnumNames(const TypeNode& node, Json::Object& obj) const
+    {
+        if (dialect.stripExtensions)
+            return;
+
+        auto names = Json::Array {};
+        names.reserve(node.enumValues.size());
+
+        for (auto& name: node.enumValues)
+            names.emplace_back(name);
+
+        obj["x-enumNames"] = JSON {std::move(names)};
+    }
+
+    JSON integerEnumBody(const TypeNode& node) const
+    {
+        auto out = makeObject();
+        auto& obj = out.asObject();
+        obj["type"] = makeString("integer");
+
+        if (!node.enumNumbers.empty())
+        {
+            auto values = Json::Array {};
+            values.reserve(node.enumNumbers.size());
+
+            for (auto number: node.enumNumbers)
+                values.emplace_back(static_cast<double>(number));
+
+            obj["enum"] = JSON {std::move(values)};
+            writeEnumNames(node, obj);
+        }
+
+        return out;
+    }
+
+    JSON enumBody(const TypeNode& node) const
+    {
+        if (node.enumIsInteger)
+            return integerEnumBody(node);
+
+        auto out = makeObject();
+        auto& obj = out.asObject();
+        obj["type"] = makeString("string");
+
+        if (!node.enumValues.empty())
+        {
+            auto values = Json::Array {};
+            values.reserve(node.enumValues.size());
+            for (auto& v: node.enumValues)
+                values.emplace_back(v);
+            obj["enum"] = JSON {std::move(values)};
+        }
+
+        return out;
+    }
+
+    JSON arrayBody(const TypeNode& node, const std::string& path) const
+    {
+        auto out = makeObject();
+        auto& obj = out.asObject();
+
+        obj["type"] = makeString("array");
+        obj["items"] = slot(*node.inner, path + "[]");
+
+        if (node.minItems)
+            obj["minItems"] = JSON {static_cast<double>(*node.minItems)};
+        if (node.maxItems)
+            obj["maxItems"] = JSON {static_cast<double>(*node.maxItems)};
+
+        return out;
+    }
+
+    JSON mapBody(const TypeNode& node, const std::string& path) const
+    {
+        if (dialect.closedObjects)
+            throwUnsupported("a map", path);
+
+        auto out = makeObject();
+        auto& obj = out.asObject();
+
+        obj["type"] = makeString("object");
+        obj["additionalProperties"] = slot(*node.inner, path + "{}");
+
+        return out;
+    }
+
+    JSON unionBody(const TypeNode& node, const std::string& path) const
+    {
+        if (dialect.unionStyle == Schema::Dialect::UnionStyle::AnyOf)
+            return anyOfUnionBody(node, path);
+
+        return oneOfUnionBody(node, path);
+    }
+
+    // ----- UnionStyle::OneOf ------------------------------------------
+
+    // `{"properties": {"type": {"const": 2}}, "required": ["type"]}` —
+    // the half of a union arm that pins the discriminator.
+    static JSON tagConstraint(const TypeNode& node, const TypeNode::Variant& variant)
+    {
+        auto constant = makeObject();
+        constant.asObject()["const"] =
+            variant.tagIsString ? JSON {variant.tag}
+                                : JSON {std::strtod(variant.tag.c_str(), nullptr)};
+
+        auto props = makeObject();
+        props.asObject()[node.tagKey] = std::move(constant);
+
+        auto required = Json::Array {};
+        required.emplace_back(node.tagKey);
+
+        auto out = makeObject();
+        auto& obj = out.asObject();
+        obj["type"] = makeString("object");
+        obj["properties"] = std::move(props);
+        obj["required"] = JSON {std::move(required)};
+
+        return out;
+    }
+
+    JSON oneOfArm(const TypeNode& node,
+                  const TypeNode::Variant& variant,
+                  const std::string& path) const
+    {
+        auto parts = Json::Array {};
+        parts.emplace_back(tagConstraint(node, variant));
+        parts.emplace_back(slot(*variant.type, path));
+
+        auto out = makeObject();
+        out.asObject()["allOf"] = JSON {std::move(parts)};
+
+        return out;
+    }
+
+    // A discriminated union is a oneOf over "tag pinned to this
+    // literal, and the alternative's own body". Plain keys the same
+    // reflect() body wrote next to the discriminator apply to every
+    // arm, so they join as an outer allOf.
+    JSON oneOfUnionBody(const TypeNode& node, const std::string& path) const
+    {
+        auto arms = Json::Array {};
+        for (auto& variant: node.variants)
+            arms.emplace_back(oneOfArm(node, variant, path));
+
+        auto oneOf = makeObject();
+        oneOf.asObject()["oneOf"] = JSON {std::move(arms)};
+
+        if (node.fields.empty())
+            return oneOf;
+
+        auto parts = Json::Array {};
+        parts.emplace_back(objectBody(node, path));
+        parts.emplace_back(std::move(oneOf));
+
+        auto out = makeObject();
+        out.asObject()["allOf"] = JSON {std::move(parts)};
+
+        return out;
+    }
+
+    // ----- UnionStyle::AnyOf ------------------------------------------
+
+    // The node holding a named type's fields. A recursive back edge is
+    // a bare name reference, so its body is looked up among the
+    // declarations collected for $defs.
+    const TypeNode& bodyOf(const TypeNode& node) const
+    {
+        if (!node.fields.empty() || node.qualifiedName.empty())
+            return node;
+
+        auto it = declarations.find(node.qualifiedName);
+        return it != declarations.end() ? *it->second : node;
+    }
+
+    // `{"type": "string", "enum": ["circle"]}` — the discriminator as a
+    // single-value enum, which every dialect that lacks `const` accepts.
+    static JSON tagSchema(const TypeNode::Variant& variant)
+    {
+        auto out = makeObject();
+        auto& obj = out.asObject();
+        auto values = Json::Array {};
+
+        if (variant.tagIsString)
+        {
+            obj["type"] = makeString("string");
+            values.emplace_back(variant.tag);
+        }
+        else if (auto whole = Detail::parseWholeInteger(variant.tag))
+        {
+            obj["type"] = makeString("integer");
+            values.emplace_back(*whole);
+        }
+        else
+        {
+            obj["type"] = makeString("number");
+            values.emplace_back(std::strtod(variant.tag.c_str(), nullptr));
+        }
+
+        obj["enum"] = JSON {std::move(values)};
+        return out;
+    }
+
+    JSON flatArm(const TypeNode& node,
+                 const TypeNode::Variant& variant,
+                 const std::string& path) const
+    {
+        auto& body = bodyOf(*variant.type);
+
+        if (body.shape != TypeNode::Shape::Object)
+            throw std::invalid_argument("union arm '" + variant.tag + "' at '" + path
+                                        + "' is not an object and cannot be "
+                                          "flattened into an anyOf arm");
+
+        auto props = Json::Object {};
+        auto required = Json::Array {};
+
+        addProperties(node.fields, path, props, required);
+        addProperties(body.fields, path, props, required);
+
+        props[node.tagKey] = tagSchema(variant);
+        addRequired(required, node.tagKey);
+
+        return objectFrom(std::move(props), std::move(required));
+    }
+
+    JSON anyOfUnionBody(const TypeNode& node, const std::string& path) const
+    {
+        auto arms = Json::Array {};
+        for (auto& variant: node.variants)
+            arms.emplace_back(flatArm(node, variant, path));
+
+        auto out = makeObject();
+        out.asObject()["anyOf"] = JSON {std::move(arms)};
+        return out;
+    }
+
+    const Schema::Dialect& dialect;
+    std::map<std::string, const TypeNode*> declarations;
+};
 
 // Walks every named type reachable from the roots and returns a $defs
 // object. Mutates roots in place via prepareRoots — the per-node
 // disambiguation pass rewrites typeName when distinct types share a
 // short name.
-JSON buildDefs(std::span<TypeNode> roots)
+JSON buildDefs(const Renderer& renderer, const Vector<const TypeNode*>& ordered)
 {
-    auto ordered = TypeTree::prepareRoots(roots);
-
-    auto defs = JSON {Json::Object {}};
+    auto defs = makeObject();
     for (auto* node: ordered)
-    {
-        auto& obj = defs.asObject()[node->typeName];
-
-        if (node->shape == TypeNode::Shape::Enum)
-            obj = renderJsonEnumBody(*node);
-        else if (node->shape == TypeNode::Shape::Union)
-            obj = renderJsonUnionBody(*node);
-        else
-            obj = renderJsonObjectBody(*node);
-    }
+        defs.asObject()[node->typeName] = renderer.declaration(*node);
 
     return defs;
 }
@@ -306,11 +540,13 @@ JSON buildDefs(std::span<TypeNode> roots)
 // Multi-root variant — used by the type-export runner to bundle every
 // registered type into a single document. No type is privileged as
 // "the schema"; consumers point at one with {"$ref": "#/$defs/X"}.
-JSON formatJsonSchema(std::span<TypeNode> roots)
+JSON formatJsonSchema(std::span<TypeNode> roots, const Schema::Dialect& dialect)
 {
-    auto defs = buildDefs(roots);
+    auto ordered = TypeTree::prepareRoots(roots);
+    auto renderer = Renderer {dialect, ordered};
+    auto defs = buildDefs(renderer, ordered);
 
-    auto out = JSON {Json::Object {}};
+    auto out = makeObject();
     if (!defs.asObject().empty())
         out.asObject()["$defs"] = std::move(defs);
 
@@ -320,18 +556,21 @@ JSON formatJsonSchema(std::span<TypeNode> roots)
 // Single-root: render the root (a $ref for named types, an inline body
 // for top-level vectors / primitives) and attach $defs alongside. Used
 // by `schemaOf<T>()`.
-JSON formatJsonSchema(TypeNode& root)
+JSON formatJsonSchema(TypeNode& root, const Schema::Dialect& dialect)
 {
     // Build $defs first — prepareRoots rewrites typeName during this
     // pass, and we need the renamed names when we render the root.
-    auto defs = buildDefs(std::span {&root, 1});
+    auto ordered = TypeTree::prepareRoots(std::span {&root, 1});
+    auto renderer = Renderer {dialect, ordered};
+    auto defs = buildDefs(renderer, ordered);
 
-    auto out = renderJsonNode(root);
+    auto rootPath = root.typeName.empty() ? std::string {"<root>"} : root.typeName;
+    auto out = renderer.slot(root, rootPath);
 
     if (!defs.asObject().empty())
     {
         if (!out.isObject())
-            out = JSON {Json::Object {}};
+            out = makeObject();
         out.asObject()["$defs"] = std::move(defs);
     }
 
