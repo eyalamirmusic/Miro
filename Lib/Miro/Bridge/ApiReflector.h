@@ -562,7 +562,7 @@ private:
         d.defaultPayloadJson = [] { return toJSON(Payload {}); };
 
         d.makeListener = [member](void* apiInstance,
-                                  std::function<void(const JSON&)> emit)
+                                  std::function<void(const JSON&)> emitToUse)
             -> OwningPointer<EA::Listener>
         {
             auto& api = *static_cast<typename Info::Class*>(apiInstance);
@@ -570,7 +570,8 @@ private:
 
             return EA::makeOwned<EA::Listener>(
                 event.broadcaster(),
-                [&event, emit = std::move(emit)] { emit(toJSON(event.snapshot())); },
+                [&event, emit = std::move(emitToUse)]
+                { emit(toJSON(event.snapshot())); },
                 EA::Listener::Modes::TriggerOnEvent);
         };
 

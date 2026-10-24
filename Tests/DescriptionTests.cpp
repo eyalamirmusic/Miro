@@ -13,6 +13,7 @@
 #include <span>
 #include <stdexcept>
 #include <string>
+#include <string_view>
 #include <vector>
 
 using namespace nano;
@@ -58,14 +59,18 @@ struct DocForecast
     }
 };
 
+// The name is a string_view, not a const std::string&: a reference
+// parameter bound to a temporary makes GCC's -Wdangling-reference flag
+// every `auto& node = fieldNode(tree, "x")`, though the result refers
+// into the tree, not the name.
 const TypeTree::TypeNode& fieldNode(const TypeTree::TypeNode& node,
-                                    const std::string& name)
+                                    std::string_view name)
 {
     for (auto& field: node.fields)
         if (field.name == name)
             return *field.type;
 
-    throw std::runtime_error("no field " + name);
+    throw std::runtime_error("no field " + std::string {name});
 }
 
 struct DocWeatherReq
@@ -109,13 +114,13 @@ struct DocWeatherApi
 };
 
 const Detail::DescribeReflector::CommandRecord&
-    findRecord(const Detail::DescribeReflector& describe, const std::string& name)
+    findRecord(const Detail::DescribeReflector& describe, std::string_view name)
 {
     for (auto& c: describe.commands)
         if (c.name == name)
             return c;
 
-    throw std::runtime_error("no command " + name);
+    throw std::runtime_error("no command " + std::string {name});
 }
 
 } // namespace

@@ -5,4 +5,5 @@ FetchContent_Declare(json
 FetchContent_MakeAvailable(json)
 
 add_executable(Benchmark Main.cpp)
-target_link_libraries(Benchmark PRIVATE Miro nlohmann_json::nlohmann_json)
+target_link_libraries(Benchmark
+        PRIVATE Miro nlohmann_json::nlohmann_json miro_warnings)
