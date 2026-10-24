@@ -3,6 +3,7 @@
 #include "JsonReflector.h"
 #include "ReflectContainers.h"
 #include "ReflectDispatch.h"
+#include "ReflectJson.h"
 #include "TypeName.h"
 
 #include <string>
@@ -18,6 +19,9 @@
 // payload (e.g. a "session" tag) drilled down unchanged to every nested
 // reflector, readable inside any reflect() body via ref.customOptions().
 // It defaults to empty, so existing call sites are unaffected.
+//
+// ReflectJson.h comes along for the reason SerializeXml.h gives: shapeOf()
+// must classify a raw JSON value as Shape::Raw in every TU that reflects one.
 
 namespace Miro
 {
