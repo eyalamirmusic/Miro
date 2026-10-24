@@ -227,12 +227,12 @@ private:
 
         if (pos < end && *pos == '"')
         {
-            auto result = std::string(start, pos - start);
+            auto result = std::string(start, pos);
             ++pos;
             return result;
         }
 
-        auto result = std::string(start, pos - start);
+        auto result = std::string(start, pos);
         parseStringEscapes(result);
         return result;
     }
@@ -249,7 +249,7 @@ private:
             {
                 auto start = pos;
                 skipToStringBreak();
-                result.append(start, pos - start);
+                result.append(start, pos);
             }
         }
 

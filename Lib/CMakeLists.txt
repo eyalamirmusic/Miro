@@ -61,7 +61,7 @@ endif ()
 # platform, including cross-compiled iOS.
 add_library(MiroFormats OBJECT
     Miro/TypeExport/BuiltinFormats.cpp)
-target_link_libraries(MiroFormats PUBLIC Miro)
+target_link_libraries(MiroFormats PUBLIC Miro PRIVATE miro_warnings)
 
 # File-writing pieces of the codegen pipeline (writeEmittedFiles in
 # CodegenWriter.cpp). Split out as its own OBJECT library so the
@@ -73,5 +73,5 @@ if (NOT CMAKE_CROSSCOMPILING)
         Miro/TypeExport/CodegenWriter.cpp)
     target_link_libraries(MiroCodegenWriter
         PUBLIC Miro
-        PRIVATE ghcFilesystem::ghc_filesystem)
+        PRIVATE ghcFilesystem::ghc_filesystem miro_warnings)
 endif ()

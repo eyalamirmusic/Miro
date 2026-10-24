@@ -20,8 +20,8 @@ void BindReflector::commandImpl(const CommandDescriptor& d)
 
 void BindReflector::eventImpl(const EventDescriptor& d)
 {
-    auto emit = [&bridge = bridge, name = std::string {d.name}](const JSON& payload)
-    { bridge.emitJson(name, payload); };
+    auto emit = [&target = bridge, name = std::string {d.name}](const JSON& payload)
+    { target.emitJson(name, payload); };
 
     bridge.attachListener(d.makeListener(currentApiInstance(), std::move(emit)));
 }
