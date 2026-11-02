@@ -34,6 +34,7 @@ Public surface — the entry headers at `Lib/Miro/*.h`. Each is self-contained (
 - `Miro/Json.h` — raw JSON layer (`Miro::Json::Value`, `parse()`, `print()`), no reflection.
 - `Miro/Reflect.h` — reflection layer + JSON serialization (`MIRO_REFLECT`, `Reflector`, `toJSON` / `fromJSON`).
 - `Miro/Xml.h` — XML value layer + XML serialization (`toXML` / `fromXML`).
+- `Miro/Toml.h` — TOML `parse()` / `print()` over `Json::Value`, plus `toTOMLString` / `fromTOMLString` / `createFromTOMLString`, which go through `toJSON` / `fromJSON`. toml++ (fetched by `CMake/FindTomlPlusPlus.cmake`, linked PRIVATE) is included by `TOML/Toml.cpp` alone; the printer is Miro's own so floats print shortest and identically on every platform.
 - `Miro/Bridge.h` — runtime command/event bridge (`Bridge`, `ApiReflector`, `Event`, `CommandTable`).
 - `Miro/Codegen.h` — type-export / codegen toolchain (`DescribeReflector`, `TypeTree`, TypeScript / schema / C++ emitters, `codegenMain()`).
 - `Miro/OpenAI.h` — OpenAI Responses-API function tools over a reflected API (`OpenAI::ToolSet`, `FunctionCall`, `FunctionCallOutput`, `FunctionTool`).

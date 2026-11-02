@@ -51,6 +51,7 @@ target_link_libraries(YourTarget PRIVATE Miro)
 | `<Miro/Json.h>` | Raw JSON value type, `parse()` / `print()` — no reflection |
 | `<Miro/Reflect.h>` | Reflection layer + JSON serialization (`MIRO_REFLECT`, `toJSON` / `fromJSON`) |
 | `<Miro/Xml.h>` | XML value type + XML serialization (`toXML` / `fromXML`) |
+| `<Miro/Toml.h>` | TOML parse / print + TOML serialization (`toTOMLString` / `fromTOMLString`) |
 | `<Miro/Bridge.h>` | Runtime command/event bridge (`Bridge`, `ApiReflector`, `Event`) |
 | `<Miro/Codegen.h>` | Type-export / codegen toolchain (`codegenMain()`, TypeScript / schema / C++ emitters) |
 | `<Miro/Unicode.h>` | Unicode character properties (`generalCategory()`, `isLetter()`, ...) and UTF-8 decode / encode |
@@ -382,6 +383,45 @@ Every JSON kind survives the round trip, including the difference between an emp
 The exporters describe a raw field as "anything": `{}` in JSON Schema, `unknown` in TypeScript, `z.unknown()` in Zod.
 
 `toXML` / `fromXML` write a raw value the way a typed field of the same shape would be written — primitives as attributes, nested values as elements, arrays as repeated siblings. XML records no types, though, so reading one back yields a tree whose leaves are all strings, and a one-element array is indistinguishable from a single value.
+
+### TOML
+
+`<Miro/Toml.h>` reads and writes TOML through the same reflection a struct already has for JSON:
+
+```cpp
+struct Dependency
+{
+    std::string name;
+    std::string version;
+
+    MIRO_REFLECT(name, version)
+};
+
+struct Manifest
+{
+    std::string name;
+    Miro::Vector<Dependency> dependencies;
+
+    MIRO_REFLECT(name, dependencies)
+};
+
+auto manifest = Miro::createFromTOMLString<Manifest>(R"(
+name = "app"
+
+[[dependencies]]
+name = "fmt"
+version = "12.2.0"
+)");
+
+auto text = Miro::toTOMLString(manifest);   // writes the same document back
+```
+
+A table is a struct or a `std::map`, an array is a `Miro::Vector` (`EA::Vector`) or a `std::vector`, an inline table reads like any other table, and enums, `std::optional` and `Omittable` follow their JSON rules. A vector of structs is written as an `[[array of tables]]`. TOML has no null, so a null optional writes no key, and a null inside an array throws `Miro::Toml::PrintError`.
+
+The TOML loaders throw `Miro::Toml::ParseError` for a malformed document. Its message, `line`, `column` and `keyPath` say where: `TOML parse error at line 4, column 8, key 'deps[1].when': ...`. Dates and times are refused the same way, since Miro has no type to load them into. A value of the wrong type for its field is still ignored, as in JSON.
+
+`Miro::Toml::parse()` and `Miro::Toml::print()` work on `Miro::Json::Value` directly. Parsing is done by [toml++](https://github.com/marzer/tomlplusplus), which no Miro header exposes.
+
 ### Tagged unions
 
 A field whose type is decided at runtime — one of several alternatives — is

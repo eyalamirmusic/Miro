@@ -7,6 +7,7 @@
 //   <Miro/Json.h>    — raw JSON value type, parse / print
 //   <Miro/Reflect.h> — reflection + JSON serialization (toJSON / fromJSON)
 //   <Miro/Xml.h>     — XML value type + XML serialization
+//   <Miro/Toml.h>    — TOML parse / print + TOML serialization
 //   <Miro/Bridge.h>  — runtime command/event bridge
 //   <Miro/Codegen.h> — type-export / codegen toolchain
 //   <Miro/OpenAI.h>  — OpenAI function tools over a reflected API
@@ -17,5 +18,6 @@
 #include "Json.h"
 #include "OpenAI.h"
 #include "Reflect.h"
+#include "Toml.h"
 #include "Unicode.h"
 #include "Xml.h"
