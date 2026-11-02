@@ -1,5 +1,6 @@
 find_package(EADataStructures REQUIRED)
 find_package(ResEmbed REQUIRED)
+find_package(TomlPlusPlus REQUIRED)
 
 set(CMAKE_FOLDER Miro)
 
@@ -16,6 +17,7 @@ add_library(Miro STATIC
     Miro/JSON/Parser.cpp
     Miro/JSON/Printer.cpp
     Miro/OpenAI/OpenAI.cpp
+    Miro/TOML/Toml.cpp
     Miro/XML/Xml.cpp
     Miro/XML/Parser.cpp
     Miro/XML/Printer.cpp
@@ -35,7 +37,14 @@ target_include_directories(Miro PUBLIC ${CMAKE_CURRENT_LIST_DIR})
 target_compile_options(Miro PUBLIC $<$<CXX_COMPILER_ID:MSVC>:/Zc:preprocessor>)
 target_link_libraries(Miro
     PUBLIC ea_data_structures
-    PRIVATE miro_warnings)
+    PRIVATE miro_warnings tomlplusplus::tomlplusplus)
+
+# toml++ is header-only and large; keeping its TU out of the unity batch
+# stops its macros reaching Miro's other sources. Its charconv paths are
+# off because libc++ marks double to_chars unavailable below macOS 13.3.
+set_source_files_properties(Miro/TOML/Toml.cpp PROPERTIES
+    SKIP_UNITY_BUILD_INCLUSION ON
+    COMPILE_DEFINITIONS "TOML_FLOAT_CHARCONV=0")
 
 res_embed_add(Miro
     FILES Miro/TypeScript/Resources/BridgeRuntime.ts
