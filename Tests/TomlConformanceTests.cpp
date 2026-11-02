@@ -48,6 +48,10 @@ std::vector<std::string> readCaseList()
 
     for (auto line = std::string {}; std::getline(list, line);)
     {
+        // A Windows checkout gives the list, which is not marked -text, CRLF.
+        if (line.ends_with('\r'))
+            line.pop_back();
+
         if (line.ends_with(tomlExtension))
             cases.push_back(line);
     }

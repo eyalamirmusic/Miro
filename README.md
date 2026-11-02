@@ -400,7 +400,7 @@ struct Dependency
 struct Manifest
 {
     std::string name;
-    std::vector<Dependency> dependencies;
+    Miro::Vector<Dependency> dependencies;
 
     MIRO_REFLECT(name, dependencies)
 };
@@ -416,9 +416,9 @@ version = "12.2.0"
 auto text = Miro::toTOMLString(manifest);   // writes the same document back
 ```
 
-A table is a struct or a `std::map`, an array is a `std::vector`, an inline table reads like any other table, and enums, `std::optional` and `Omittable` follow their JSON rules. A vector of structs is written as an `[[array of tables]]`. TOML has no null, so a null optional writes no key, and a null inside an array throws `Miro::Toml::PrintError`.
+A table is a struct or a `std::map`, an array is a `Miro::Vector` (`EA::Vector`) or a `std::vector`, an inline table reads like any other table, and enums, `std::optional` and `Omittable` follow their JSON rules. A vector of structs is written as an `[[array of tables]]`. TOML has no null, so a null optional writes no key, and a null inside an array throws `Miro::Toml::PrintError`.
 
-Unlike `fromJSONString`, the TOML loaders throw `Miro::Toml::ParseError` for a malformed document. Its message, `line`, `column` and `keyPath` say where: `TOML parse error at line 4, column 8, key 'deps[1].when': ...`. Dates and times are refused the same way, since Miro has no type to load them into. A value of the wrong type for its field is still ignored, as in JSON.
+The TOML loaders throw `Miro::Toml::ParseError` for a malformed document. Its message, `line`, `column` and `keyPath` say where: `TOML parse error at line 4, column 8, key 'deps[1].when': ...`. Dates and times are refused the same way, since Miro has no type to load them into. A value of the wrong type for its field is still ignored, as in JSON.
 
 `Miro::Toml::parse()` and `Miro::Toml::print()` work on `Miro::Json::Value` directly. Parsing is done by [toml++](https://github.com/marzer/tomlplusplus), which no Miro header exposes.
 

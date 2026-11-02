@@ -385,3 +385,32 @@ auto tomlPrintsAValueTree =
              "name = \"b\"\n");
     check(Toml::parse(text) == value);
 };
+
+struct Workspace
+{
+    MIRO_REFLECT(members, dependencies)
+
+    Vector<std::string> members;
+    Vector<Dependency> dependencies;
+};
+
+auto tomlEAVectorsRoundTrip =
+    test("TOML: Miro::Vector fields, of strings and of structs, round-trip") = []
+{
+    auto original = Workspace {};
+    original.members.add("core");
+    original.members.add("net");
+    original.dependencies.add({.name = "fmt", .version = "12.2.0", .features = {}});
+    original.dependencies.add(
+        {.name = "miniz", .version = "3.1.2", .features = {"zip"}});
+
+    auto text = toTOMLString(original);
+    auto copy = createFromTOMLString<Workspace>(text);
+
+    check(contains(text, "[[dependencies]]"));
+    check(copy.members.size() == 2);
+    check(copy.members[1] == "net");
+    check(copy.dependencies.size() == 2);
+    check(copy.dependencies[0].name == "fmt");
+    check(copy.dependencies[1].features == std::vector<std::string> {"zip"});
+};
