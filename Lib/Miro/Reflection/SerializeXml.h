@@ -1,5 +1,18 @@
 #pragma once
 
+/** @file Reflected types to and from XML nodes and strings.
+
+    XML counterparts of the JSON helpers in Serialize.h. Kept separate
+    so JSON-only consumers don't compile the XML layer. Like the JSON
+    helpers, each takes an optional CustomOptions drilled down to every
+    nested reflector (see Serialize.h).
+
+    ReflectJson.h comes along because raw-JSON fields classify as
+    Shape::Raw, and shapeOf() has to agree about that in every TU — an
+    <Miro/Xml.h>-only consumer must see the same classification a
+    <Miro/Reflect.h> consumer does.
+*/
+
 #include "ReflectContainers.h"
 #include "ReflectDispatch.h"
 #include "ReflectJson.h"
@@ -10,19 +23,10 @@
 #include <string_view>
 #include <utility>
 
-// XML counterparts of the JSON helpers in Serialize.h. Kept separate
-// so JSON-only consumers don't compile the XML layer. Like the JSON
-// helpers, each takes an optional CustomOptions drilled down to every
-// nested reflector (see Serialize.h).
-//
-// ReflectJson.h comes along because raw-JSON fields classify as
-// Shape::Raw, and shapeOf() has to agree about that in every TU — an
-// <Miro/Xml.h>-only consumer must see the same classification a
-// <Miro/Reflect.h> consumer does.
-
 namespace Miro
 {
 
+/// The root element is named after the type's short C++ name.
 template <typename T>
 Xml::Node toXML(const T& value, CustomOptions custom = {})
 {
@@ -59,12 +63,14 @@ std::string toXMLString(const T& value, int indent = 0, CustomOptions custom = {
 }
 
 template <typename T>
+/// Unlike fromJSONString, throws Xml::ParseError on malformed input.
 void fromXMLString(T& value, std::string_view xmlString, CustomOptions custom = {})
 {
     fromXML(value, Xml::parse(xmlString), std::move(custom));
 }
 
 template <typename T>
+/// Throws Xml::ParseError on malformed input.
 T createFromXMLString(std::string_view xmlString, CustomOptions custom = {})
 {
     return createFromXML<T>(Xml::parse(xmlString), std::move(custom));

@@ -1,5 +1,32 @@
 #pragma once
 
+/** @file Externally tagged polymorphic reflection for std::variant and OwningPointer<Base> hierarchies.
+
+    Polymorphic reflection: round-trips std::variant<Ts...> and inheritance
+    hierarchies (e.g. OwningPointer<Base> holding a Derived) through JSON
+    and XML reflectors. Wire format is externally tagged — `{"Circle":
+    {...}}`. The outer object has exactly one key (the tag identifying
+    the active alternative); its value is the alternative's body. This
+    maps cleanly onto the existing atKey/mapKeys Reflector contract, so
+    no new shape or slot kind is required.
+
+    Three entry points, from low-level to high-level:
+
+      * `Miro::reflectPolymorphic(ref, value, callback)` — the baseline.
+        `callback` receives a PolymorphicDispatcher and registers each
+        alternative with `d.alt<T>(tag)`. Use this directly when the
+        storage type is custom or the tags need to come from somewhere
+        other than typeNameOf<T>(). User code can specialize
+        PolymorphicAccess<V> to plug in unusual storage.
+
+      * `reflectValue(ref, std::variant<...>&)` — zero-config built-in.
+        Each alternative's tag defaults to its short C++ type name.
+
+      * `Miro::Polymorphic<Base, Derived...>` — a thin OwningPointer<Base>
+        wrapper that auto-registers each Derived as an alternative. Drop
+        it into a struct as a member and reflect it like any other field.
+*/
+
 #include "../Containers.h"
 #include "ReflectDispatch.h"
 #include "Reflector.h"
@@ -7,30 +34,6 @@
 
 #include <string_view>
 #include <variant>
-
-// Polymorphic reflection: round-trips std::variant<Ts...> and inheritance
-// hierarchies (e.g. OwningPointer<Base> holding a Derived) through JSON
-// and XML reflectors. Wire format is externally tagged — `{"Circle":
-// {...}}`. The outer object has exactly one key (the tag identifying
-// the active alternative); its value is the alternative's body. This
-// maps cleanly onto the existing atKey/mapKeys Reflector contract, so
-// no new shape or slot kind is required.
-//
-// Three entry points, from low-level to high-level:
-//
-//   * `Miro::reflectPolymorphic(ref, value, callback)` — the baseline.
-//     `callback` receives a PolymorphicDispatcher and registers each
-//     alternative with `d.alt<T>(tag)`. Use this directly when the
-//     storage type is custom or the tags need to come from somewhere
-//     other than typeNameOf<T>(). User code can specialize
-//     PolymorphicAccess<V> to plug in unusual storage.
-//
-//   * `reflectValue(ref, std::variant<...>&)` — zero-config built-in.
-//     Each alternative's tag defaults to its short C++ type name.
-//
-//   * `Miro::Polymorphic<Base, Derived...>` — a thin OwningPointer<Base>
-//     wrapper that auto-registers each Derived as an alternative. Drop
-//     it into a struct as a member and reflect it like any other field.
 
 namespace Miro::Detail
 {
@@ -101,10 +104,10 @@ struct PolymorphicAccess<OwningPointer<Base>>
 namespace Miro
 {
 
-// Injected into the user's callback by reflectPolymorphic. The user
-// calls `d.alt<T>("tag")` once per alternative; dispatch happens eagerly
-// inside alt() so the user's lambda doesn't need any state machine — the
-// dispatcher locks itself after the first match.
+/// Injected into the user's callback by reflectPolymorphic. The user
+/// calls `d.alt<T>("tag")` once per alternative; dispatch happens eagerly
+/// inside alt() so the user's lambda doesn't need any state machine — the
+/// dispatcher locks itself after the first match.
 template <typename Value>
 class PolymorphicDispatcher
 {
@@ -121,6 +124,7 @@ public:
         }
     }
 
+    /// The first alternative that matches wins; later calls do nothing.
     template <typename T>
     void alt(std::string_view tag)
     {
@@ -151,6 +155,7 @@ public:
         }
     }
 
+    /// False after a load means the tag named no registered alternative, and the value was left alone.
     bool handled() const { return matched; }
 
 private:
@@ -160,6 +165,7 @@ private:
     bool matched = false;
 };
 
+/// Throws std::logic_error from a schema walker, which cannot describe the alternatives.
 template <typename Value, typename Callback>
 void reflectPolymorphic(Reflector& ref, Value& value, Callback callback)
 {
@@ -169,10 +175,10 @@ void reflectPolymorphic(Reflector& ref, Value& value, Callback callback)
     callback(dispatcher);
 }
 
-// Thin OwningPointer<Base> holder that auto-registers each Derived as
-// an alternative using its short type name as the tag. Use this when
-// you want a polymorphic field with the default name-based tags and
-// don't want to hand-write a reflect() body.
+/// Thin OwningPointer<Base> holder that auto-registers each Derived as
+/// an alternative using its short type name as the tag. Use this when
+/// you want a polymorphic field with the default name-based tags and
+/// don't want to hand-write a reflect() body.
 template <typename Base, typename... Derived>
 struct Polymorphic
 {

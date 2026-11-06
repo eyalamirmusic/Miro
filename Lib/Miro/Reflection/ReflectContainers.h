@@ -1,5 +1,7 @@
 #pragma once
 
+/** @file Reflection for the standard and EA containers, std::optional, Omittable and OwningPointer. */
+
 #include "ReflectDispatch.h"
 
 #include <array>

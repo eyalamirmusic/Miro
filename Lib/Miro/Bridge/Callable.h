@@ -1,22 +1,24 @@
 #pragma once
 
-// Callable inspection traits + the pmf-to-RawHandler factories that
-// use them. Both traits and the JSON shape-adapter live next to where
-// they're consumed (the adapter is in Reflection/CommandTable.h, since
-// RawHandler is defined there). This header pulls in the traits used
-// across the codebase plus the makePmfHandler convenience factory.
-//
-//   MethodInfo<Pmf>      — pointer-to-member-function info (Class, Req,
-//                          Res, hasReq, hasRes, isConst). Specialised
-//                          for Res(const Req&) / Res() / void(const
-//                          Req&) / void(), each in const and non-const
-//                          flavours.
-//
-//   FunctionInfo<F*>     — free-function-pointer info (Req, Res,
-//                          hasReq, hasRes). Same shape coverage.
-//
-// Both satisfy Detail::CallableInfo, so they plug into
-// Detail::makeJsonAdapter<Info>(callable) without further adapters.
+/** @file
+    Callable inspection traits + the pmf-to-RawHandler factories that
+    use them. Both traits and the JSON shape-adapter live next to where
+    they're consumed (the adapter is in Reflection/CommandTable.h, since
+    RawHandler is defined there). This header pulls in the traits used
+    across the codebase plus the makePmfHandler convenience factory.
+
+      MethodInfo<Pmf>      — pointer-to-member-function info (Class, Req,
+                             Res, hasReq, hasRes, isConst). Specialised
+                             for Res(const Req&) / Res() / void(const
+                             Req&) / void(), each in const and non-const
+                             flavours.
+
+      FunctionInfo<F*>     — free-function-pointer info (Req, Res,
+                             hasReq, hasRes). Same shape coverage.
+
+    Both satisfy Detail::CallableInfo, so they plug into
+    Detail::makeJsonAdapter<Info>(callable) without further adapters.
+*/
 
 #include "../Reflection/CommandTable.h"
 #include "Event.h"
@@ -29,6 +31,7 @@ namespace Miro
 
 // ---------- Pointer-to-member-function (pmf) traits ----------
 
+/// Request and response types of a command member function, sync or async.
 template <typename T>
 struct MethodInfo;
 
@@ -143,6 +146,7 @@ struct MethodInfo<void (C::*)(Completer<R>) const>
 // payload type. Used by ApiReflector::event(pmd, name) to derive
 // the subscription wiring and the codegen-side payload identity.
 
+/// Owning class and payload type of an Event or RefEvent member pointer.
 template <typename T>
 struct EventMemberInfo;
 
@@ -162,6 +166,7 @@ struct EventMemberInfo<RefEvent<T> C::*>
 
 // ---------- Free-function-pointer traits ----------
 
+/// Request and response types of a free-function command.
 template <typename T>
 struct FunctionInfo;
 
@@ -200,6 +205,8 @@ struct FunctionInfo<R (*)()>
 // through the pmf, wrapped in the shared makeJsonAdapter. The if-
 // constexpr ladder over hasReq/hasRes lives in makeJsonAdapter only.
 
+/// Wraps a member function as a JSON handler. Holds a pointer to the
+/// instance, which must outlive the handler.
 template <auto Method>
 CommandTable::RawHandler
     makePmfHandler(typename MethodInfo<decltype(Method)>::Class& instance)
@@ -222,10 +229,10 @@ CommandTable::RawHandler makePmfHandler(Pmf method,
         { return ((*instancePtr).*method)(std::forward<decltype(args)>(args)...); });
 }
 
-// Async sibling of makePmfHandler: binds an async pmf (void(const Req&,
-// Completer<Res>) / void(Completer<Res>)) to an instance and wraps it as
-// an AsyncRawHandler via makeAsyncJsonAdapter. The handler returns void —
-// the Completer carries the result out — so no decltype(auto) here.
+/// Async sibling of makePmfHandler: binds an async pmf (void(const Req&,
+/// Completer<Res>) / void(Completer<Res>)) to an instance and wraps it as
+/// an AsyncRawHandler via makeAsyncJsonAdapter. The handler returns void —
+/// the Completer carries the result out — so no decltype(auto) here.
 template <typename Pmf>
 CommandTable::AsyncRawHandler
     makeAsyncPmfHandler(Pmf method, typename MethodInfo<Pmf>::Class& instance)

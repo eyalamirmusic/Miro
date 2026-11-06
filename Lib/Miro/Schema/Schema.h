@@ -1,5 +1,11 @@
 #pragma once
 
+/** @file
+    JSON Schema rendering of reflected types: schemaOf<T>(),
+    formatJsonSchema() and the Dialect that selects standard or OpenAI
+    strict output.
+*/
+
 #include "../JSON/Json.h"
 #include "../TypeTree/TypeTree.h"
 
@@ -9,62 +15,65 @@
 namespace Miro::Schema
 {
 
-// The flavour of JSON Schema formatJsonSchema emits. A default-
-// constructed Dialect is the library's historical output (standard()):
-// "nullable": true on optional slots, optional and omittable fields
-// left out of "required", open objects, and tagged unions as a oneOf of
-// allOf [tag constraint, arm].
-//
-// openAiStrict() targets OpenAI function calling / structured outputs
-// in strict mode: every object closed, every property required (an
-// optional or omittable field becomes nullable instead), null spelled
-// as a type union, unions as an anyOf of flattened, closed arms, and
-// no vendor "x-" keywords, and a described field of a named type
-// inlined rather than referenced, since nothing may sit beside a $ref.
-// Maps and raw JSON (Miro::JSON) fields can't be expressed there;
-// reaching one throws std::invalid_argument naming the field path.
+/// The flavour of JSON Schema formatJsonSchema emits. A default-
+/// constructed Dialect is the library's historical output (standard()):
+/// "nullable": true on optional slots, optional and omittable fields
+/// left out of "required", open objects, and tagged unions as a oneOf of
+/// allOf [tag constraint, arm].
+///
+/// openAiStrict() targets OpenAI function calling / structured outputs
+/// in strict mode: every object closed, every property required (an
+/// optional or omittable field becomes nullable instead), null spelled
+/// as a type union, unions as an anyOf of flattened, closed arms, and
+/// no vendor "x-" keywords, and a described field of a named type
+/// inlined rather than referenced, since nothing may sit beside a $ref.
+/// Maps and raw JSON (Miro::JSON) fields can't be expressed there;
+/// reaching one throws std::invalid_argument naming the field path.
 struct Dialect
 {
     enum class NullStyle
     {
-        // `"nullable": true` next to the value's own schema.
+        /// `"nullable": true` next to the value's own schema.
         Keyword,
 
-        // `"type": ["string", "null"]` where the schema is a plain
-        // `type`, otherwise `"anyOf": [<schema>, {"type": "null"}]`
-        // (e.g. a $ref to a named object, enum or union).
+        /// `"type": ["string", "null"]` where the schema is a plain
+        /// `type`, otherwise `"anyOf": [<schema>, {"type": "null"}]`
+        /// (e.g. a $ref to a named object, enum or union).
         TypeUnion,
     };
 
     enum class UnionStyle
     {
-        // oneOf of allOf [{tag: const}, arm], shared plain fields as an
-        // outer allOf.
+        /// oneOf of allOf [{tag: const}, arm], shared plain fields as an
+        /// outer allOf.
         OneOf,
 
-        // anyOf of one object per arm, holding the tag as a single-value
-        // enum, the shared plain fields and the arm's own fields. No
-        // allOf, so it composes with closedObjects.
+        /// anyOf of one object per arm, holding the tag as a single-value
+        /// enum, the shared plain fields and the arm's own fields. No
+        /// allOf, so it composes with closedObjects.
         AnyOf,
     };
 
+    /// The default output, same as a default-constructed Dialect.
     static Dialect standard();
+    /// OpenAI strict function-calling and structured-output schemas.
+
     static Dialect openAiStrict();
 
-    // "additionalProperties": false on every object. Map and raw JSON
-    // (Any) slots throw std::invalid_argument when this is set.
+    /// "additionalProperties": false on every object. Map and raw JSON
+    /// (Any) slots throw std::invalid_argument when this is set.
     bool closedObjects {};
 
-    // Every property is listed in "required"; optional and omittable
-    // fields are expressed as nullable instead of absent.
+    /// Every property is listed in "required"; optional and omittable
+    /// fields are expressed as nullable instead of absent.
     bool allRequired {};
 
-    // Leave out vendor extension keywords ("x-enumNames").
+    /// Leave out vendor extension keywords ("x-enumNames").
     bool stripExtensions {};
 
-    // A described, non-nullable field of a named type carries the type's
-    // body instead of {"$ref": ...}, so the description has somewhere
-    // legal to go in a subset that allows no keyword beside $ref.
+    /// A described, non-nullable field of a named type carries the type's
+    /// body instead of {"$ref": ...}, so the description has somewhere
+    /// legal to go in a subset that allows no keyword beside $ref.
     bool inlineDescribedRefs {};
 
     NullStyle nullStyle {};
@@ -76,19 +85,21 @@ struct Dialect
 namespace Miro
 {
 
-// Renders a TypeNode tree (or several roots) as a JSON Schema document.
-// Every named type's body lives under a top-level "$defs" map; every
-// reference (including recursive ones) becomes {"$ref": "..."}.
-//
-// Roots are passed mutably because the disambiguation pass may rewrite
-// per-node `typeName` when distinct C++ types share an unqualified
-// name. Callers that don't want the trees touched should hand over a
-// copy.
+/// Renders a TypeNode tree (or several roots) as a JSON Schema document.
+/// Every named type's body lives under a top-level "$defs" map; every
+/// reference (including recursive ones) becomes {"$ref": "..."}.
+///
+/// Roots are passed mutably because the disambiguation pass may rewrite
+/// per-node `typeName` when distinct C++ types share an unqualified
+/// name. Callers that don't want the trees touched should hand over a
+/// copy.
 JSON formatJsonSchema(TypeTree::TypeNode& root,
                       const Schema::Dialect& dialect = Schema::Dialect::standard());
 JSON formatJsonSchema(std::span<TypeTree::TypeNode> roots,
                       const Schema::Dialect& dialect = Schema::Dialect::standard());
 
+/// JSON Schema for T with the given dialect. May throw
+/// std::invalid_argument, as formatJsonSchema does.
 template <typename T>
 JSON schemaOf(const Schema::Dialect& dialect = Schema::Dialect::standard())
 {
@@ -96,6 +107,7 @@ JSON schemaOf(const Schema::Dialect& dialect = Schema::Dialect::standard())
     return formatJsonSchema(tree, dialect);
 }
 
+/// schemaOf<T>() printed with indent spaces per level.
 template <typename T>
 std::string
     schemaOfAsString(int indent = 2,

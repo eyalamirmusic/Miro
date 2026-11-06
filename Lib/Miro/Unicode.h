@@ -1,7 +1,8 @@
 #pragma once
 
-// Entry header: Unicode character properties — the general category
-// of a code point, the \p{..} major classes, the White_Space
-// property, and UTF-8 decode / encode.
+/** @file
+    Entry header for Unicode character properties: general category, the
+    major classes behind `\p{..}`, the White_Space property, and UTF-8
+    decode and encode. */
 
 #include "Unicode/Unicode.h"

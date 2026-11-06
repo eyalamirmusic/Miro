@@ -1,0 +1,11 @@
+# Read by jamierpond/eacp-agent-docs to build the agent API reference.
+# See that repository's README for every key.
+name = "Miro"
+slug = "miro"
+summary = "C++20 reflection: JSON and XML serialization, a command/event bridge, and TypeScript, C++ and schema codegen from reflected types."
+source_url = "https://github.com/eyalamirmusic/Miro/blob/develop/"
+include_root = "Lib"
+header_roots = ["Lib/Miro"]
+exclude_patterns = ["*/Detail/*", "*/detail/*", "*/GeneralCategoryTable.h"]
+exclude_symbols = ["Detail", "detail", "*::Detail::*", "*::detail::*"]
+examples_dirs = ["Examples"]

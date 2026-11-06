@@ -1,7 +1,8 @@
 #pragma once
 
-// Entry header: the XML layer — Miro::Xml::Node, parse(), print(),
-// plus the toXML / fromXML reflection serializers.
+/** @file
+    Entry header for the XML layer: Miro::Xml::Node, parse(), print(), and
+    the toXML and fromXML reflection serializers. */
 
 #include "Reflection/SerializeXml.h"
 #include "Reflection/XmlReflector.h"

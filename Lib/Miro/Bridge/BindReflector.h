@@ -1,17 +1,19 @@
 #pragma once
 
-// Concrete ApiReflector that wires an API into a live Bridge: each
-// `r.command(pmf, name)` installs a RawHandler on the bridge's command
-// table; each `r.event(pmd, name)` subscribes a Listener to the event's
-// broadcaster that emits the snapshot under `name` whenever the API
-// publishes.
-//
-// Constructed by Bridge::use<Api>(api). The Bridge holds the listener
-// pack, so subscriptions die with the bridge.
-//
-// Bridge is only forward-declared here — overrides are out-of-line in
-// BindReflector.cpp where the full type is available, which avoids a
-// circular include between Bridge.h and this header.
+/** @file
+    Concrete ApiReflector that wires an API into a live Bridge: each
+    `r.command(pmf, name)` installs a RawHandler on the bridge's command
+    table; each `r.event(pmd, name)` subscribes a Listener to the event's
+    broadcaster that emits the snapshot under `name` whenever the API
+    publishes.
+
+    Constructed by Bridge::use<Api>(api). The Bridge holds the listener
+    pack, so subscriptions die with the bridge.
+
+    Bridge is only forward-declared here — overrides are out-of-line in
+    BindReflector.cpp where the full type is available, which avoids a
+    circular include between Bridge.h and this header.
+*/
 
 #include "ApiReflector.h"
 

@@ -1,10 +1,11 @@
 #pragma once
 
-// Entry header: the codegen / type-export toolchain —
-// DescribeReflector, TypeTree, Schema, the TypeScript / C++ emitters,
-// command export, and the codegenMain() runner. Only codegen
-// executables need this; app runtime code wants <Miro/Bridge.h> or
-// <Miro/Reflect.h> instead.
+/** @file
+    Entry header for the codegen and type-export toolchain:
+    DescribeReflector, TypeTree, Schema, the TypeScript and C++ emitters,
+    command export and the codegenMain() runner. Only codegen executables
+    need it; app runtime code includes `<Miro/Bridge.h>` or
+    `<Miro/Reflect.h>`. */
 
 #include "Bridge/DescribeReflector.h"
 #include "CommandExport/CommandEntry.h"

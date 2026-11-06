@@ -1,5 +1,40 @@
 #pragma once
 
+/** @file Internally tagged unions, where the discriminator is an ordinary field beside the alternative's own fields.
+
+    Internally tagged unions — the counterpart to ReflectPolymorphic.h.
+
+    Where reflectPolymorphic is externally tagged (`{"Circle": {...}}`,
+    one key naming the alternative), an internally tagged union puts the
+    discriminator in an ordinary field of the object and lets the active
+    alternative's own fields sit beside it:
+
+      {"type": 2, "style": 1, "label": "Click"}   -> Button
+      {"type": 3, "options": [...]}               -> SelectMenu
+
+    That is the shape Discord and most JSON APIs use. Storage is shared
+    with reflectPolymorphic — the same Detail::PolymorphicAccess adapter
+    backs std::variant<Ts...>, OwningPointer<Base>, and anything a user
+    specializes it for.
+
+    Three entry points, low-level to high-level:
+
+      * `Miro::reflectTagged(ref, key, value, callback)` — the baseline.
+        `callback` receives a TaggedDispatcher and registers each
+        alternative with `d.alt<T>(tag)`. The tag's C++ type is deduced
+        per call and may be an integer, a string, or an enum.
+
+      * `Miro::Tagged<"type", Base, Derived...>` — OwningPointer<Base>
+        holder that reads `static constexpr auto miroTag` off each Derived.
+
+      * `Miro::TaggedVariant<"type", Ts...>` — the same, over
+        std::variant<Ts...> so the union is a value type (copyable, and
+        therefore usable as a vector element).
+
+    Alternatives must be object-shaped: they are reflected into the same
+    slot as the tag, so their reflect() body adds keys next to it.
+*/
+
 #include "../Containers.h"
 #include "../Detail/StringUtilities.h"
 #include "ReflectDispatch.h"
@@ -13,38 +48,6 @@
 #include <string_view>
 #include <type_traits>
 #include <variant>
-
-// Internally tagged unions — the counterpart to ReflectPolymorphic.h.
-//
-// Where reflectPolymorphic is externally tagged (`{"Circle": {...}}`,
-// one key naming the alternative), an internally tagged union puts the
-// discriminator in an ordinary field of the object and lets the active
-// alternative's own fields sit beside it:
-//
-//   {"type": 2, "style": 1, "label": "Click"}   -> Button
-//   {"type": 3, "options": [...]}               -> SelectMenu
-//
-// That is the shape Discord and most JSON APIs use. Storage is shared
-// with reflectPolymorphic — the same Detail::PolymorphicAccess adapter
-// backs std::variant<Ts...>, OwningPointer<Base>, and anything a user
-// specializes it for.
-//
-// Three entry points, low-level to high-level:
-//
-//   * `Miro::reflectTagged(ref, key, value, callback)` — the baseline.
-//     `callback` receives a TaggedDispatcher and registers each
-//     alternative with `d.alt<T>(tag)`. The tag's C++ type is deduced
-//     per call and may be an integer, a string, or an enum.
-//
-//   * `Miro::Tagged<"type", Base, Derived...>` — OwningPointer<Base>
-//     holder that reads `static constexpr auto miroTag` off each Derived.
-//
-//   * `Miro::TaggedVariant<"type", Ts...>` — the same, over
-//     std::variant<Ts...> so the union is a value type (copyable, and
-//     therefore usable as a vector element).
-//
-// Alternatives must be object-shaped: they are reflected into the same
-// slot as the tag, so their reflect() body adds keys next to it.
 
 namespace Miro::Detail
 {
@@ -131,18 +134,18 @@ struct TagTypesAgree<First, Rest...>
 namespace Miro
 {
 
-// Injected into the user's callback by reflectTagged. The user calls
-// `d.alt<T>(tag)` once per alternative; like PolymorphicDispatcher,
-// dispatch happens eagerly inside alt() and the dispatcher locks itself
-// after the first match, so the callback needs no state machine.
-//
-// On load the tag slot is read once, up front, into its wire form; each
-// alt() then compares its own literal against that. On save the active
-// alternative is reflected into the same slot and the registered tag is
-// written last, so it stays authoritative even if an alternative
-// declares the discriminator as a field of its own. In schema mode
-// nothing is read or written — every registered alternative is
-// announced through beginTaggedAlternative.
+/// Injected into the user's callback by reflectTagged. The user calls
+/// `d.alt<T>(tag)` once per alternative; like PolymorphicDispatcher,
+/// dispatch happens eagerly inside alt() and the dispatcher locks itself
+/// after the first match, so the callback needs no state machine.
+///
+/// On load the tag slot is read once, up front, into its wire form; each
+/// alt() then compares its own literal against that. On save the active
+/// alternative is reflected into the same slot and the registered tag is
+/// written last, so it stays authoritative even if an alternative
+/// declares the discriminator as a field of its own. In schema mode
+/// nothing is read or written — every registered alternative is
+/// announced through beginTaggedAlternative.
 template <typename Value>
 class TaggedDispatcher
 {
@@ -158,6 +161,7 @@ public:
             readTag();
     }
 
+    /// `tag` may be an integer, a string or an enum. The first match wins.
     template <typename T, typename Tag>
     void alt(Tag tag)
     {
@@ -179,6 +183,7 @@ public:
             load<T>();
     }
 
+    /// False after a load means the tag matched no registered alternative, and the value was left alone.
     bool handled() const { return matched; }
 
 private:
@@ -297,6 +302,7 @@ private:
     bool matched = false;
 };
 
+/// Alternatives must be object-shaped: their fields go into the same object as `key`.
 template <typename Value, typename Callback>
 void reflectTagged(Reflector& ref,
                    std::string_view key,
@@ -307,10 +313,10 @@ void reflectTagged(Reflector& ref,
     callback(dispatcher);
 }
 
-// Zero-config OwningPointer<Base> holder — the internally tagged
-// sibling of Miro::Polymorphic. Each alternative declares its own
-// discriminator as `static constexpr auto miroTag = 2;` and the key is
-// baked into the type: `Tagged<"type", Component, Button, SelectMenu>`.
+/// Zero-config OwningPointer<Base> holder — the internally tagged
+/// sibling of Miro::Polymorphic. Each alternative declares its own
+/// discriminator as `static constexpr auto miroTag = 2;` and the key is
+/// baked into the type: `Tagged<"type", Component, Button, SelectMenu>`.
 template <Detail::TagKey Key, typename Base, typename... Derived>
 struct Tagged
 {
@@ -335,8 +341,8 @@ struct Tagged
     OwningPointer<Base> value;
 };
 
-// std::variant flavour of Tagged: a copyable value type, so a list of
-// alternatives is just a std::vector<TaggedVariant<...>>.
+/// std::variant flavour of Tagged: a copyable value type, so a list of
+/// alternatives is just a std::vector<TaggedVariant<...>>.
 template <Detail::TagKey Key, typename... Ts>
 struct TaggedVariant
 {

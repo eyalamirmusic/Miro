@@ -1,7 +1,8 @@
 #pragma once
 
-// Entry header: the raw JSON layer — Miro::Json::Value, parse(),
-// print(). No reflection; for struct <-> JSON serialization include
-// <Miro/Reflect.h> instead.
+/** @file
+    Entry header for the raw JSON layer: Miro::Json::Value, parse() and
+    print(), with no reflection. For struct to JSON serialization include
+    `<Miro/Reflect.h>`. */
 
 #include "JSON/Json.h"

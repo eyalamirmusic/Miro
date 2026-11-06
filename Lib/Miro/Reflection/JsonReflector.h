@@ -1,5 +1,7 @@
 #pragma once
 
+/** @file JsonReflector, the Reflector that reads and writes a Json::Value. */
+
 #include "../JSON/Json.h"
 #include "Reflector.h"
 
@@ -8,20 +10,20 @@
 namespace Miro
 {
 
-// A JsonReflector represents a single JSON slot. The shape
-// (object/array/map/primitive) is fixed at construction via Options
-// and committed eagerly when saving — atKey/atIndex spawn children
-// that commit their own shape the same way. The child is owned by
-// the parent and lives until the next atKey/atIndex call (or until
-// the parent is destroyed).
-//
-// The one exception is an omittable child (the slot of an Omittable<T>
-// field): its shape is committed into the parent's `pendingSlot`
-// scratch area instead, and the key is created only when the child
-// calls markPresent() — at which point the staged content moves into
-// the real key and the child retargets onto it. A child that never
-// claims leaves no trace, which is exactly "the key is absent".
-// Everything else keeps the eager contract.
+/// A JsonReflector represents a single JSON slot. The shape
+/// (object/array/map/primitive) is fixed at construction via Options
+/// and committed eagerly when saving — atKey/atIndex spawn children
+/// that commit their own shape the same way. The child is owned by
+/// the parent and lives until the next atKey/atIndex call (or until
+/// the parent is destroyed).
+///
+/// The one exception is an omittable child (the slot of an Omittable<T>
+/// field): its shape is committed into the parent's `pendingSlot`
+/// scratch area instead, and the key is created only when the child
+/// calls markPresent() — at which point the staged content moves into
+/// the real key and the child retargets onto it. A child that never
+/// claims leaves no trace, which is exactly "the key is absent".
+/// Everything else keeps the eager contract.
 class JsonReflector final : public Reflector
 {
 public:

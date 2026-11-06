@@ -1,5 +1,7 @@
 #pragma once
 
+/** @file CommandTable: named commands with typed or raw JSON handlers, dispatched synchronously or through a completion callback. */
+
 #include "../IgnoreUnused.h"
 #include "../JSON/Json.h"
 #include "Reflector.h"
@@ -18,13 +20,13 @@
 
 namespace Miro
 {
-// The completion seam between Miro and a host's async runtime. Miro is
-// deliberately event-loop-agnostic: dispatchAsync runs the (synchronous)
-// command handler and reports the outcome by invoking this std::function
-// exactly once — a JSON result (error == nullptr) on success, or a
-// non-null error message on failure. A transport hands in a Resolve whose
-// body it controls; that's where the host decides threading. Mirrors the
-// WebView wire's deliver(id, result, error).
+/// The completion seam between Miro and a host's async runtime. Miro is
+/// deliberately event-loop-agnostic: dispatchAsync runs the (synchronous)
+/// command handler and reports the outcome by invoking this std::function
+/// exactly once — a JSON result (error == nullptr) on success, or a
+/// non-null error message on failure. A transport hands in a Resolve whose
+/// body it controls; that's where the host decides threading. Mirrors the
+/// WebView wire's deliver(id, result, error).
 using Resolve = std::function<void(const JSON& result, const std::string* error)>;
 
 namespace Detail
@@ -63,12 +65,12 @@ private:
 };
 } // namespace Detail
 
-// The typed, single-shot completion handle handed to an async command
-// handler: `void doThing(const Req&, Completer<Res> done)`. The handler
-// owns its own threading and calls done.resolve(value) / done.reject(msg)
-// whenever it is ready — from any thread, possibly long after returning.
-// Copyable (all copies share one CompleterState), so it can be captured
-// into thread-pool jobs or std::function queues without ceremony.
+/// The typed, single-shot completion handle handed to an async command
+/// handler: `void doThing(const Req&, Completer<Res> done)`. The handler
+/// owns its own threading and calls done.resolve(value) / done.reject(msg)
+/// whenever it is ready — from any thread, possibly long after returning.
+/// Copyable (all copies share one CompleterState), so it can be captured
+/// into thread-pool jobs or std::function queues without ceremony.
 template <typename Res>
 class Completer
 {
@@ -89,8 +91,8 @@ private:
     std::shared_ptr<Detail::CompleterState> state;
 };
 
-// Response-less async handler: `void doThing(const Req&, Completer<void>)`.
-// resolve() settles with an empty JSON body, matching a sync void handler.
+/// Response-less async handler: `void doThing(const Req&, Completer<void>)`.
+/// resolve() settles with an empty JSON body, matching a sync void handler.
 template <>
 class Completer<void>
 {
@@ -116,6 +118,7 @@ struct EmptyValue
     static void reflect(Reflector&) {}
 };
 
+/// Thrown by CommandTable::dispatch for a name with no handler.
 class UnknownCommandError : public std::runtime_error
 {
 public:
@@ -225,6 +228,7 @@ std::function<void(const JSON&, Resolve)>
 
 } // namespace Detail
 
+/// Holds no lock: register every handler before dispatching from another thread. Sync handlers run on the dispatching thread.
 class CommandTable
 {
 public:
@@ -243,6 +247,7 @@ public:
         return Detail::makeJsonAdapter<Detail::InfoFor<Req, Res>>(handler);
     }
 
+    /// Registering a name again replaces its handler.
     template <typename Req, typename Res>
     void on(const std::string& command, const TypedHandler<Req, Res>& handler)
     {
@@ -281,17 +286,17 @@ public:
         registerHandler(command, handler);
     }
 
-    // Handler that receives the Resolve continuation (by value, so it can
-    // outlive dispatchAsync) instead of returning a value. Settled later
-    // by the handler — see Completer / onAsync.
+    /// Handler that receives the Resolve continuation (by value, so it can
+    /// outlive dispatchAsync) instead of returning a value. Settled later
+    /// by the handler — see Completer / onAsync.
     using AsyncRawHandler =
         std::function<void(const JSON& payload, Resolve resolve)>;
 
-    // Registers an async command: the handler owns its own threading and
-    // settles the supplied Completer whenever it is ready (from any thread,
-    // possibly long after returning). The command's Req/Res — and therefore
-    // its wire format and generated TypeScript — are identical to the sync
-    // form; only the C++ handler shape differs.
+    /// Registers an async command: the handler owns its own threading and
+    /// settles the supplied Completer whenever it is ready (from any thread,
+    /// possibly long after returning). The command's Req/Res — and therefore
+    /// its wire format and generated TypeScript — are identical to the sync
+    /// form; only the C++ handler shape differs.
     template <typename Req, typename Res>
     void onAsync(const std::string& command,
                  const std::function<void(const Req&, Completer<Res>)>& handler)
@@ -317,14 +322,15 @@ public:
 
     bool has(std::string_view command) const;
 
+    /// Throws UnknownCommandError for an unknown name, std::runtime_error for an async command, and whatever the handler throws.
     JSON dispatch(std::string_view command, const JSON& payload) const;
 
-    // Completion-based dispatch: runs the (synchronous) handler and
-    // reports the outcome through `resolve` — the result on success, or
-    // the message of any thrown exception (including an unknown command)
-    // as the error. Miro never blocks or threads here; a transport that
-    // wants the call to be asynchronous controls that by where it invokes
-    // dispatchAsync and what its Resolve does (see eacp's WebViewBridge).
+    /// Completion-based dispatch: runs the (synchronous) handler and
+    /// reports the outcome through `resolve` — the result on success, or
+    /// the message of any thrown exception (including an unknown command)
+    /// as the error. Miro never blocks or threads here; a transport that
+    /// wants the call to be asynchronous controls that by where it invokes
+    /// dispatchAsync and what its Resolve does (see eacp's WebViewBridge).
     void dispatchAsync(std::string_view command,
                        const JSON& payload,
                        const Resolve& resolve) const;

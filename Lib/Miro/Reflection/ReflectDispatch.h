@@ -1,5 +1,7 @@
 #pragma once
 
+/** @file The reflectValue overloads that route each value type to its Reflector calls, and the Reflectable concept. */
+
 #include "Omittable.h"
 #include "Reflector.h"
 #include "TypeName.h"
@@ -362,13 +364,13 @@ concept HasReflectValue =
 namespace Miro
 {
 
-// Property/Element dispatch the value through an unqualified call to
-// `reflectValue`, with `using Detail::reflectValue` bringing the built-in
-// overloads into scope. Two-phase lookup for unqualified dependent calls
-// re-runs ADL at instantiation on the argument types, so users can teach
-// Miro about a new primitive (e.g. juce::String) by adding a free
-// `reflectValue(Reflector&, T&)` overload in namespace `Miro` or in `T`'s
-// own namespace, even after <Miro/Miro.h> has been included.
+/// Property/Element dispatch the value through an unqualified call to
+/// `reflectValue`, with `using Detail::reflectValue` bringing the built-in
+/// overloads into scope. Two-phase lookup for unqualified dependent calls
+/// re-runs ADL at instantiation on the argument types, so users can teach
+/// Miro about a new primitive (e.g. juce::String) by adding a free
+/// `reflectValue(Reflector&, T&)` overload in namespace `Miro` or in `T`'s
+/// own namespace, even after <Miro/Miro.h> has been included.
 template <typename T>
 void Property::operator()(T& value)
 {
@@ -387,6 +389,7 @@ void Element::operator()(T& value)
         value);
 }
 
+/// Satisfied by every type Miro can reflect, built-in or added by the user.
 template <typename T>
 concept Reflectable = Detail::HasReflectValue<T>;
 
