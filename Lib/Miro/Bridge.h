@@ -1,8 +1,9 @@
 #pragma once
 
-// Entry header: the runtime command/event bridge — Bridge,
-// ApiReflector, Event, CommandTable, Completer. The codegen-side
-// machinery (DescribeReflector, exporters) lives in <Miro/Codegen.h>.
+/** @file
+    Entry header for the runtime command and event bridge: Bridge,
+    ApiReflector, Event, CommandTable and Completer. Codegen-side pieces
+    (DescribeReflector, the exporters) are in `<Miro/Codegen.h>`. */
 
 #include "Bridge/ApiReflector.h"
 #include "Bridge/BindReflector.h"

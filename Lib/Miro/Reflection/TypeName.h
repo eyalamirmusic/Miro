@@ -1,5 +1,7 @@
 #pragma once
 
+/** @file Compile-time type and member names taken from the compiler's function signature. */
+
 #include <array>
 #include <string_view>
 

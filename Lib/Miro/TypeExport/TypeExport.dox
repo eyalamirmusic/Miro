@@ -1,0 +1,13 @@
+/** @dir Lib/Miro/TypeExport
+    The codegen runner (namespace Miro::TypeExport), included through
+    `<Miro/Codegen.h>`.
+
+    - codegenMain<Api...>(argc, argv) is the whole main() of a codegen
+      executable: it walks each API class's reflect() and writes one file
+      per requested format.
+    - Formats register themselves at static-init time with registerFormat;
+      the built-in ones are zod, ts, backend, ts-server, bridge, events,
+      jsonschema, openai-tools, cpp, cpp-miro and cpp-client.
+    - A Format renders from a Context: the commands, events and type nodes
+      collected from the API classes.
+*/

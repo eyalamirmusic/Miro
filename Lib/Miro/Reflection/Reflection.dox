@@ -1,0 +1,15 @@
+/** @dir Lib/Miro/Reflection
+    Reflection and serialization (namespace Miro), included through
+    `<Miro/Reflect.h>`.
+
+    - A type is reflectable when it has a reflect(Reflector&) member; the
+      MIRO_REFLECT macros write one from a list of fields.
+    - toJSON, fromJSON, toJSONString and createFromJSONString (Serialize.h)
+      convert to and from JSON; SerializeXml.h is the XML twin.
+    - Loading never throws: malformed input or a missing or mistyped field
+      leaves that field at its prior value, so check the result where bad
+      input matters. Json::parse, by contrast, throws on malformed text.
+    - Enums, containers, std::optional, Omittable, std::variant and tagged
+      unions are covered by the headers here; Reflector is the visitor every
+      serializer and schema walker implements.
+*/

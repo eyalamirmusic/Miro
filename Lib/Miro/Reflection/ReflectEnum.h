@@ -1,5 +1,7 @@
 #pragma once
 
+/** @file Enum reflection by probing enumerator names at compile time: lookup both ways, and name or integer wire formats. */
+
 #include "../Detail/StringUtilities.h"
 #include "Reflector.h"
 #include "TypeName.h"
@@ -16,14 +18,14 @@
 namespace Miro
 {
 
-// Specialize this to shrink or extend the probed enumerator range for a
-// given enum type. The default covers [-128, 127].
-//
-// Note: an unscoped enum without a fixed underlying type
-// (e.g. `enum Foo { ... }`) has a value range determined by its
-// enumerators, and casting out-of-range values in a constant expression
-// is UB. Give such enums an explicit base (`enum Foo : int { ... }`) or
-// use `enum class` to reflect them.
+/// Specialize this to shrink or extend the probed enumerator range for a
+/// given enum type. The default covers [-128, 127].
+///
+/// Note: an unscoped enum without a fixed underlying type
+/// (e.g. `enum Foo { ... }`) has a value range determined by its
+/// enumerators, and casting out-of-range values in a constant expression
+/// is UB. Give such enums an explicit base (`enum Foo : int { ... }`) or
+/// use `enum class` to reflect them.
 template <typename E>
 struct EnumRange
 {
@@ -31,21 +33,23 @@ struct EnumRange
     static constexpr int maxValue = 127;
 };
 
-// Specialize this to change how a given enum type is written. By
-// default an enum saves as its enumerator name (a JSON string), which
-// is the readable choice for a format you own. Set `integer` to true
-// for wire formats that spell enums as numbers — Discord's
-// `{"type": 1}`, most REST APIs with numeric kind fields — and the enum
-// saves as its underlying value instead:
-//
-//   template <>
-//   struct Miro::EnumFormat<Discord::ChannelType>
-//   {
-//       static constexpr bool integer = true;
-//   };
-//
-// Loading is unaffected either way: a number and an enumerator name are
-// both accepted whatever the save format is.
+/// Specialize this to change how a given enum type is written. By
+/// default an enum saves as its enumerator name (a JSON string), which
+/// is the readable choice for a format you own. Set `integer` to true
+/// for wire formats that spell enums as numbers — Discord's
+/// `{"type": 1}`, most REST APIs with numeric kind fields — and the enum
+/// saves as its underlying value instead:
+///
+/// @code
+///   template <>
+///   struct Miro::EnumFormat<Discord::ChannelType>
+///   {
+///       static constexpr bool integer = true;
+///   };
+/// @endcode
+///
+/// Loading is unaffected either way: a number and an enumerator name are
+/// both accepted whatever the save format is.
 template <typename E>
 struct EnumFormat
 {
@@ -157,6 +161,7 @@ inline constexpr auto enumTable = buildEnumTable<E, EnumRange<E>::minValue>(
 
 } // namespace Detail
 
+/// Returns an empty view for a value with no enumerator inside EnumRange.
 template <typename E>
     requires std::is_enum_v<E>
 constexpr std::string_view enumToString(E value)
@@ -168,6 +173,7 @@ constexpr std::string_view enumToString(E value)
     return {};
 }
 
+/// Matches the exact C++ enumerator spelling; returns nothing otherwise.
 template <typename E>
     requires std::is_enum_v<E>
 constexpr std::optional<E> enumFromString(std::string_view str)
@@ -179,6 +185,7 @@ constexpr std::optional<E> enumFromString(std::string_view str)
     return std::nullopt;
 }
 
+/// Only enumerators inside EnumRange are found.
 template <typename E>
     requires std::is_enum_v<E>
 Vector<std::string_view> enumNames()
@@ -192,9 +199,9 @@ Vector<std::string_view> enumNames()
     return names;
 }
 
-// enumNames() plus the number behind each name. Used by the schema walk
-// for integer-format enums, where a renderer needs both halves to emit
-// something like `enum ChannelType { guildText = 0, dm = 1 }`.
+/// enumNames() plus the number behind each name. Used by the schema walk
+/// for integer-format enums, where a renderer needs both halves to emit
+/// something like `enum ChannelType { guildText = 0, dm = 1 }`.
 template <typename E>
     requires std::is_enum_v<E>
 Vector<EnumEntry> enumEntries()
@@ -305,12 +312,12 @@ void reflectValue(Reflector& ref, T& value)
 } // namespace Detail
 } // namespace Miro
 
-// Non-intrusive one-liner for the EnumFormat specialization above, in
-// the spirit of MIRO_REFLECT_EXTERNAL: place it at global scope once the
-// enum is declared, and the type saves as its integer value everywhere
-// it appears — on its own, inside a vector, an optional or a map value.
-//
-//   MIRO_ENUM_AS_INTEGER(Discord::ChannelType)
+/// Non-intrusive one-liner for the EnumFormat specialization above, in
+/// the spirit of MIRO_REFLECT_EXTERNAL: place it at global scope once the
+/// enum is declared, and the type saves as its integer value everywhere
+/// it appears — on its own, inside a vector, an optional or a map value.
+///
+///   MIRO_ENUM_AS_INTEGER(Discord::ChannelType)
 #define MIRO_ENUM_AS_INTEGER(Type)                                                  \
     namespace Miro                                                                  \
     {                                                                               \

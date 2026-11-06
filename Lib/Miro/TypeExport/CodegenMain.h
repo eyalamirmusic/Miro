@@ -1,22 +1,26 @@
 #pragma once
 
-// Templated main() body for codegen executables. Each API class is
-// default-constructed, walked via its reflect(ApiReflector&) into a
-// local DescribeReflector, and the resulting commands + events +
-// TypeNodes feed the Format pipeline.
-//
-// A consumer's codegen TU is typically two lines:
-//
-//   #include <Miro/Miro.h>
-//   #include "TodoApi.h"
-//
-//   int main(int argc, char** argv)
-//   {
-//       return Miro::TypeExport::codegenMain<Api::Todos>(argc, argv);
-//   }
-//
-// The API class's reflect() body is the single source of truth — no
-// static-init registries, no WHOLE_ARCHIVE.
+/** @file
+    The main() of a codegen executable and the steps under it.
+
+    Templated main() body for codegen executables. Each API class is
+    default-constructed, walked via its reflect(ApiReflector&) into a
+    local DescribeReflector, and the resulting commands + events +
+    TypeNodes feed the Format pipeline.
+
+    A consumer's codegen TU is typically two lines:
+
+      \#include <Miro/Miro.h>
+      \#include "TodoApi.h"
+
+      int main(int argc, char** argv)
+      {
+          return Miro::TypeExport::codegenMain<Api::Todos>(argc, argv);
+      }
+
+    The API class's reflect() body is the single source of truth — no
+    static-init registries, no WHOLE_ARCHIVE.
+*/
 
 #include "../Bridge/DescribeReflector.h"
 #include "../CommandExport/CommandEntry.h"
@@ -30,10 +34,10 @@
 namespace Miro::TypeExport
 {
 
-// Parsed --out / --name / --format arguments for a codegen run.
-// outDir is a plain string in the public API to keep ghc::filesystem
-// out of the umbrella header — the .cpp converts to a filesystem path
-// when actually performing I/O.
+/// Parsed --out / --name / --format arguments for a codegen run.
+/// outDir is a plain string in the public API to keep ghc::filesystem
+/// out of the umbrella header — the .cpp converts to a filesystem path
+/// when actually performing I/O.
 struct CodegenArgs
 {
     std::string outDir;
@@ -42,41 +46,43 @@ struct CodegenArgs
     bool valid = false;
 };
 
+/// Prints usage to stderr and leaves valid false on an unknown argument or
+/// a missing --out. No --format means every registered format.
 CodegenArgs parseCodegenArgs(int argc, char** argv);
 
-// Translates DescribeReflector's CommandRecord shape (strings only)
-// into CommandExport::CommandEntry, the shape the existing Format
-// functors consume. The runtime thunk is left empty — describe mode
-// doesn't dispatch, only emits.
+/// Translates DescribeReflector's CommandRecord shape (strings only)
+/// into CommandExport::CommandEntry, the shape the existing Format
+/// functors consume. The runtime thunk is left empty — describe mode
+/// doesn't dispatch, only emits.
 Vector<CommandExport::CommandEntry> toCommandEntries(
     const Vector<Miro::Detail::DescribeReflector::CommandRecord>& records);
 
-// Translates DescribeReflector's EventRecord shape into the Miro::
-// EventInfo entries Context::events carries. Keyed metadata stays
-// default (Phase E adds ApiReflector::keyedEvent).
+/// Translates DescribeReflector's EventRecord shape into the Miro::
+/// EventInfo entries Context::events carries. Keyed metadata stays
+/// default (Phase E adds ApiReflector::keyedEvent).
 Vector<EventInfo> toEventInfos(
     const Vector<Miro::Detail::DescribeReflector::EventRecord>& records);
 
-// Filename + contents pair for one emitted artifact. runFormatsToMemory
-// returns these so tests can inspect output without touching the
-// filesystem.
+/// Filename + contents pair for one emitted artifact. runFormatsToMemory
+/// returns these so tests can inspect output without touching the
+/// filesystem.
 struct EmittedFile
 {
     std::string filename;
     std::string contents;
 };
 
-// Runs every requested format against ctx, returning the (filename,
-// contents) pairs in registry order. The static-init main and
-// codegenMain both delegate to this — the only difference between
-// them is how ctx was sourced.
+/// Runs every requested format against ctx, returning the (filename,
+/// contents) pairs in registry order. The static-init main and
+/// codegenMain both delegate to this — the only difference between
+/// them is how ctx was sourced.
 Vector<EmittedFile> runFormatsToMemory(const Context& ctx,
                                        const Vector<std::string>& requestedFormats);
 
-// Writes each EmittedFile under outDir; creates the directory if it
-// doesn't exist. Removes orphans for formats present in the registry
-// but absent from the current run's requested set (same semantics as
-// the existing Main.cpp cleanup).
+/// Writes each EmittedFile under outDir; creates the directory if it
+/// doesn't exist. Removes orphans for formats present in the registry
+/// but absent from the current run's requested set (same semantics as
+/// the existing Main.cpp cleanup).
 void writeEmittedFiles(const std::string& outDir,
                        const std::string& baseName,
                        const Vector<EmittedFile>& files,
@@ -85,10 +91,10 @@ void writeEmittedFiles(const std::string& outDir,
 namespace Detail
 {
 
-// Default-constructs each Api and walks its reflect() into the
-// supplied DescribeReflector. Order matches the parameter pack —
-// commands and events appear in the order their owning APIs are
-// listed at the codegenMain<...> call site.
+/// Default-constructs each Api and walks its reflect() into the
+/// supplied DescribeReflector. Order matches the parameter pack —
+/// commands and events appear in the order their owning APIs are
+/// listed at the codegenMain<...> call site.
 template <typename... Apis>
 void describeAll(Miro::Detail::DescribeReflector& r)
 {
@@ -103,9 +109,9 @@ void describeAll(Miro::Detail::DescribeReflector& r)
 
 } // namespace Detail
 
-// In-memory codegen entry point. Walks the listed APIs, then runs the
-// format pipeline against the gathered data. Tests use this; the
-// templated codegenMain wraps it with arg parsing and file I/O.
+/// In-memory codegen entry point. Walks the listed APIs, then runs the
+/// format pipeline against the gathered data. Tests use this; the
+/// templated codegenMain wraps it with arg parsing and file I/O.
 template <typename... Apis>
 Vector<EmittedFile> buildCodegen(std::string_view baseName,
                                  const Vector<std::string>& requestedFormats)
@@ -133,9 +139,9 @@ Vector<EmittedFile> buildCodegen(std::string_view baseName,
     return runFormatsToMemory(ctx, requestedFormats);
 }
 
-// Full main(): parses args, walks the APIs, runs the format pipeline,
-// writes one file per requested format, removes orphans. Returns the
-// exit code the executable should propagate.
+/// Full main(): parses args, walks the APIs, runs the format pipeline,
+/// writes one file per requested format, removes orphans. Returns the
+/// exit code the executable should propagate.
 template <typename... Apis>
 int codegenMain(int argc, char** argv)
 {

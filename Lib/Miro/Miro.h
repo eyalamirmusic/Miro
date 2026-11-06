@@ -1,16 +1,18 @@
 #pragma once
 
-// Umbrella header — pulls in every public Miro entry point. Kept for
-// backwards compatibility; new code can include just the layers it
-// needs:
-//
-//   <Miro/Json.h>    — raw JSON value type, parse / print
-//   <Miro/Reflect.h> — reflection + JSON serialization (toJSON / fromJSON)
-//   <Miro/Xml.h>     — XML value type + XML serialization
-//   <Miro/Bridge.h>  — runtime command/event bridge
-//   <Miro/Codegen.h> — type-export / codegen toolchain
-//   <Miro/OpenAI.h>  — OpenAI function tools over a reflected API
-//   <Miro/Unicode.h> — Unicode character properties + UTF-8
+/** @file
+    Miro: C++20 reflection and what is built on it (namespace Miro). This
+    umbrella header pulls in every public entry point and is kept for
+    backwards compatibility; new code includes just the layer it needs:
+
+    - `<Miro/Json.h>`: the raw JSON value type, parse and print
+    - `<Miro/Reflect.h>`: reflection and JSON serialization (toJSON, fromJSON)
+    - `<Miro/Xml.h>`: the XML value type and XML serialization
+    - `<Miro/Bridge.h>`: the runtime command and event bridge
+    - `<Miro/Codegen.h>`: the type-export and codegen toolchain
+    - `<Miro/OpenAI.h>`: OpenAI function tools over a reflected API
+    - `<Miro/Unicode.h>`: Unicode character properties and UTF-8
+*/
 
 #include "Bridge.h"
 #include "Codegen.h"

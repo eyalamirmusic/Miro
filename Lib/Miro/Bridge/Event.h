@@ -1,51 +1,53 @@
 #pragma once
 
-// Typed event sources for the API-reflection layer.
-//
-// An event is the in-class declaration of a push-only channel: it owns
-// (or refers to) the latest payload and exposes an EA::Broadcaster that
-// listeners attach to. Transports bound via Bridge::use(api) subscribe
-// to broadcaster() and forward snapshot() over the wire.
-//
-// Two storage flavours, same shape:
-//
-//   Event<T>     — owns its own T. The API class calls publish(T) after
-//                  each mutation; the event copies the value in and
-//                  triggers. Use when the event is the canonical home
-//                  of the state.
-//
-//   RefEvent<T>  — non-owning; constructed with a T& to externally
-//                  owned state. snapshot() reads through the ref;
-//                  publish() only triggers (the API mutates its own T
-//                  directly, then signals). Use when the API class
-//                  already holds the state and you don't want a second
-//                  copy living in the event.
-//
-//   class Todos
-//   {
-//   public:
-//       Todos() : changes(state) {}
-//
-//       void addTodo(const AddRequest& r)
-//       {
-//           state.items.create(...);
-//           changes.publish();   // ref'd state already updated
-//       }
-//
-//       TodoState state;
-//       Miro::RefEvent<TodoState> changes;
-//   };
-//
-// Both types satisfy the duck-typed `EventLike` concept below — the
-// minimal interface ApiReflector / EventMemberInfo expect. New event
-// flavours (e.g. a future shared-state variant) just need to satisfy
-// EventLike and add a sibling EventMemberInfo specialization.
-//
-// Non-copyable / non-movable: listeners hold pointers into our
-// broadcaster, and RefEvent additionally holds a pointer into external
-// state, so silently relocating either side would break subscriptions
-// or dangle. Wrap in a Pimpl / hold by reference if you need to move
-// the owning class around.
+/** @file
+    Typed event sources for the API-reflection layer.
+
+    An event is the in-class declaration of a push-only channel: it owns
+    (or refers to) the latest payload and exposes an EA::Broadcaster that
+    listeners attach to. Transports bound via Bridge::use(api) subscribe
+    to broadcaster() and forward snapshot() over the wire.
+
+    Two storage flavours, same shape:
+
+      Event<T>     — owns its own T. The API class calls publish(T) after
+                     each mutation; the event copies the value in and
+                     triggers. Use when the event is the canonical home
+                     of the state.
+
+      RefEvent<T>  — non-owning; constructed with a T& to externally
+                     owned state. snapshot() reads through the ref;
+                     publish() only triggers (the API mutates its own T
+                     directly, then signals). Use when the API class
+                     already holds the state and you don't want a second
+                     copy living in the event.
+
+      class Todos
+      {
+      public:
+          Todos() : changes(state) {}
+
+          void addTodo(const AddRequest& r)
+          {
+              state.items.create(...);
+              changes.publish();   // ref'd state already updated
+          }
+
+          TodoState state;
+          Miro::RefEvent<TodoState> changes;
+      };
+
+    Both types satisfy the duck-typed `EventLike` concept below — the
+    minimal interface ApiReflector / EventMemberInfo expect. New event
+    flavours (e.g. a future shared-state variant) just need to satisfy
+    EventLike and add a sibling EventMemberInfo specialization.
+
+    Non-copyable / non-movable: listeners hold pointers into our
+    broadcaster, and RefEvent additionally holds a pointer into external
+    state, so silently relocating either side would break subscriptions
+    or dangle. Wrap in a Pimpl / hold by reference if you need to move
+    the owning class around.
+*/
 
 #include <ea_data_structures/Pointers/Broadcaster.h>
 
@@ -56,6 +58,8 @@
 namespace Miro
 {
 
+/// Owns the latest payload; publish(T) stores it and notifies listeners
+/// synchronously on the calling thread.
 template <typename T>
 class Event
 {
@@ -88,10 +92,10 @@ private:
     EA::Broadcaster bcast;
 };
 
-// Non-owning event: holds a reference into externally-owned state. The
-// referenced T must outlive this RefEvent — the natural pattern is to
-// declare the T member BEFORE the RefEvent member in the same class so
-// member-init order constructs the storage first.
+/// Non-owning event: holds a reference into externally-owned state. The
+/// referenced T must outlive this RefEvent — the natural pattern is to
+/// declare the T member BEFORE the RefEvent member in the same class so
+/// member-init order constructs the storage first.
 template <typename T>
 class RefEvent
 {
@@ -110,8 +114,8 @@ public:
 
     EA::Broadcaster& broadcaster() { return bcast; }
 
-    // Signals that the referenced state has changed. The user updates
-    // their owned T directly; this just triggers the broadcaster.
+    /// Signals that the referenced state has changed. The user updates
+    /// their owned T directly; this just triggers the broadcaster.
     void publish() { bcast.trigger(); }
 
 private:
@@ -119,9 +123,9 @@ private:
     EA::Broadcaster bcast;
 };
 
-// Duck-typed contract every event source must satisfy to be usable by
-// the reflector. New event flavours can be plugged in by satisfying
-// this concept and adding an EventMemberInfo specialization for them.
+/// Duck-typed contract every event source must satisfy to be usable by
+/// the reflector. New event flavours can be plugged in by satisfying
+/// this concept and adding an EventMemberInfo specialization for them.
 template <typename E>
 concept EventLike = requires(E& e, const E& ce) {
     { e.broadcaster() } -> std::same_as<EA::Broadcaster&>;

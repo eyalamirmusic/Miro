@@ -1,13 +1,9 @@
 #pragma once
 
-// Single header that pulls in the EA::data_structures types Miro depends
-// on and surfaces the most-used ones inside the Miro namespace as
-// Miro::Vector / Miro::Array / Miro::OwningPointer / Miro::OwnedVector.
-//
-// Everywhere in Lib/Miro that needs an EA container should include this
-// header (directly or transitively) instead of the individual EA headers,
-// so user TUs aren't forced to know the full ea_data_structures include
-// layout.
+/** @file
+    Pulls in the ea_data_structures types Miro uses and names the common
+    ones in namespace Miro (Vector, Array, OwningPointer, OwnedVector,
+    Variant). Include this rather than the individual EA headers. */
 
 #include <ea_data_structures/Pointers/OwningPointer.h>
 #include <ea_data_structures/Structures/Array.h>
