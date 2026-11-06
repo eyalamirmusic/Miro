@@ -387,3 +387,77 @@ auto printIndentedScalar = test("Print indented scalar") = []
     check(print(parse("true"), 4) == "true");
     check(print(parse("null"), 4) == "null");
 };
+
+namespace
+{
+
+struct ParseErrorHandlingSample
+{
+    void reflect(Reflector& ref) { ref["count"](count); }
+
+    int count = 0;
+};
+
+constexpr auto validSampleJson = R"({"count": 7})";
+constexpr auto malformedSampleJson = R"({"count": 7)";
+constexpr auto expectedSampleCount = 7;
+constexpr auto defaultSampleCount = 0;
+
+} // namespace
+
+auto createFromValidJsonByDefault =
+    test("createFromJSONString loads valid JSON by default") = []
+{
+    auto sample = createFromJSONString<ParseErrorHandlingSample>(validSampleJson);
+    check(sample.count == expectedSampleCount);
+};
+
+auto createFromValidJsonWithThrow =
+    test("createFromJSONString with Throw loads valid JSON") = []
+{
+    auto sample =
+        createFromJSONString<ParseErrorHandlingSample, ParseErrorHandling::Throw>(
+            validSampleJson);
+    check(sample.count == expectedSampleCount);
+};
+
+auto tryCreateFromValidJson = test("tryCreateFromJSONString loads valid JSON") = []
+{
+    auto sample = tryCreateFromJSONString<ParseErrorHandlingSample>(validSampleJson);
+    check(sample.has_value());
+    check(sample->count == expectedSampleCount);
+};
+
+auto createFromMalformedJsonByDefault =
+    test("createFromJSONString default-constructs on malformed JSON") = []
+{
+    auto sample =
+        createFromJSONString<ParseErrorHandlingSample>(malformedSampleJson);
+    check(sample.count == defaultSampleCount);
+};
+
+auto createFromMalformedJsonWithThrow =
+    test("createFromJSONString with Throw throws ParseError on malformed JSON") = []
+{
+    auto threwParseError = false;
+
+    try
+    {
+        createFromJSONString<ParseErrorHandlingSample, ParseErrorHandling::Throw>(
+            malformedSampleJson);
+    }
+    catch (const ParseError&)
+    {
+        threwParseError = true;
+    }
+
+    check(threwParseError);
+};
+
+auto tryCreateFromMalformedJson =
+    test("tryCreateFromJSONString returns nullopt on malformed JSON") = []
+{
+    auto sample =
+        tryCreateFromJSONString<ParseErrorHandlingSample>(malformedSampleJson);
+    check(!sample.has_value());
+};
