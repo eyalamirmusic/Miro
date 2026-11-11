@@ -2,6 +2,7 @@
 
 #include "../Containers.h"
 
+#include <cassert>
 #include <cstddef>
 #include <cstdint>
 #include <span>
@@ -38,6 +39,8 @@ struct Property
     //   ref["fieldTwo"].legacy("field2")(fieldTwo);
     Property legacy(std::string_view previousKey) const
     {
+        assert(legacyKey.empty()
+               && "Only one legacy key per field is supported: call legacy() once");
         return {reflector, key, previousKey, description};
     }
 
