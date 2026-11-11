@@ -104,6 +104,32 @@ print(id);        // "9007199254740993"
 
 Printing round-trips. Integers print in full, and a `double` prints in the shortest form that reads back as the same `double` — `print(parse("3.141592653589793"))` is `3.141592653589793`, not a six-digit approximation. A `double` with no fractional part that fits in `int64` prints without a decimal point, and infinity and NaN print as `null`, having no JSON spelling of their own.
 
+### Print and parse options
+
+`print` and `parse` (and `getParsedValue`) each have an overload taking an options struct. Every option is off by default, and a default-constructed struct behaves exactly like the plain call.
+
+```cpp
+auto printOptions = PrintOptions {};
+printOptions.indent = 0;                    // spaces per level, as print(value, n)
+printOptions.breakLines = true;             // one member per line, even at indent 0
+printOptions.keepDoublesAsDoubles = true;   // 1.0 prints as "1.0", -0.0 as "-0.0"
+
+auto text = print(value, printOptions);
+
+auto parseOptions = ParseOptions {};
+parseOptions.allowComments = false;         // a comment is a ParseError
+parseOptions.duplicateKeys = ParseOptions::DuplicateKeys::keepLast; // default keepFirst
+parseOptions.endAtNul = true;               // the input ends at its first NUL byte
+
+auto parsed = parse(text, parseOptions);
+```
+
+- `breakLines` is the indented layout with an indent of zero: each member and element on its own line, `"key": value`, empty containers as `[]` / `{}`.
+- `keepDoublesAsDoubles` gives a `double` with an integral value a fractional part or an exponent (`1.0`, `-0.0`, `1e+20`), so it parses back as the same `double`, bit for bit. Integers, non-integral doubles and non-finite values print as they otherwise would.
+- By default comments (`//` and `/* */`) are accepted wherever whitespace is, the first of a repeated key wins, and a NUL byte outside a string is a `ParseError`.
+
+They compose with the reflection layer: `print(toJSON(v), printOptions)` and `fromJSON(v, parse(text, parseOptions))`.
+
 ## The reflection layer
 
 Define a `reflect(Miro::Reflector&)` method on your type, binding each field to a key. The same function handles both saving and loading.

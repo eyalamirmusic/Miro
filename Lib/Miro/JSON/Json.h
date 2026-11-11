@@ -154,15 +154,58 @@ const Value* find(const Object& object, std::string_view key);
 // reject null when loading an object-shaped Req.
 Value payloadOrEmpty(const Value& payload);
 
+// Opt-in parser behaviour. A default-constructed ParseOptions parses
+// exactly as parse(text) does.
+struct ParseOptions
+{
+    enum class DuplicateKeys
+    {
+        keepFirst,
+        keepLast
+    };
+
+    // false makes a comment a ParseError.
+    bool allowComments = true;
+
+    // Which value a key repeated within one object keeps.
+    DuplicateKeys duplicateKeys = DuplicateKeys::keepFirst;
+
+    // true ends the input at its first NUL byte, as if it were a C
+    // string. Otherwise a NUL outside a string is a ParseError.
+    bool endAtNul = false;
+};
+
+// Opt-in printer behaviour. A default-constructed PrintOptions prints
+// exactly as print(value) does, and {.indent = n} as print(value, n).
+struct PrintOptions
+{
+    // Spaces per nesting level. Above 0, every member and element goes
+    // on its own line.
+    int indent = 0;
+
+    // Puts every member and element on its own line even at indent 0:
+    // the indented layout with no leading spaces.
+    bool breakLines = false;
+
+    // A finite double with an integral value prints with a fractional
+    // part or an exponent (1.0, -0.0, 1e+20) rather than as an integer
+    // token, so it parses back as the same double, sign of zero
+    // included.
+    bool keepDoublesAsDoubles = false;
+};
+
 Value parse(std::string_view inputToUse);
+Value parse(std::string_view inputToUse, const ParseOptions& optionsToUse);
 
 // Like parse(), but never throws. On malformed input it catches the
 // ParseError (and any other exception) internally and returns a null
 // Value instead. Use this at boundaries where a default-constructed
 // result is preferable to handling a thrown ParseError.
 Value getParsedValue(std::string_view inputToUse);
+Value getParsedValue(std::string_view inputToUse, const ParseOptions& optionsToUse);
 
 std::string print(const Value& valueToUse, int indentToUse = 0);
+std::string print(const Value& valueToUse, const PrintOptions& optionsToUse);
 void log(const Value& valueToUse, int indentToUse = 0);
 } // namespace Miro::Json
 
