@@ -10,11 +10,14 @@ namespace Miro::Json
 class Parser
 {
 public:
-    explicit Parser(std::string_view inputToUse)
+    Parser(std::string_view inputToUse, const ParseOptions& optionsToUse)
         : input(inputToUse.data())
         , end(inputToUse.data() + inputToUse.size())
         , pos(inputToUse.data())
+        , options(optionsToUse)
     {
+        if (options.endAtNul)
+            end = input + inputToUse.substr(0, inputToUse.find('\0')).size();
     }
 
     Value parseValue()
@@ -63,6 +66,9 @@ public:
     {
         if (remaining() < 2 || (pos[1] != '/' && pos[1] != '*'))
             error("unexpected character '/'");
+
+        if (!options.allowComments)
+            error("comments are not allowed");
 
         if (pos[1] == '/')
             skipLineComment();
@@ -404,7 +410,12 @@ private:
         skipWhitespaceAndComments();
         expect(':');
         auto value = parseValue();
-        entries.emplace(std::move(key), std::move(value));
+
+        if (options.duplicateKeys == ParseOptions::DuplicateKeys::KeepLast)
+            entries.insert_or_assign(std::move(key), std::move(value));
+        else
+            entries.emplace(std::move(key), std::move(value));
+
         skipWhitespaceAndComments();
     }
 
@@ -493,11 +504,12 @@ private:
     const char* input;
     const char* end;
     const char* pos;
+    ParseOptions options;
 };
 
-Value parse(std::string_view inputToUse)
+Value parse(std::string_view inputToUse, const ParseOptions& optionsToUse)
 {
-    auto parser = Parser(inputToUse);
+    auto parser = Parser(inputToUse, optionsToUse);
     auto result = parser.parseValue();
     parser.skipWhitespaceAndComments();
 
@@ -507,11 +519,11 @@ Value parse(std::string_view inputToUse)
     return result;
 }
 
-Value getParsedValue(std::string_view inputToUse)
+Value getParsedValue(std::string_view inputToUse, const ParseOptions& optionsToUse)
 {
     try
     {
-        return parse(inputToUse);
+        return parse(inputToUse, optionsToUse);
     }
     catch (...)
     {
