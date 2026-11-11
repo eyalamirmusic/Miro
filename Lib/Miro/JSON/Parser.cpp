@@ -410,7 +410,8 @@ private:
         skipWhitespaceAndComments();
         expect(':');
         auto value = parseValue();
-        if (options.duplicateKeys == ParseOptions::DuplicateKeys::keepLast)
+
+        if (options.duplicateKeys == ParseOptions::DuplicateKeys::KeepLast)
             entries.insert_or_assign(std::move(key), std::move(value));
         else
             entries.emplace(std::move(key), std::move(value));
@@ -508,10 +509,10 @@ private:
 
 Value parse(std::string_view inputToUse)
 {
-    return parse(inputToUse, ParseOptions {});
+    return parseWithOptions(inputToUse, ParseOptions {});
 }
 
-Value parse(std::string_view inputToUse, const ParseOptions& optionsToUse)
+Value parseWithOptions(std::string_view inputToUse, const ParseOptions& optionsToUse)
 {
     auto parser = Parser(inputToUse, optionsToUse);
     auto result = parser.parseValue();
@@ -525,14 +526,15 @@ Value parse(std::string_view inputToUse, const ParseOptions& optionsToUse)
 
 Value getParsedValue(std::string_view inputToUse)
 {
-    return getParsedValue(inputToUse, ParseOptions {});
+    return getParsedValueWithOptions(inputToUse, ParseOptions {});
 }
 
-Value getParsedValue(std::string_view inputToUse, const ParseOptions& optionsToUse)
+Value getParsedValueWithOptions(std::string_view inputToUse,
+                                const ParseOptions& optionsToUse)
 {
     try
     {
-        return parse(inputToUse, optionsToUse);
+        return parseWithOptions(inputToUse, optionsToUse);
     }
     catch (...)
     {

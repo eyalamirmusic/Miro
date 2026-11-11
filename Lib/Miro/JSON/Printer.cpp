@@ -248,10 +248,11 @@ std::string print(const Value& valueToUse, int indentToUse)
 {
     auto options = PrintOptions {};
     options.indent = indentToUse;
-    return print(valueToUse, options);
+    return printWithOptions(valueToUse, options);
 }
 
-std::string print(const Value& valueToUse, const PrintOptions& optionsToUse)
+std::string printWithOptions(const Value& valueToUse,
+                             const PrintOptions& optionsToUse)
 {
     auto result = std::string {};
     printTo(result, valueToUse, optionsToUse, 0);

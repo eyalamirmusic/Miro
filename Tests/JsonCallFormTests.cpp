@@ -5,8 +5,12 @@
 #include <Miro/Miro.h>
 #include <NanoTest/NanoTest.h>
 
+#include <algorithm>
+#include <functional>
+#include <iterator>
 #include <string>
 #include <string_view>
+#include <vector>
 
 using namespace nano;
 
@@ -68,6 +72,57 @@ auto printCallForms = test("Call forms: print") = []
     check(Miro::Json::print(value, indent) == Miro::Json::print(value, 2));
     check(Miro::Json::print(value, 0) == R"({"x":[1]})");
     check(Miro::Json::print(value, {}) == R"({"x":[1]})");
+};
+
+auto moreIndentArgumentForms = test("Call forms: other indent arguments") = []
+{
+    const auto value = Miro::Json::parse("[1]");
+    const auto someLong = 2L;
+
+// Braces around the indent are legal and must keep compiling; Clang
+// only flags them as unusual style.
+#ifdef __clang__
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wbraced-scalar-init"
+#endif
+    check(Miro::Json::print(value, {2}) == "[\n  1\n]");
+#ifdef __clang__
+#pragma clang diagnostic pop
+#endif
+    check(Miro::Json::print(value, true) == "[\n 1\n]");
+    check(Miro::Json::print(value, someLong) == "[\n  1\n]");
+};
+
+auto functionValueForms = test("Call forms: the functions used as values") = []
+{
+    auto parseAddress = &Miro::Json::parse;
+    check(parseAddress("3").asInteger() == 3);
+
+    auto getParsedValueAddress = &Miro::Json::getParsedValue;
+    check(getParsedValueAddress("{").isNull());
+
+    auto printAddress = &Miro::Json::print;
+    check(printAddress(Miro::JSON {1}, 0) == "1");
+
+    std::function<std::string(const Miro::Json::Value&, int)> printFunction =
+        Miro::Json::print;
+    check(printFunction(Miro::JSON {1}, 0) == "1");
+
+    std::function<Miro::Json::Value(std::string_view)> parseFunction =
+        Miro::Json::parse;
+    check(parseFunction("[]").isArray());
+
+    auto texts = std::vector<std::string> {"1", "oops", "[2]"};
+    auto values = std::vector<Miro::Json::Value> {};
+    std::transform(texts.begin(),
+                   texts.end(),
+                   std::back_inserter(values),
+                   Miro::Json::getParsedValue);
+
+    check(values.size() == 3);
+    check(values[0].asInteger() == 1);
+    check(values[1].isNull());
+    check(values[2][0].asInteger() == 2);
 };
 
 auto unqualifiedCallForms = test("Call forms: unqualified through ADL") = []
