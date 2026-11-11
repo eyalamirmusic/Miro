@@ -11,6 +11,9 @@ nano_add_executable(MiroTests SOURCES
         JsonNumberReflectionTests.cpp
         JsonNumberLocaleTests.cpp
         JsonObjectTests.cpp
+        JsonDefaultsTests.cpp
+        JsonCallFormTests.cpp
+        JsonOptionsTests.cpp
         XmlTests.cpp
         ReflectorTests.cpp
         XmlReflectorTests.cpp
