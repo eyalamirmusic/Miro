@@ -384,7 +384,7 @@ namespace Miro
 // own namespace, even after <Miro/Miro.h> has been included.
 inline bool Property::isReadingLegacyKey() const
 {
-    return legacyKey.hasName() && reflector.isLoading() && !reflector.isSchema();
+    return !legacyKey.empty() && reflector.isLoading() && !reflector.isSchema();
 }
 
 template <typename T>
@@ -403,7 +403,7 @@ void Property::operator()(T& value)
         if (current.kind() != ValueKind::Absent)
             reflectValue(current, value);
         else
-            reflectValue(reflector.atKey(legacyKey.name, childOpts), value);
+            reflectValue(reflector.atKey(legacyKey, childOpts), value);
 
         return;
     }
