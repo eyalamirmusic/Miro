@@ -32,56 +32,72 @@ constexpr double calculateIntegerUpperBound()
     return bound;
 }
 
+template <std::integral T>
+bool isDoubleInIntegerRange(double value)
+{
+    constexpr auto upper = calculateIntegerUpperBound<T>();
+    constexpr auto lower = std::is_signed_v<T> ? -upper : 0.0;
+
+    // NaN fails both comparisons.
+    return value >= lower && value < upper;
+}
+
+template <std::floating_point T>
+bool isDoubleInFloatingRange(double value)
+{
+    if constexpr (sizeof(T) < sizeof(double))
+    {
+        constexpr auto largest = static_cast<double>(std::numeric_limits<T>::max());
+        return !std::isfinite(value) || std::fabs(value) <= largest;
+    }
+    else
+    {
+        return true;
+    }
+}
+
+// std::in_range refuses char types, which are valid fields.
+template <std::integral T>
+bool isInt64InIntegerRange(std::int64_t value)
+{
+    using Limits = std::numeric_limits<T>;
+
+    if constexpr (std::is_signed_v<T>)
+    {
+        return value >= static_cast<std::int64_t>(Limits::min())
+               && value <= static_cast<std::int64_t>(Limits::max());
+    }
+    else
+    {
+        const auto unsignedValue = static_cast<std::uint64_t>(value);
+        const auto largest = static_cast<std::uint64_t>(Limits::max());
+        return value >= 0 && unsignedValue <= largest;
+    }
+}
+
 template <typename T>
 bool convertNumber(double value, T& out)
 {
     if constexpr (std::integral<T>)
     {
-        constexpr auto upper = calculateIntegerUpperBound<T>();
-        constexpr auto lower = std::is_signed_v<T> ? -upper : 0.0;
-
-        // NaN fails both comparisons.
-        if (!(value >= lower && value < upper))
+        if (!isDoubleInIntegerRange<T>(value))
             return false;
-
-        out = static_cast<T>(value);
-        return true;
     }
-    else
+    else if (!isDoubleInFloatingRange<T>(value))
     {
-        if constexpr (sizeof(T) < sizeof(double))
-            if (std::isfinite(value)
-                && std::fabs(value)
-                       > static_cast<double>(std::numeric_limits<T>::max()))
-                return false;
-
-        out = static_cast<T>(value);
-        return true;
+        return false;
     }
+
+    out = static_cast<T>(value);
+    return true;
 }
 
 template <typename T>
 bool convertNumber(std::int64_t value, T& out)
 {
     if constexpr (std::integral<T>)
-    {
-        // std::in_range refuses char types, which are valid fields.
-        using Limits = std::numeric_limits<T>;
-
-        if constexpr (std::is_signed_v<T>)
-        {
-            if (value < static_cast<std::int64_t>(Limits::min())
-                || value > static_cast<std::int64_t>(Limits::max()))
-                return false;
-        }
-        else
-        {
-            if (value < 0
-                || static_cast<std::uint64_t>(value)
-                       > static_cast<std::uint64_t>(Limits::max()))
-                return false;
-        }
-    }
+        if (!isInt64InIntegerRange<T>(value))
+            return false;
 
     out = static_cast<T>(value);
     return true;

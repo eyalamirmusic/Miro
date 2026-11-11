@@ -2,6 +2,7 @@
 
 #include "../Containers.h"
 
+#include <concepts>
 #include <cstddef>
 #include <cstdint>
 #include <span>
@@ -13,6 +14,23 @@
 namespace Miro
 {
 class Reflector;
+
+// The name a field was saved under before it was renamed. Empty when the
+// field was never renamed.
+struct LegacyKey
+{
+    constexpr LegacyKey() = default;
+
+    template <std::convertible_to<std::string_view> Text>
+    constexpr LegacyKey(const Text& previousName)
+        : name(previousName)
+    {
+    }
+
+    constexpr bool hasName() const { return !name.empty(); }
+
+    std::string_view name;
+};
 
 struct Property
 {
@@ -36,7 +54,7 @@ struct Property
     // Saving and schema walks only ever see `key`.
     //
     //   ref["fieldTwo"].legacy("field2")(fieldTwo);
-    Property legacy(std::string_view previousKey) const
+    Property legacy(LegacyKey previousKey) const
     {
         return {reflector, key, previousKey, description};
     }
@@ -45,7 +63,7 @@ struct Property
 
     Reflector& reflector;
     std::string_view key;
-    std::string_view legacyKey {};
+    LegacyKey legacyKey {};
     std::string_view description {};
 };
 
