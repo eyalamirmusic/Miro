@@ -1083,3 +1083,93 @@ auto outOfRangeEnumRoundtrip =
 
     check(static_cast<int>(loaded.color) == 77);
 };
+
+// --- MIRO_REFLECT emits a template: the body is instantiated lazily ---
+//
+// The macro-generated reflect() is a constrained member template, so a
+// TU that merely defines (or includes) a reflected type pays nothing for
+// its fields until something actually reflects it. The proof is a type
+// with a field the dispatcher cannot handle: defining it compiles, and
+// the error only appears if a toJSON / fromJSON of it is ever written.
+
+namespace
+{
+struct NotReflectableAtAll
+{
+    int x = 0;
+};
+
+struct LazyBodyType
+{
+    NotReflectableAtAll broken;
+    int fine = 1;
+
+    MIRO_REFLECT(broken, fine)
+};
+
+// The concept checks the call, not the body: the template accepts any
+// Reflector-derived argument, so this still holds even though an actual
+// instantiation would fail on `broken`.
+static_assert(Reflectable<LazyBodyType>);
+static_assert(Detail::HasReflectMember<LazyBodyType>);
+
+struct EagerSiblingType
+{
+    int value = 3;
+
+    MIRO_REFLECT(value)
+};
+} // namespace
+
+auto lazyBodyDoesNotBlockSiblings =
+    test("MIRO_REFLECT body is a template: unreflected types cost nothing") = []
+{
+    // LazyBodyType is deliberately never serialized. A sibling in the
+    // same TU still round-trips, which is all that has to work here.
+    auto json = toJSON(EagerSiblingType {});
+    check(json["value"].asNumber() == 3.0);
+
+    auto loaded = createFromJSONString<EagerSiblingType>(R"({"value": 8})");
+    check(loaded.value == 8);
+};
+
+// --- Enum names inside an anonymous namespace ---
+//
+// Pins the cast-spelling early exit in Detail::enumNameRaw. A value with
+// no enumerator prints as "((anonymous namespace)::E)42" and must be
+// rejected; a real enumerator prints as "(anonymous namespace)::E::A" —
+// also opening with a paren — and must keep its name. Both spellings
+// start with '(' so a first-character check would get this wrong.
+
+namespace
+{
+enum class AnonLevel
+{
+    Low,
+    High
+};
+
+struct AnonLevelHolder
+{
+    AnonLevel level = AnonLevel::High;
+
+    MIRO_REFLECT(level)
+};
+} // namespace
+
+static_assert(enumToString(AnonLevel::High) == "High");
+static_assert(enumToString(static_cast<AnonLevel>(42)).empty());
+static_assert(enumFromString<AnonLevel>("Low") == AnonLevel::Low);
+
+auto anonymousNamespaceEnumRoundTrips =
+    test("Enum in an anonymous namespace saves and loads by name") = []
+{
+    auto json = toJSON(AnonLevelHolder {});
+    check(json["level"].asString() == "High");
+
+    auto loaded = createFromJSONString<AnonLevelHolder>(R"({"level": "Low"})");
+    check(loaded.level == AnonLevel::Low);
+
+    auto unnamed = AnonLevelHolder {static_cast<AnonLevel>(42)};
+    check(toJSON(unnamed)["level"].asNumber() == 42.0);
+};

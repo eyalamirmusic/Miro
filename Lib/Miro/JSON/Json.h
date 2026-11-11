@@ -36,6 +36,22 @@ struct Value
     Value(Array valueToUse);
     Value(Object valueToUse);
 
+    // Copying is declared here and defaulted in Json.cpp rather than
+    // left implicit. An implicit copy is inline, so every TU that copies
+    // a JSON — which is every TU that includes the reflection layer,
+    // through Json::Any — instantiates the std::variant copy and the
+    // std::map<std::string, Value> tree copy behind it. Defining it once
+    // in the library keeps that out of user TUs (~40ms per TU,
+    // measured). Move and destruction stay implicit on purpose: they
+    // are the parser's per-element hot path, and taking them out of
+    // line costs ~12% on a large numeric array. Behaviour is identical
+    // to the implicit versions.
+    Value(const Value& otherToUse);
+    Value& operator=(const Value& otherToUse);
+    Value(Value&& otherToUse) noexcept = default;
+    Value& operator=(Value&& otherToUse) noexcept = default;
+    ~Value() = default;
+
     // Every other integral width, stored exactly as an int64. An
     // unsigned value past INT64_MAX has no exact slot, so it widens to
     // double the way it did before there was an integer alternative.

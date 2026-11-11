@@ -275,7 +275,7 @@ struct Settings
 };
 ```
 
-Equivalent to the hand-written `reflect()` method above.
+Equivalent to the hand-written `reflect()` method above, except that the generated body is a template — see [Compile time](#compile-time) below.
 
 #### `MIRO_REFLECT_MEMBERS` — intrusive, explicit JSON keys
 
@@ -331,6 +331,29 @@ struct Settings
     Broadcaster onLoaded;
 };
 ```
+
+
+#### Compile time
+
+Every macro that generates a `reflect()` body (`MIRO_REFLECT`, `MIRO_REFLECT_MEMBERS`, `MIRO_REFLECT_POLY`, `MIRO_REFLECT_API` and their `_EXTERNAL` forms) emits it as a constrained template:
+
+```cpp
+template <std::derived_from<Miro::Reflector> R>
+void reflect(R& ref) { ... }
+```
+
+A plain inline body is analysed in every translation unit that includes the struct, which instantiates the dispatch chain for every field type whether or not that TU ever serializes anything. A template body is only instantiated in the TUs that actually call `toJSON` / `fromJSON` on the type, so a model header full of reflected structs costs its includers only the parse. Nothing changes at call sites: `Base::reflect(ref)` from a derived class, custom `Reflector` subclasses and the `Miro::Reflectable` concept all work as before.
+
+Two places a template can't go. Write the body by hand there, with `MIRO_FIELDS` keeping it to one line:
+
+- A **local class** (a struct defined inside a function body) — C++ forbids member templates in local classes.
+- A **virtual `reflect()`** you mean to override — templates can't be virtual, and a generated template would hide the base's virtual rather than override it.
+
+```cpp
+void reflect(Miro::Reflector& ref) { MIRO_FIELDS(ref, x, y) }
+```
+
+Beyond that, the single biggest lever is a precompiled header: `target_precompile_headers(YourTarget PRIVATE <Miro/Reflect.h>)` removes the library's own include cost from every TU.
 
 ### Raw JSON fields
 

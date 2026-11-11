@@ -143,7 +143,7 @@ auto binaryNestedVectors = test("Binary: nested vectors round trip") = []
     {
         std::vector<std::vector<int>> grid;
 
-        MIRO_REFLECT(grid)
+        void reflect(Miro::Reflector& ref) { MIRO_FIELDS(ref, grid); }
     };
 
     auto val = Nested {};
@@ -158,7 +158,7 @@ auto binaryFloatVector = test("Binary: vector<float> stored losslessly") = []
     {
         std::vector<float> samples;
 
-        MIRO_REFLECT(samples)
+        void reflect(Miro::Reflector& ref) { MIRO_FIELDS(ref, samples); }
     };
 
     auto val = Floats {};
@@ -335,7 +335,7 @@ auto binaryTypeMismatch = test("Binary: mismatched types keep prior values") = [
     {
         std::string count = "keep";
 
-        MIRO_REFLECT(count)
+        void reflect(Miro::Reflector& ref) { MIRO_FIELDS(ref, count); }
     };
 
     auto val = ClassWithInt {};

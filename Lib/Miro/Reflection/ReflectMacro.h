@@ -2,6 +2,13 @@
 
 #include "Reflector.h"
 
+#include <concepts>
+
+namespace Miro
+{
+class ApiReflector;
+}
+
 // Macro-based reflect() generator.
 //
 // Usage (intrusive, for types you own):
@@ -43,6 +50,34 @@
 // MIRO_FIELDS is the building block MIRO_REFLECT itself uses. Reach for it
 // when you need custom logic inside reflect() but still want to avoid
 // hand-typing each field name as both an identifier and a string.
+//
+// Compile-time cost: every body-generating macro here (MIRO_REFLECT,
+// MIRO_REFLECT_MEMBERS, MIRO_REFLECT_POLY, MIRO_REFLECT_API and their
+// _EXTERNAL siblings) emits reflect() as a constrained member / free
+// function *template* rather than a plain function:
+//
+//   template <std::derived_from<Miro::Reflector> R>
+//   void reflect(R& ref) { ... }
+//
+// A plain inline body is semantically analysed in every translation
+// unit that includes the class, which instantiates the whole
+// reflectValue dispatch chain for every field type whether or not that
+// TU ever serializes anything. A template body is only instantiated in
+// the TUs that actually reflect the type, so a model header costs its
+// includers nothing beyond parsing. Call sites are unaffected: any
+// Reflector-derived object binds R by deduction, the HasReflectMember /
+// Reflectable concepts still hold, and Base::reflect(ref) still works
+// from a derived class's hand-written body.
+//
+// Two places a template cannot go, and where you write the body by
+// hand instead (MIRO_FIELDS keeps that to one line):
+//
+//   * A local class (a struct defined inside a function) — C++ forbids
+//     member templates there:
+//         void reflect(Miro::Reflector& ref) { MIRO_FIELDS(ref, x, y); }
+//   * A virtual reflect() you intend to override — templates can't be
+//     virtual, and a macro-generated template would silently hide the
+//     base's virtual rather than override it.
 
 #define MIRO_PARENS ()
 
@@ -123,15 +158,17 @@
 // Requires <Miro/Miro.h> (or Bridge/ApiReflector.h + <type_traits>) in
 // scope at expansion.
 #define MIRO_REFLECT_API(...)                                                       \
-    void reflect(Miro::ApiReflector& __VA_OPT__(r))                                 \
+    template <std::derived_from<Miro::ApiReflector> MiroApiReflectorType>           \
+    void reflect(MiroApiReflectorType& __VA_OPT__(r))                               \
     {                                                                               \
-        __VA_OPT__(                                                                 \
-            using MiroReflectApiSelf = std::remove_cvref_t<decltype(*this)>;)       \
+        __VA_OPT__(using MiroReflectApiSelf =                                       \
+                       std::remove_cvref_t<decltype(*this)>;)                       \
         MIRO_FOR_EACH_WITH(MIRO_REFLECT_API_FIELD, r, __VA_ARGS__)                  \
     }
 
 #define MIRO_REFLECT(...)                                                           \
-    void reflect(Miro::Reflector& __VA_OPT__(ref))                                  \
+    template <std::derived_from<Miro::Reflector> MiroReflectorType>                 \
+    void reflect(MiroReflectorType& __VA_OPT__(ref))                                \
     {                                                                               \
         MIRO_FIELDS(ref, __VA_ARGS__)                                               \
     }
@@ -141,8 +178,8 @@
 #define MIRO_REFLECT_EXTERNAL(Type, ...)                                            \
     namespace Miro                                                                  \
     {                                                                               \
-    inline void reflect(Miro::Reflector& __VA_OPT__(ref),                           \
-                        Type& __VA_OPT__(valueToUse))                               \
+    template <std::derived_from<Miro::Reflector> MiroReflectorType>                 \
+    void reflect(MiroReflectorType& __VA_OPT__(ref), Type& __VA_OPT__(valueToUse))  \
     {                                                                               \
         MIRO_FOR_EACH(MIRO_REFLECT_EXTERNAL_FIELD, __VA_ARGS__)                     \
     }                                                                               \
@@ -151,7 +188,8 @@
 #define MIRO_REFLECT_NAMED_FIELD(field, key) ref[key](field);
 
 #define MIRO_REFLECT_MEMBERS(...)                                                   \
-    void reflect(Miro::Reflector& __VA_OPT__(ref))                                  \
+    template <std::derived_from<Miro::Reflector> MiroReflectorType>                 \
+    void reflect(MiroReflectorType& __VA_OPT__(ref))                                \
     {                                                                               \
         MIRO_FOR_EACH_PAIR(MIRO_REFLECT_NAMED_FIELD, __VA_ARGS__)                   \
     }
@@ -161,8 +199,8 @@
 #define MIRO_REFLECT_EXTERNAL_MEMBERS(Type, ...)                                    \
     namespace Miro                                                                  \
     {                                                                               \
-    inline void reflect(Miro::Reflector& __VA_OPT__(ref),                           \
-                        Type& __VA_OPT__(valueToUse))                               \
+    template <std::derived_from<Miro::Reflector> MiroReflectorType>                 \
+    void reflect(MiroReflectorType& __VA_OPT__(ref), Type& __VA_OPT__(valueToUse))  \
     {                                                                               \
         MIRO_FOR_EACH_PAIR(MIRO_REFLECT_EXTERNAL_NAMED_FIELD, __VA_ARGS__)          \
     }                                                                               \
@@ -184,24 +222,26 @@
 #define MIRO_POLY_ALT_PAIR(type, tag) d.template alt<type>(tag);
 
 #define MIRO_REFLECT_POLY(field, ...)                                               \
-    void reflect(Miro::Reflector& ref)                                              \
+    template <std::derived_from<Miro::Reflector> MiroReflectorType>                 \
+    void reflect(MiroReflectorType& ref)                                            \
     {                                                                               \
         Miro::reflectPolymorphic(                                                   \
             ref,                                                                    \
             field,                                                                  \
             [&](auto& __VA_OPT__(d))                                                \
-            { MIRO_FOR_EACH_PAIR(MIRO_POLY_ALT_PAIR, __VA_ARGS__) });                \
+            { MIRO_FOR_EACH_PAIR(MIRO_POLY_ALT_PAIR, __VA_ARGS__) });               \
     }
 
 #define MIRO_REFLECT_EXTERNAL_POLY(Type, field, ...)                                \
     namespace Miro                                                                  \
     {                                                                               \
-    inline void reflect(Miro::Reflector& ref, Type& valueToUse)                     \
+    template <std::derived_from<Miro::Reflector> MiroReflectorType>                 \
+    void reflect(MiroReflectorType& ref, Type& valueToUse)                          \
     {                                                                               \
         reflectPolymorphic(                                                         \
             ref,                                                                    \
             valueToUse.field,                                                       \
             [&](auto& __VA_OPT__(d))                                                \
-            { MIRO_FOR_EACH_PAIR(MIRO_POLY_ALT_PAIR, __VA_ARGS__) });                \
+            { MIRO_FOR_EACH_PAIR(MIRO_POLY_ALT_PAIR, __VA_ARGS__) });               \
     }                                                                               \
     }

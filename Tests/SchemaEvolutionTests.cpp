@@ -141,7 +141,7 @@ auto renameNeitherKey =
     struct OnlyField1
     {
         std::uint32_t field1 = 3;
-        MIRO_REFLECT(field1)
+        void reflect(Miro::Reflector& ref) { MIRO_FIELDS(ref, field1); }
     };
 
     inBothFormats<ProfileV2>(OnlyField1 {},
@@ -782,7 +782,7 @@ auto xmlEmptyVector =
     struct WithList
     {
         std::vector<int> items {1, 2};
-        MIRO_REFLECT(items)
+        void reflect(Miro::Reflector& ref) { MIRO_FIELDS(ref, items); }
     };
 
     auto value = WithList {};

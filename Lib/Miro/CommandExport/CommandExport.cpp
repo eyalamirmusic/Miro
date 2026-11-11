@@ -165,6 +165,10 @@ void emitNode(std::ostringstream& out,
 
     for (auto& c: node.children)
     {
+        if (c.node->leaf != nullptr)
+            out << Miro::Detail::formatJsDocLine(c.node->leaf->description,
+                                                 childIndent);
+
         out << childIndent << c.name << ": ";
 
         if (c.node->leaf != nullptr)

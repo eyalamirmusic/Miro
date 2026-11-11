@@ -9,7 +9,6 @@
 
 #include <concepts>
 #include <cstdint>
-#include <optional>
 #include <string>
 #include <string_view>
 #include <type_traits>
@@ -198,6 +197,7 @@ private:
         auto opts = ref.options();
         opts.shape = Shape::Primitive;
         opts.nullable = false;
+        opts.description = {};
         return opts;
     }
 

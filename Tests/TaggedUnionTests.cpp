@@ -113,7 +113,7 @@ using Frame = TaggedVariant<"op", PingFrame, PongFrame>;
 // ----- OwningPointer<Base> storage ------------------------------------
 
 // Same contract as the Polymorphic<> tests: a virtual destructor so
-// dynamic_cast works, and an empty reflect() to satisfy Reflectable —
+// dynamic_cast works, and an empty reflect() to satisfy Detail::AbleToReflect —
 // alternatives are always walked through their own derived reflect().
 struct NodeBase
 {

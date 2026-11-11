@@ -141,6 +141,28 @@ std::string makeIndent(int width, int depth)
     return std::string(count, ' ');
 }
 
+std::string formatJsDocLine(std::string_view text, std::string_view indent)
+{
+    if (text.empty())
+        return {};
+
+    auto body = std::string {};
+    body.reserve(text.size());
+
+    for (auto c: text)
+    {
+        if (c == '\r')
+            continue;
+        body += c == '\n' ? ' ' : c;
+    }
+
+    auto out = std::string {indent};
+    out += "/** ";
+    out += replaceAll(body, "*/", "*\\/");
+    out += " */\n";
+    return out;
+}
+
 std::optional<std::int64_t> parseWholeInteger(std::string_view text)
 {
     auto parsed = std::int64_t {};

@@ -24,6 +24,10 @@ struct CommandEntry
 {
     std::string name;
 
+    // Human-readable description (Miro::Doc on the command); empty when
+    // none was given. Emitted as a JSDoc line by the backend module.
+    std::string description;
+
     bool hasRequest = true;
     std::string requestTypeName;
     std::string requestQualifiedName;

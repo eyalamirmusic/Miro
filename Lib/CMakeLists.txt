@@ -16,6 +16,7 @@ add_library(Miro STATIC
     Miro/JSON/Number.cpp
     Miro/JSON/Parser.cpp
     Miro/JSON/Printer.cpp
+    Miro/OpenAI/OpenAI.cpp
     Miro/XML/Xml.cpp
     Miro/XML/Parser.cpp
     Miro/XML/Printer.cpp
@@ -48,7 +49,8 @@ if (MIRO_UNITY_BUILD)
 endif ()
 
 # Built-in format registrations (zod / ts / backend / ts-server /
-# bridge / jsonschema / cpp / cpp-miro / cpp-client). Split out as its
+# bridge / jsonschema / openai-tools / cpp / cpp-miro / cpp-client).
+# Split out as its
 # own OBJECT library so it can be linked into both the codegen
 # executables AND the test runner. Plain static-library placement
 # would let the linker drop the registrations (nothing references
@@ -61,7 +63,7 @@ endif ()
 # platform, including cross-compiled iOS.
 add_library(MiroFormats OBJECT
     Miro/TypeExport/BuiltinFormats.cpp)
-target_link_libraries(MiroFormats PUBLIC Miro)
+target_link_libraries(MiroFormats PUBLIC Miro PRIVATE miro_warnings)
 
 # File-writing pieces of the codegen pipeline (writeEmittedFiles in
 # CodegenWriter.cpp). Split out as its own OBJECT library so the
@@ -73,5 +75,5 @@ if (NOT CMAKE_CROSSCOMPILING)
         Miro/TypeExport/CodegenWriter.cpp)
     target_link_libraries(MiroCodegenWriter
         PUBLIC Miro
-        PRIVATE ghcFilesystem::ghc_filesystem)
+        PRIVATE ghcFilesystem::ghc_filesystem miro_warnings)
 endif ()
