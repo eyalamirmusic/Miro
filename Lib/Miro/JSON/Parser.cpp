@@ -507,12 +507,7 @@ private:
     ParseOptions options;
 };
 
-Value parse(std::string_view inputToUse)
-{
-    return parseWithOptions(inputToUse, ParseOptions {});
-}
-
-Value parseWithOptions(std::string_view inputToUse, const ParseOptions& optionsToUse)
+Value parse(std::string_view inputToUse, const ParseOptions& optionsToUse)
 {
     auto parser = Parser(inputToUse, optionsToUse);
     auto result = parser.parseValue();
@@ -524,17 +519,11 @@ Value parseWithOptions(std::string_view inputToUse, const ParseOptions& optionsT
     return result;
 }
 
-Value getParsedValue(std::string_view inputToUse)
-{
-    return getParsedValueWithOptions(inputToUse, ParseOptions {});
-}
-
-Value getParsedValueWithOptions(std::string_view inputToUse,
-                                const ParseOptions& optionsToUse)
+Value getParsedValue(std::string_view inputToUse, const ParseOptions& optionsToUse)
 {
     try
     {
-        return parseWithOptions(inputToUse, optionsToUse);
+        return parse(inputToUse, optionsToUse);
     }
     catch (...)
     {

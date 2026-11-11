@@ -154,8 +154,8 @@ const Value* find(const Object& object, std::string_view key);
 // reject null when loading an object-shaped Req.
 Value payloadOrEmpty(const Value& payload);
 
-// Opt-in parser behaviour for parseWithOptions(). A default-constructed
-// ParseOptions parses exactly as parse(text) does.
+// Opt-in parser behaviour. A default-constructed ParseOptions parses
+// exactly as parse(text) always has.
 struct ParseOptions
 {
     enum class DuplicateKeys
@@ -175,9 +175,8 @@ struct ParseOptions
     bool endAtNul = false;
 };
 
-// Opt-in printer behaviour for printWithOptions(). A default-constructed
-// PrintOptions prints exactly as print(value) does, and {.indent = n} as
-// print(value, n).
+// Opt-in printer behaviour. A default-constructed PrintOptions prints
+// exactly as print(value) does, and {.indent = n} as print(value, n).
 struct PrintOptions
 {
     // Spaces per nesting level. Above 0, every member and element goes
@@ -195,24 +194,20 @@ struct PrintOptions
     bool keepDoublesAsDoubles = false;
 };
 
-// parse, getParsedValue and print are deliberately not overloaded, so
-// existing code can keep taking their address. The options-taking forms
-// carry names of their own.
-Value parse(std::string_view inputToUse);
-Value parseWithOptions(std::string_view inputToUse,
-                       const ParseOptions& optionsToUse);
+Value parse(std::string_view inputToUse, const ParseOptions& optionsToUse = {});
 
 // Like parse(), but never throws. On malformed input it catches the
 // ParseError (and any other exception) internally and returns a null
 // Value instead. Use this at boundaries where a default-constructed
 // result is preferable to handling a thrown ParseError.
-Value getParsedValue(std::string_view inputToUse);
-Value getParsedValueWithOptions(std::string_view inputToUse,
-                                const ParseOptions& optionsToUse);
+Value getParsedValue(std::string_view inputToUse,
+                     const ParseOptions& optionsToUse = {});
 
+// print(value, n) and a braced or converted indent pick the first form;
+// print(value, PrintOptions {...}) and a designated initializer pick the
+// second.
 std::string print(const Value& valueToUse, int indentToUse = 0);
-std::string printWithOptions(const Value& valueToUse,
-                             const PrintOptions& optionsToUse);
+std::string print(const Value& valueToUse, const PrintOptions& optionsToUse);
 void log(const Value& valueToUse, int indentToUse = 0);
 } // namespace Miro::Json
 

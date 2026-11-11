@@ -106,7 +106,7 @@ Printing round-trips. Integers print in full, and a `double` prints in the short
 
 ### Print and parse options
 
-`printWithOptions`, `parseWithOptions` and `getParsedValueWithOptions` are `print`, `parse` and `getParsedValue` taking an options struct. They have names of their own rather than overloading the plain functions, so code that takes the address of `parse` or `print` keeps compiling. Every option defaults to the plain call's behaviour, so a default-constructed struct behaves exactly like it.
+`parse` and `getParsedValue` take an optional `ParseOptions` as their second argument, and `print` has an overload taking a `PrintOptions` in place of the indent. Every option defaults to the plain call's behaviour, so a default-constructed struct behaves exactly like it. `print(value, n)`, `print(value, {})` and `print(value, {n})` still mean an indent; a `PrintOptions` value or a designated initializer such as `print(value, {.indent = 2, .breakLines = true})` selects the options.
 
 ```cpp
 auto printOptions = PrintOptions {};
@@ -114,21 +114,21 @@ printOptions.indent = 0;                    // spaces per level, as print(value,
 printOptions.breakLines = true;             // one member per line, even at indent 0
 printOptions.keepDoublesAsDoubles = true;   // 1.0 prints as "1.0", -0.0 as "-0.0"
 
-auto text = printWithOptions(value, printOptions);
+auto text = print(value, printOptions);
 
 auto parseOptions = ParseOptions {};
 parseOptions.allowComments = false;         // a comment is a ParseError
 parseOptions.duplicateKeys = ParseOptions::DuplicateKeys::KeepLast; // default KeepFirst
 parseOptions.endAtNul = true;               // the input ends at its first NUL byte
 
-auto parsed = parseWithOptions(text, parseOptions);
+auto parsed = parse(text, parseOptions);
 ```
 
 - `breakLines` is the indented layout with an indent of zero: each member and element on its own line, `"key": value`, empty containers as `[]` / `{}`.
 - `keepDoublesAsDoubles` gives a `double` with an integral value a fractional part or an exponent (`1.0`, `-0.0`, `1e+20`), so it parses back as the same `double`, bit for bit. Integers, non-integral doubles and non-finite values print as they otherwise would.
 - By default comments (`//` and `/* */`) are accepted wherever whitespace is, the first of a repeated key wins, and a NUL byte outside a string is a `ParseError`.
 
-They compose with the reflection layer: `printWithOptions(toJSON(v), printOptions)` and `fromJSON(v, parseWithOptions(text, parseOptions))`.
+They compose with the reflection layer: `print(toJSON(v), printOptions)` and `fromJSON(v, parse(text, parseOptions))`.
 
 ## The reflection layer
 

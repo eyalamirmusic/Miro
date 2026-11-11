@@ -93,23 +93,23 @@ auto moreIndentArgumentForms = test("Call forms: other indent arguments") = []
     check(Miro::Json::print(value, someLong) == "[\n  1\n]");
 };
 
+// A pointer to print with the indent form named as its target type, and
+// the parse functions reached through a lambda. print needs a target
+// type because it is an overload set; parse and getParsedValue take a
+// defaulted options argument, which a function pointer does not carry,
+// so they cannot be used as one-parameter functions.
 auto functionValueForms = test("Call forms: the functions used as values") = []
 {
-    auto parseAddress = &Miro::Json::parse;
-    check(parseAddress("3").asInteger() == 3);
-
-    auto getParsedValueAddress = &Miro::Json::getParsedValue;
-    check(getParsedValueAddress("{").isNull());
-
-    auto printAddress = &Miro::Json::print;
-    check(printAddress(Miro::JSON {1}, 0) == "1");
+    std::string (*printPointer)(const Miro::Json::Value&, int) = &Miro::Json::print;
+    check(printPointer(Miro::JSON {1}, 0) == "1");
 
     std::function<std::string(const Miro::Json::Value&, int)> printFunction =
-        Miro::Json::print;
-    check(printFunction(Miro::JSON {1}, 0) == "1");
+        static_cast<std::string (*)(const Miro::Json::Value&, int)>(
+            Miro::Json::print);
+    check(printFunction(Miro::JSON {1}, 2) == "1");
 
     std::function<Miro::Json::Value(std::string_view)> parseFunction =
-        Miro::Json::parse;
+        [](std::string_view text) { return Miro::Json::parse(text); };
     check(parseFunction("[]").isArray());
 
     auto texts = std::vector<std::string> {"1", "oops", "[2]"};
@@ -117,7 +117,8 @@ auto functionValueForms = test("Call forms: the functions used as values") = []
     std::transform(texts.begin(),
                    texts.end(),
                    std::back_inserter(values),
-                   Miro::Json::getParsedValue);
+                   [](const std::string& text)
+                   { return Miro::Json::getParsedValue(text); });
 
     check(values.size() == 3);
     check(values[0].asInteger() == 1);

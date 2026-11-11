@@ -67,7 +67,7 @@ std::string parseErrorMessage(std::string_view text, const ParseOptions& options
 {
     try
     {
-        parseWithOptions(text, options);
+        parse(text, options);
     }
     catch (const ParseError& error)
     {
@@ -118,7 +118,7 @@ std::string withoutLeadingSpaces(const std::string& text)
 // keeps the sign of zero, so two values that print alike are the same.
 std::string exactly(const Value& value)
 {
-    return printWithOptions(value, doublesKept());
+    return print(value, doublesKept());
 }
 
 // The value a text parses to, or the exact error it throws.
@@ -126,7 +126,7 @@ std::string outcomeOf(std::string_view text, const ParseOptions& options)
 {
     try
     {
-        return "value: " + exactly(parseWithOptions(text, options));
+        return "value: " + exactly(parse(text, options));
     }
     catch (const ParseError& error)
     {
@@ -360,6 +360,52 @@ Value deeplyNested(int depth)
     return value;
 }
 
+// --- Which print overload a call selects ---
+
+template <typename Second>
+constexpr bool printAccepts =
+    requires(const Value& value, Second second) { print(value, second); };
+
+static_assert(requires(const Value& value) { print(value, {}); });
+static_assert(requires(const Value& value) { print(value, {.indent = 2}); });
+static_assert(requires(const Value& value) {
+    print(value, {.indent = 2, .breakLines = true});
+});
+static_assert(printAccepts<int>);
+static_assert(printAccepts<bool>);
+static_assert(printAccepts<long>);
+static_assert(printAccepts<PrintOptions>);
+
+auto printOverloadSelection =
+    test("PrintOptions: indent arguments pick the indent overload") = []
+{
+    auto value = parse(R"({"a":[1.0]})");
+    auto indent = 2;
+    auto longIndent = 2L;
+
+    check(print(value) == R"({"a":[1]})");
+    check(print(value, {}) == R"({"a":[1]})");
+    check(print(value, 2) == "{\n  \"a\": [\n    1\n  ]\n}");
+    check(print(value, indent) == "{\n  \"a\": [\n    1\n  ]\n}");
+    check(print(value, true) == "{\n \"a\": [\n  1\n ]\n}");
+    check(print(value, false) == R"({"a":[1]})");
+    check(print(value, static_cast<int>(longIndent))
+          == "{\n  \"a\": [\n    1\n  ]\n}");
+};
+
+auto printOptionsSelection =
+    test("PrintOptions: options arguments pick the options overload") = []
+{
+    auto value = parse(R"({"a":[1.0]})");
+
+    check(print(value, PrintOptions {}) == R"({"a":[1]})");
+    check(print(value, {.indent = 2}) == "{\n  \"a\": [\n    1\n  ]\n}");
+    check(print(value, {.indent = 2, .breakLines = true})
+          == "{\n  \"a\": [\n    1\n  ]\n}");
+    check(print(value, {.indent = 0, .breakLines = true}) == "{\n\"a\": [\n1\n]\n}");
+    check(print(value, {.keepDoublesAsDoubles = true}) == R"({"a":[1.0]})");
+};
+
 // --- Defaults ---
 
 auto defaultPrintOptions =
@@ -367,15 +413,14 @@ auto defaultPrintOptions =
 {
     for (const auto& value: sampleValues())
     {
-        check(printWithOptions(value, PrintOptions {}) == print(value));
+        check(print(value, PrintOptions {}) == print(value));
 
         for (auto indent: {-3, -1, 0, 1, 2, 4, 8})
-            check(printWithOptions(value, indented(indent)) == print(value, indent));
+            check(print(value, indented(indent)) == print(value, indent));
     }
 
     for (auto number: {1.0, -0.0, 0.0, 1e15, 1e20, 1e300, 0.1, 5e-324})
-        check(printWithOptions(Value {number}, PrintOptions {})
-              == print(Value {number}));
+        check(print(Value {number}, PrintOptions {}) == print(Value {number}));
 };
 
 auto defaultParseOptions =
@@ -384,7 +429,7 @@ auto defaultParseOptions =
     for (auto text: sampleTexts())
     {
         auto plain = getParsedValue(text);
-        auto withOptions = getParsedValueWithOptions(text, ParseOptions {});
+        auto withOptions = getParsedValue(text, ParseOptions {});
 
         check(print(withOptions) == print(plain));
 
@@ -410,18 +455,17 @@ auto integralDoublesKeepAFraction =
 {
     auto options = doublesKept();
 
-    check(printWithOptions(Value {1.0}, options) == "1.0");
-    check(printWithOptions(Value {0.0}, options) == "0.0");
-    check(printWithOptions(Value {-0.0}, options) == "-0.0");
-    check(printWithOptions(Value {-3.0}, options) == "-3.0");
-    check(printWithOptions(Value {123456789.0}, options) == "123456789.0");
-    check(printWithOptions(Value {1e15}, options) == "1e+15");
-    check(printWithOptions(Value {1e20}, options) == "1e+20");
-    check(printWithOptions(Value {-1e20}, options) == "-1e+20");
-    check(printWithOptions(Value {1e300}, options) == "1e+300");
-    check(printWithOptions(Value {9007199254740992.0}, options)
-          == "9007199254740992.0");
-    check(printWithOptions(Value {std::numeric_limits<double>::max()}, options)
+    check(print(Value {1.0}, options) == "1.0");
+    check(print(Value {0.0}, options) == "0.0");
+    check(print(Value {-0.0}, options) == "-0.0");
+    check(print(Value {-3.0}, options) == "-3.0");
+    check(print(Value {123456789.0}, options) == "123456789.0");
+    check(print(Value {1e15}, options) == "1e+15");
+    check(print(Value {1e20}, options) == "1e+20");
+    check(print(Value {-1e20}, options) == "-1e+20");
+    check(print(Value {1e300}, options) == "1e+300");
+    check(print(Value {9007199254740992.0}, options) == "9007199254740992.0");
+    check(print(Value {std::numeric_limits<double>::max()}, options)
           == "1.7976931348623157e+308");
 };
 
@@ -432,7 +476,7 @@ auto keptDoublesParseBackAsDoubles =
 
     for (auto number: {1.0, 0.0, -0.0, -3.0, 1e15, 1e20, 1e300, 4503599627370496.0})
     {
-        auto back = parse(printWithOptions(Value {number}, options));
+        auto back = parse(print(Value {number}, options));
 
         check(!back.isInteger());
         check(bitsOf(back.asNumber()) == bitsOf(number));
@@ -446,20 +490,20 @@ auto keptDoublesLeaveTheRestAlone =
     auto nan = std::numeric_limits<double>::quiet_NaN();
     auto infinity = std::numeric_limits<double>::infinity();
 
-    check(printWithOptions(Value {1}, options) == "1");
-    check(printWithOptions(Value {0}, options) == "0");
-    check(printWithOptions(parse("-0"), options) == "0");
-    check(printWithOptions(Value {std::numeric_limits<std::int64_t>::min()}, options)
+    check(print(Value {1}, options) == "1");
+    check(print(Value {0}, options) == "0");
+    check(print(parse("-0"), options) == "0");
+    check(print(Value {std::numeric_limits<std::int64_t>::min()}, options)
           == "-9223372036854775808");
-    check(printWithOptions(Value {std::numeric_limits<std::int64_t>::max()}, options)
+    check(print(Value {std::numeric_limits<std::int64_t>::max()}, options)
           == "9223372036854775807");
 
-    check(printWithOptions(Value {nan}, options) == "null");
-    check(printWithOptions(Value {infinity}, options) == "null");
-    check(printWithOptions(Value {-infinity}, options) == "null");
+    check(print(Value {nan}, options) == "null");
+    check(print(Value {infinity}, options) == "null");
+    check(print(Value {-infinity}, options) == "null");
 
     for (auto number: {0.1, 1.0 / 3.0, 123456.789, 0.1 + 0.2, 5e-324, 1e-7, -2.5})
-        check(printWithOptions(Value {number}, options) == print(Value {number}));
+        check(print(Value {number}, options) == print(Value {number}));
 };
 
 auto keptDoublesInContainers =
@@ -476,7 +520,7 @@ auto keptDoublesInContainers =
     object["i"] = 2;
     object["list"] = Value {array};
 
-    auto printed = printWithOptions(Value {object}, doublesKept());
+    auto printed = print(Value {object}, doublesKept());
     check(printed == R"({"d":2.0,"i":2,"list":[1.0,1,-0.0,[]]})");
 
     auto back = parse(printed);
@@ -499,7 +543,7 @@ auto randomDoublesRoundTrip =
         if (!std::isfinite(number))
             return;
 
-        auto token = printWithOptions(Value {number}, options);
+        auto token = print(Value {number}, options);
         auto back = parse(token);
 
         auto ok = !back.isInteger() && bitsOf(back.asNumber()) == bitsOf(number)
@@ -572,7 +616,7 @@ auto lineBrokenLayout = test("PrintOptions: line-broken layout") = []
                                  "\"e\": \"x\"\n"
                                  "}"};
 
-    check(printWithOptions(value, lineBroken()) == expected);
+    check(print(value, lineBroken()) == expected);
 };
 
 auto lineBrokenEmptiesAndScalars =
@@ -580,13 +624,13 @@ auto lineBrokenEmptiesAndScalars =
 {
     auto options = lineBroken();
 
-    check(printWithOptions(parse("[]"), options) == "[]");
-    check(printWithOptions(parse("{}"), options) == "{}");
-    check(printWithOptions(parse("[[]]"), options) == "[\n[]\n]");
-    check(printWithOptions(parse(R"({"a":{}})"), options) == "{\n\"a\": {}\n}");
-    check(printWithOptions(Value {42}, options) == "42");
-    check(printWithOptions(Value {"s"}, options) == "\"s\"");
-    check(printWithOptions(Value {}, options) == "null");
+    check(print(parse("[]"), options) == "[]");
+    check(print(parse("{}"), options) == "{}");
+    check(print(parse("[[]]"), options) == "[\n[]\n]");
+    check(print(parse(R"({"a":{}})"), options) == "{\n\"a\": {}\n}");
+    check(print(Value {42}, options) == "42");
+    check(print(Value {"s"}, options) == "\"s\"");
+    check(print(Value {}, options) == "null");
 };
 
 auto lineBrokenIsIndentedWithoutSpaces =
@@ -594,7 +638,7 @@ auto lineBrokenIsIndentedWithoutSpaces =
 {
     for (const auto& value: sampleValues())
     {
-        auto broken = printWithOptions(value, lineBroken());
+        auto broken = print(value, lineBroken());
 
         for (auto indent: {1, 2, 3, 4, 8})
             check(broken == withoutLeadingSpaces(print(value, indent)));
@@ -610,15 +654,14 @@ auto lineBrokenWithIndent =
         {
             auto options = indented(indent);
             options.breakLines = true;
-            check(printWithOptions(value, options) == print(value, indent));
+            check(print(value, options) == print(value, indent));
         }
 
         for (auto indent: {0, -1, -4})
         {
             auto options = indented(indent);
             options.breakLines = true;
-            check(printWithOptions(value, options)
-                  == printWithOptions(value, lineBroken()));
+            check(print(value, options) == print(value, lineBroken()));
         }
     }
 };
@@ -639,12 +682,11 @@ auto lineBrokenWithKeptDoubles =
                                  "\"b\": 2.5\n"
                                  "}"};
 
-    check(printWithOptions(value, options) == expected);
+    check(print(value, options) == expected);
 
     auto indentedKept = indented(4);
     indentedKept.keepDoublesAsDoubles = true;
-    check(printWithOptions(value, options)
-          == withoutLeadingSpaces(printWithOptions(value, indentedKept)));
+    check(print(value, options) == withoutLeadingSpaces(print(value, indentedKept)));
 };
 
 auto lineBrokenStringsWithSpaces =
@@ -659,8 +701,8 @@ auto lineBrokenStringsWithSpaces =
                                  "]\n"
                                  "}"};
 
-    check(printWithOptions(value, lineBroken()) == expected);
-    check(parse(printWithOptions(value, lineBroken())) == value);
+    check(print(value, lineBroken()) == expected);
+    check(parse(print(value, lineBroken())) == value);
 };
 
 auto deeplyNestedLayouts =
@@ -670,21 +712,20 @@ auto deeplyNestedLayouts =
     auto options = lineBroken();
     options.keepDoublesAsDoubles = true;
 
-    auto printed = printWithOptions(value, options);
+    auto printed = print(value, options);
 
     for (auto indent: {1, 2, 4})
     {
         auto indentedKept = indented(indent);
         indentedKept.keepDoublesAsDoubles = true;
-        check(printed
-              == withoutLeadingSpaces(printWithOptions(value, indentedKept)));
-        check(printWithOptions(value, lineBroken())
+        check(printed == withoutLeadingSpaces(print(value, indentedKept)));
+        check(print(value, lineBroken())
               == withoutLeadingSpaces(print(value, indent)));
     }
 
     auto back = parse(printed);
     check(exactly(back) == exactly(value));
-    check(printWithOptions(back, options) == printed);
+    check(print(back, options) == printed);
 };
 
 auto printedDocumentRoundTrips =
@@ -702,10 +743,9 @@ auto printedDocumentRoundTrips =
                 options.breakLines = breakLines;
                 options.keepDoublesAsDoubles = keepDoubles;
 
-                auto back = parse(printWithOptions(document, options));
+                auto back = parse(print(document, options));
                 check(back == document);
-                check(printWithOptions(back, options)
-                      == printWithOptions(document, options));
+                check(print(back, options) == print(document, options));
                 check(back["number"].isInteger() == !keepDoubles);
                 check(std::signbit(back["zero"].asNumber()) == keepDoubles);
             }
@@ -718,7 +758,7 @@ auto generatedPrintProperties =
 {
     for (const auto& value: generatedValues(7001, 400))
     {
-        auto broken = printWithOptions(value, lineBroken());
+        auto broken = print(value, lineBroken());
 
         for (auto indent: {1, 3})
             check(broken == withoutLeadingSpaces(print(value, indent)));
@@ -726,7 +766,7 @@ auto generatedPrintProperties =
         auto options = lineBroken();
         options.keepDoublesAsDoubles = true;
 
-        auto keptBack = parse(printWithOptions(value, options));
+        auto keptBack = parse(print(value, options));
         check(exactly(keptBack) == exactly(value));
 
         auto plainBack = parse(broken);
@@ -762,11 +802,10 @@ auto commentsRejectedLeavesTheRest =
 {
     auto options = commentsRejected();
 
-    auto strings =
-        parseWithOptions(R"({"a":"// not a comment","b":"/* nor */"})", options);
+    auto strings = parse(R"({"a":"// not a comment","b":"/* nor */"})", options);
     check(strings["a"].asString() == "// not a comment");
     check(strings["b"].asString() == "/* nor */");
-    check(parseWithOptions(" [ 1 , 2 ] ", options).asArray().size() == 2);
+    check(parse(" [ 1 , 2 ] ", options).asArray().size() == 2);
     check(parseErrorMessage("/ 1", options)
           == "JSON parse error at position 0: unexpected character '/'");
     check(parseErrorMessage("1 /", options)
@@ -776,9 +815,9 @@ auto commentsRejectedLeavesTheRest =
 auto commentsRejectedNonThrowing = test(
     "ParseOptions: rejected comments give null from the non-throwing parse") = []
 {
-    check(getParsedValueWithOptions("1 // x", commentsRejected()).isNull());
-    check(getParsedValueWithOptions("[/**/1]", commentsRejected()).isNull());
-    check(getParsedValueWithOptions("[1]", commentsRejected()) == parse("[1]"));
+    check(getParsedValue("1 // x", commentsRejected()).isNull());
+    check(getParsedValue("[/**/1]", commentsRejected()).isNull());
+    check(getParsedValue("[1]", commentsRejected()) == parse("[1]"));
     check(getParsedValue("1 // x").asInteger() == 1);
 };
 
@@ -791,7 +830,7 @@ auto generatedCommentsProperty =
 
     for (const auto& value: generatedValues(7003, 300))
     {
-        auto text = printWithOptions(value, randomLayout(engine));
+        auto text = print(value, randomLayout(engine));
 
         for (auto round = 0; round < 4; ++round)
         {
@@ -815,25 +854,22 @@ auto lastDuplicateWins = test("ParseOptions: the last duplicate key wins") = []
 {
     auto options = lastKeyWins();
 
-    auto value = parseWithOptions(R"({"a":1,"b":2,"a":"two","a":[3]})", options);
+    auto value = parse(R"({"a":1,"b":2,"a":"two","a":[3]})", options);
     check(value.asObject().size() == 2);
     check(value["a"].isArray());
     check(value["a"][0].asInteger() == 3);
     check(value["b"].asInteger() == 2);
 
-    auto nested =
-        parseWithOptions(R"({"o":{"x":true,"x":false},"o":{"y":1}})", options);
+    auto nested = parse(R"({"o":{"x":true,"x":false},"o":{"y":1}})", options);
     check(nested["o"].asObject().size() == 1);
     check(nested["o"]["y"].asInteger() == 1);
 
-    auto inner = parseWithOptions(R"([{"x":true,"x":false}])", options);
+    auto inner = parse(R"([{"x":true,"x":false}])", options);
     check(inner[0]["x"].asBool() == false);
 
-    check(parseWithOptions(R"({"a":1,"a":2})", ParseOptions {})["a"].asInteger()
-          == 1);
-    check(getParsedValueWithOptions(R"({"a":1,"a":2})", options)["a"].asInteger()
-          == 2);
-    check(getParsedValueWithOptions(R"({"a":1,"a":})", options).isNull());
+    check(parse(R"({"a":1,"a":2})", ParseOptions {})["a"].asInteger() == 1);
+    check(getParsedValue(R"({"a":1,"a":2})", options)["a"].asInteger() == 2);
+    check(getParsedValue(R"({"a":1,"a":})", options).isNull());
 };
 
 auto lastDuplicateDecodedKeys =
@@ -841,7 +877,7 @@ auto lastDuplicateDecodedKeys =
 {
     auto text = R"({"a":1,"a":2,"b\n":3,"b\u000a":4,"é":5,"é":6})";
 
-    auto last = parseWithOptions(text, lastKeyWins());
+    auto last = parse(text, lastKeyWins());
     check(last.asObject().size() == 3);
     check(last["a"].asInteger() == 2);
     check(last["b\n"].asInteger() == 4);
@@ -857,7 +893,7 @@ auto lastDuplicateDecodedKeys =
 auto lastDuplicateKeepsKeyOrder =
     test("ParseOptions: last-wins keeps the keys sorted") = []
 {
-    auto value = parseWithOptions(R"({"c":1,"a":2,"c":3,"b":4})", lastKeyWins());
+    auto value = parse(R"({"c":1,"a":2,"c":3,"b":4})", lastKeyWins());
     check(print(value) == R"({"a":2,"b":4,"c":3})");
 };
 
@@ -868,7 +904,7 @@ auto generatedDuplicateProperty =
 
     for (const auto& value: generatedValues(7005, 400))
     {
-        auto text = printWithOptions(value, randomLayout(engine));
+        auto text = print(value, randomLayout(engine));
         check(outcomeOf(text, lastKeyWins()) == outcomeOf(text, ParseOptions {}));
     }
 };
@@ -879,13 +915,11 @@ auto strictSwitchesAreIndependent =
     auto both = commentsRejected();
     both.duplicateKeys = ParseOptions::DuplicateKeys::KeepLast;
 
-    check(parseWithOptions(R"({"a":1,"a":2})", both)["a"].asInteger() == 2);
+    check(parse(R"({"a":1,"a":2})", both)["a"].asInteger() == 2);
     check(parseErrorMessage(R"({"a":1,/**/"a":2})", both) == commentsError(7));
 
-    check(parseWithOptions(R"({"a":1,/**/"a":2})", lastKeyWins())["a"].asInteger()
-          == 2);
-    check(parseWithOptions(R"({"a":1,"a":2})", commentsRejected())["a"].asInteger()
-          == 1);
+    check(parse(R"({"a":1,/**/"a":2})", lastKeyWins())["a"].asInteger() == 2);
+    check(parse(R"({"a":1,"a":2})", commentsRejected())["a"].asInteger() == 1);
 };
 
 // --- NUL-terminated input ---
@@ -894,13 +928,12 @@ auto nulEndsTheInput = test("ParseOptions: a NUL ends the input") = []
 {
     auto options = nulTerminated();
 
-    check(parseWithOptions("1\0"sv, options).asInteger() == 1);
-    check(parseWithOptions("{\"a\":[1]}\0"sv, options)["a"][0].asInteger() == 1);
-    check(parseWithOptions("[1] \0garbage \0 more"sv, options).asArray().size()
-          == 1);
-    check(parseWithOptions("\"s\"\0\0\0"sv, options).asString() == "s");
-    check(parseWithOptions("{}"sv, options).asObject().empty());
-    check(parseWithOptions("1 // tail\0 ]]]"sv, options).asInteger() == 1);
+    check(parse("1\0"sv, options).asInteger() == 1);
+    check(parse("{\"a\":[1]}\0"sv, options)["a"][0].asInteger() == 1);
+    check(parse("[1] \0garbage \0 more"sv, options).asArray().size() == 1);
+    check(parse("\"s\"\0\0\0"sv, options).asString() == "s");
+    check(parse("{}"sv, options).asObject().empty());
+    check(parse("1 // tail\0 ]]]"sv, options).asInteger() == 1);
 };
 
 auto nulCutsTheDocumentShort =
@@ -929,8 +962,8 @@ auto nulTerminatedNonThrowing =
 {
     auto options = nulTerminated();
 
-    check(getParsedValueWithOptions("[1,2]\0"sv, options).asArray().size() == 2);
-    check(getParsedValueWithOptions("[1,\0 2]"sv, options).isNull());
+    check(getParsedValue("[1,2]\0"sv, options).asArray().size() == 2);
+    check(getParsedValue("[1,\0 2]"sv, options).isNull());
     check(getParsedValue("[1,2]\0"sv).isNull());
 };
 
@@ -942,7 +975,7 @@ auto nulTerminatedWithoutNul =
         if (text.find('\0') != std::string_view::npos)
             continue;
 
-        check(print(getParsedValueWithOptions(text, nulTerminated()))
+        check(print(getParsedValue(text, nulTerminated()))
               == print(getParsedValue(text)));
         check(parseErrorMessage(text, nulTerminated())
               == parseErrorMessage(text, ParseOptions {}));
@@ -957,7 +990,7 @@ auto generatedNulProperty =
 
     for (const auto& value: generatedValues(7007, 300))
     {
-        auto text = printWithOptions(value, randomLayout(engine));
+        auto text = print(value, randomLayout(engine));
 
         for (auto round = 0; round < 4; ++round)
         {
@@ -983,10 +1016,9 @@ auto nulTerminatedWithCommentsRejected =
     auto options = nulTerminated();
     options.allowComments = false;
 
-    check(parseWithOptions("[1]\0 // after the end"sv, options).asArray().size()
-          == 1);
+    check(parse("[1]\0 // after the end"sv, options).asArray().size() == 1);
     check(parseErrorMessage("[1] // c\0"sv, options) == commentsError(4));
-    check(getParsedValueWithOptions("[1] // c\0"sv, options).isNull());
+    check(getParsedValue("[1] // c\0"sv, options).isNull());
 };
 
 auto strictRoundTrip =
@@ -1000,13 +1032,13 @@ auto strictRoundTrip =
     parseOptions.endAtNul = true;
 
     auto document = sampleDocument();
-    auto text = printWithOptions(document, printOptions);
+    auto text = print(document, printOptions);
     text += '\0';
 
-    auto back = parseWithOptions(text, parseOptions);
+    auto back = parse(text, parseOptions);
     check(back == document);
     check(!back["number"].isInteger());
-    check(printWithOptions(back, printOptions) + '\0' == text);
+    check(print(back, printOptions) + '\0' == text);
 };
 
 // --- Locale ---
@@ -1061,13 +1093,12 @@ auto keptDoublesUnderDecimalComma =
     auto options = lineBroken();
     options.keepDoublesAsDoubles = true;
 
-    check(printWithOptions(Value {1.0}, options) == "1.0");
-    check(printWithOptions(Value {-0.0}, options) == "-0.0");
-    check(printWithOptions(Value {1.5}, options) == "1.5");
-    check(printWithOptions(Value {1e20}, options) == "1e+20");
-    check(printWithOptions(parse("[2.0,0.25]"), options) == "[\n2.0,\n0.25\n]");
-    check(bitsOf(parse(printWithOptions(Value {-0.0}, options)).asNumber())
-          == bitsOf(-0.0));
+    check(print(Value {1.0}, options) == "1.0");
+    check(print(Value {-0.0}, options) == "-0.0");
+    check(print(Value {1.5}, options) == "1.5");
+    check(print(Value {1e20}, options) == "1e+20");
+    check(print(parse("[2.0,0.25]"), options) == "[\n2.0,\n0.25\n]");
+    check(bitsOf(parse(print(Value {-0.0}, options)).asNumber()) == bitsOf(-0.0));
 };
 
 } // namespace JsonOptionsTests
