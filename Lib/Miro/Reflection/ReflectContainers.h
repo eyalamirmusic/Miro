@@ -2,16 +2,46 @@
 
 #include "ReflectDispatch.h"
 
+#include <algorithm>
 #include <array>
+#include <concepts>
 #include <cstddef>
 #include <map>
 #include <optional>
+#include <span>
 #include <string>
 #include <utility>
 #include <vector>
 
 namespace Miro::Detail
 {
+
+// The fixed-width element types a reflector may take whole through
+// visitPacked(); everything else walks element by element.
+template <typename T>
+concept PackableElement =
+    std::same_as<T, std::int32_t> || std::same_as<T, std::int64_t>
+    || std::same_as<T, float> || std::same_as<T, double>;
+
+template <typename T>
+void reflectElements(Reflector& ref, std::span<T> elements, const Options& childOpts)
+{
+    if constexpr (PackableElement<T>)
+    {
+        if (ref.visitPacked(PackedArrayRef {elements}))
+            return;
+    }
+
+    for (std::size_t i = 0; i < elements.size(); ++i)
+        reflectValue(ref.atIndex(i, childOpts), elements[i]);
+}
+
+template <typename T>
+void reflectArraySchema(Reflector& ref, const Options& childOpts)
+{
+    auto inner = T {};
+    reflectValue(ref.atIndex(0, childOpts), inner);
+}
 
 template <typename T>
 void reflectValue(Reflector& ref, std::vector<T>& value)
@@ -22,22 +52,22 @@ void reflectValue(Reflector& ref, std::vector<T>& value)
     {
         if (ref.isSchema())
         {
-            auto inner = T {};
-            reflectValue(ref.atIndex(0, childOpts), inner);
+            reflectArraySchema<T>(ref, childOpts);
+            return;
         }
-        else
-        {
-            ref.resizeArray(value.size());
-            for (std::size_t i = 0; i < value.size(); ++i)
-                reflectValue(ref.atIndex(i, childOpts), value[i]);
-        }
+
+        ref.resizeArray(value.size());
+        reflectElements(ref, std::span<T> {value}, childOpts);
+        return;
     }
-    else
-    {
-        value.resize(ref.arraySize());
-        for (std::size_t i = 0; i < value.size(); ++i)
-            reflectValue(ref.atIndex(i, childOpts), value[i]);
-    }
+
+    // A missing key keeps the prior value, so a field added with a
+    // non-empty default survives loading data written before it.
+    if (ref.kind() == ValueKind::Absent)
+        return;
+
+    value.resize(ref.arraySize());
+    reflectElements(ref, std::span<T> {value}, childOpts);
 }
 
 template <typename T, std::size_t N>
@@ -50,23 +80,17 @@ void reflectValue(Reflector& ref, std::array<T, N>& value)
         if (ref.isSchema())
         {
             ref.setArrayBounds(N, N);
-            auto inner = T {};
-            reflectValue(ref.atIndex(0, childOpts), inner);
+            reflectArraySchema<T>(ref, childOpts);
+            return;
         }
-        else
-        {
-            ref.resizeArray(N);
-            for (std::size_t i = 0; i < N; ++i)
-                reflectValue(ref.atIndex(i, childOpts), value[i]);
-        }
+
+        ref.resizeArray(N);
+        reflectElements(ref, std::span<T> {value}, childOpts);
+        return;
     }
-    else
-    {
-        auto size = ref.arraySize();
-        auto count = size < N ? size : N;
-        for (std::size_t i = 0; i < count; ++i)
-            reflectValue(ref.atIndex(i, childOpts), value[i]);
-    }
+
+    auto count = std::min(ref.arraySize(), N);
+    reflectElements(ref, std::span<T> {value.data(), count}, childOpts);
 }
 
 template <typename V, typename Compare>
@@ -89,6 +113,9 @@ void reflectValue(Reflector& ref, std::map<std::string, V, Compare>& value)
     }
     else
     {
+        if (ref.kind() == ValueKind::Absent)
+            return;
+
         value.clear();
         for (auto& key: ref.mapKeys())
         {
@@ -220,6 +247,9 @@ void reflectValue(Reflector& ref, EA::MapVector<std::string, V>& value)
     }
     else
     {
+        if (ref.kind() == ValueKind::Absent)
+            return;
+
         value.clear();
         for (auto& key: ref.mapKeys())
         {

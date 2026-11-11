@@ -1,5 +1,6 @@
 #pragma once
 
+#include "NumericConvert.h"
 #include "Omittable.h"
 #include "Reflector.h"
 #include "TypeName.h"
@@ -317,7 +318,17 @@ void reflectValue(Reflector& ref, T& value)
 {
     auto wide = static_cast<std::int64_t>(value);
     ref.visit(wide);
-    value = static_cast<T>(wide);
+
+    if (!ref.isLoading())
+        return;
+
+    // A uint64 travels as its int64 bit pattern, so a value past
+    // INT64_MAX arrives negative and must be reinterpreted, not refused.
+    // Every narrower type takes the loaded value only if it fits.
+    if constexpr (std::is_unsigned_v<T> && sizeof(T) == sizeof(std::int64_t))
+        value = static_cast<T>(wide);
+    else
+        convertNumber(wide, value);
 }
 
 template <std::floating_point T>
@@ -326,7 +337,9 @@ void reflectValue(Reflector& ref, T& value)
 {
     auto wide = static_cast<double>(value);
     ref.visit(wide);
-    value = static_cast<T>(wide);
+
+    if (ref.isLoading())
+        convertNumber(wide, value);
 }
 
 // Default fallback: a reflectable struct (member reflect() or external
@@ -369,12 +382,32 @@ namespace Miro
 // Miro about a new primitive (e.g. juce::String) by adding a free
 // `reflectValue(Reflector&, T&)` overload in namespace `Miro` or in `T`'s
 // own namespace, even after <Miro/Miro.h> has been included.
+inline bool Property::isReadingLegacyKey() const
+{
+    return !legacyKey.empty() && reflector.isLoading() && !reflector.isSchema();
+}
+
 template <typename T>
 void Property::operator()(T& value)
 {
     using Detail::reflectValue;
     auto childOpts = Detail::childOptionsFor<T>(reflector.options());
     childOpts.description = description;
+
+    if (isReadingLegacyKey())
+    {
+        // The current name is probed first; an absent probe leaves a
+        // container field untouched for the legacy read.
+        auto& current = reflector.atKey(key, childOpts);
+
+        if (current.kind() != ValueKind::Absent)
+            reflectValue(current, value);
+        else
+            reflectValue(reflector.atKey(legacyKey, childOpts), value);
+
+        return;
+    }
+
     reflectValue(reflector.atKey(key, childOpts), value);
 }
 
