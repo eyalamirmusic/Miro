@@ -5,8 +5,7 @@
 // - Fields are matched by name, never by position: reordering is free,
 //   an unknown field is skipped, a missing field keeps the value the
 //   reader started with (its default member initializer).
-// - A renamed field is a missing field plus an unknown one, unless the
-//   new reflect() reads the old name with Property::legacy().
+// - A renamed field is a missing field plus an unknown one.
 // - A value whose type no longer fits the field is refused and the field
 //   keeps its prior value: no wraparound, no out-of-range casts.
 // - Truncated or corrupted bytes never crash or read out of bounds.
@@ -62,32 +61,6 @@ struct ProfileV2Unmigrated
     MIRO_REFLECT(field1, fieldTwo)
 };
 
-// Renamed with a hand-written reflect that migrates the old name.
-struct ProfileV2
-{
-    std::uint32_t field1 = 0;
-    std::string fieldTwo = "unset";
-
-    void reflect(Reflector& ref)
-    {
-        ref["field1"](field1);
-        ref["fieldTwo"].legacy("field2")(fieldTwo);
-    }
-
-    bool operator==(const ProfileV2&) const = default;
-};
-
-// Writes both spellings at once, as a document touched by both versions
-// might.
-struct ProfileBothNames
-{
-    std::uint32_t field1 = 0;
-    std::string field2;
-    std::string fieldTwo;
-
-    MIRO_REFLECT(field1, field2, fieldTwo)
-};
-
 ProfileV1 sampleV1()
 {
     return {.field1 = 4000000000u, .field2 = "hello"};
@@ -102,90 +75,6 @@ auto renameUnmigrated =
                                               check(v2.field1 == 4000000000u);
                                               check(v2.fieldTwo == "unset");
                                           });
-};
-
-auto renameMigrated =
-    test("Evolution: legacy() reads a renamed field from its old name") = []
-{
-    checkThroughJson<ProfileV2>(sampleV1(),
-                                [](const ProfileV2& v2)
-                                {
-                                    check(v2.field1 == 4000000000u);
-                                    check(v2.fieldTwo == "hello");
-                                });
-};
-
-auto renameNewKeyWins =
-    test("Evolution: legacy() prefers the current name when both exist") = []
-{
-    auto both = ProfileBothNames {.field1 = 1, .field2 = "old", .fieldTwo = "new"};
-
-    checkThroughJson<ProfileV2>(
-        both, [](const ProfileV2& v2) { check(v2.fieldTwo == "new"); });
-};
-
-auto renameNeitherKey =
-    test("Evolution: legacy() with neither name present keeps the default") = []
-{
-    struct OnlyField1
-    {
-        std::uint32_t field1 = 3;
-        void reflect(Miro::Reflector& ref) { MIRO_FIELDS(ref, field1); }
-    };
-
-    checkThroughJson<ProfileV2>(OnlyField1 {},
-                                [](const ProfileV2& v2)
-                                {
-                                    check(v2.field1 == 3);
-                                    check(v2.fieldTwo == "unset");
-                                });
-};
-
-auto renameSavesNewNameOnly =
-    test("Evolution: legacy() saves under the current name only") = []
-{
-    auto v2 = ProfileV2 {.field1 = 1, .fieldTwo = "x"};
-
-    auto json = toJSON(v2);
-    check(json.asObject().contains("fieldTwo"));
-    check(!json.asObject().contains("field2"));
-};
-
-auto renameStablePoint =
-    test("Evolution: V1 -> V2 -> re-encode -> V2 is a fixed point") = []
-{
-    auto migrated = convertThroughJson<ProfileV2>(sampleV1());
-    auto reencoded = toJSONString(migrated);
-    auto again = createFromJSONString<ProfileV2>(reencoded);
-
-    check(again == migrated);
-    check(again.fieldTwo == "hello");
-    check(reencoded.find("field2") == std::string::npos);
-    check(toJSONString(again) == reencoded);
-};
-
-// A container-typed field is the case a naive "read both keys" reflect
-// gets wrong: reading a missing key into a vector used to clear it.
-struct TagsV1
-{
-    std::vector<std::string> labels;
-    MIRO_REFLECT(labels)
-};
-
-struct TagsV2
-{
-    std::vector<std::string> tags;
-
-    void reflect(Reflector& ref) { ref["tags"].legacy("labels")(tags); }
-};
-
-auto renameContainer =
-    test("Evolution: legacy() migrates a renamed vector field") = []
-{
-    checkThroughJson<TagsV2>(
-        TagsV1 {{"a", "b"}},
-        [](const TagsV2& v2)
-        { check(v2.tags == std::vector<std::string> {"a", "b"}); });
 };
 
 // --- Added, removed, reordered fields ---
@@ -354,15 +243,6 @@ struct OuterV1
     MIRO_REFLECT(profile, list, byName)
 };
 
-struct OuterV2
-{
-    ProfileV2 profile;
-    std::vector<ProfileV2> list;
-    std::map<std::string, ProfileV2> byName;
-
-    MIRO_REFLECT(profile, list, byName)
-};
-
 struct AddedOuterV2
 {
     AddedV2 profile;
@@ -381,28 +261,6 @@ OuterV1 sampleOuterV1()
                  {"b", {.field1 = 5, .field2 = "beta"}}};
     return v1;
 }
-
-auto nestedRenamed =
-    test("Evolution: nested, vector and map elements migrate a rename") = []
-{
-    checkThroughJson<OuterV2>(sampleOuterV1(),
-                              [](const OuterV2& v2)
-                              {
-                                  check(v2.profile.fieldTwo == "nested");
-                                  check(v2.list.size() == 2);
-
-                                  if (v2.list.size() == 2)
-                                  {
-                                      check(v2.list[0].field1 == 2);
-                                      check(v2.list[0].fieldTwo == "first");
-                                      check(v2.list[1].fieldTwo == "second");
-                                  }
-                                  check(v2.byName.size() == 2);
-                                  check(v2.byName.at("a").fieldTwo == "alpha");
-                                  check(v2.byName.at("b").field1 == 5);
-                                  check(v2.byName.at("b").fieldTwo == "beta");
-                              });
-};
 
 auto nestedAdded =
     test("Evolution: nested, vector and map elements default added fields") = []
@@ -558,13 +416,14 @@ auto structToScalar = test("Evolution: struct -> scalar keeps prior") = []
 
 auto scalarToStruct = test("Evolution: scalar -> struct keeps prior fields") = []
 {
-    checkFieldTypeChange<ProfileV2>(5,
-                                    ProfileV2 {.field1 = 1, .fieldTwo = "prior"},
-                                    [](const ProfileV2& v)
-                                    {
-                                        check(v.field1 == 1);
-                                        check(v.fieldTwo == "prior");
-                                    });
+    checkFieldTypeChange<ProfileV2Unmigrated>(
+        5,
+        ProfileV2Unmigrated {.field1 = 1, .fieldTwo = "prior"},
+        [](const ProfileV2Unmigrated& v)
+        {
+            check(v.field1 == 1);
+            check(v.fieldTwo == "prior");
+        });
 };
 
 auto packedElementChange =
@@ -597,9 +456,9 @@ auto truncatedJson = test("Evolution: truncated V1 JSON reads as default V2") = 
     for (auto size = std::size_t {0}; size < text.size(); ++size)
     {
         auto loaded =
-            createFromJSONString<OuterV2>(std::string_view {text.data(), size});
+            createFromJSONString<AddedOuterV2>(std::string_view {text.data(), size});
         check(loaded.list.empty());
-        check(loaded.profile.fieldTwo == "unset");
+        check(loaded.profile.added == 42);
     }
 };
 

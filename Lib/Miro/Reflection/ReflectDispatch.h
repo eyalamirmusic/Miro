@@ -382,31 +382,12 @@ namespace Miro
 // Miro about a new primitive (e.g. juce::String) by adding a free
 // `reflectValue(Reflector&, T&)` overload in namespace `Miro` or in `T`'s
 // own namespace, even after <Miro/Miro.h> has been included.
-inline bool Property::isReadingLegacyKey() const
-{
-    return !legacyKey.empty() && reflector.isLoading() && !reflector.isSchema();
-}
-
 template <typename T>
 void Property::operator()(T& value)
 {
     using Detail::reflectValue;
     auto childOpts = Detail::childOptionsFor<T>(reflector.options());
     childOpts.description = description;
-
-    if (isReadingLegacyKey())
-    {
-        // The current name is probed first; an absent probe leaves a
-        // container field untouched for the legacy read.
-        auto& current = reflector.atKey(key, childOpts);
-
-        if (current.kind() != ValueKind::Absent)
-            reflectValue(current, value);
-        else
-            reflectValue(reflector.atKey(legacyKey, childOpts), value);
-
-        return;
-    }
 
     reflectValue(reflector.atKey(key, childOpts), value);
 }

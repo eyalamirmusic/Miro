@@ -2,7 +2,6 @@
 
 #include "../Containers.h"
 
-#include <cassert>
 #include <cstddef>
 #include <cstdint>
 #include <span>
@@ -23,32 +22,13 @@ struct Property
     // so it is held by view and must outlive the reflect() call —
     // normally a string literal. Data reflectors ignore it; schema
     // walkers (TypeTree) record it on the field's node.
-    Property doc(std::string_view text) const
-    {
-        return {reflector, key, legacyKey, text};
-    }
+    Property doc(std::string_view text) const { return {reflector, key, text}; }
 
     template <typename T>
     void operator()(T& value);
 
-    // Schema evolution for a renamed field: on load, a document without
-    // `key` is read from `previousKey` instead, so data written before
-    // the rename migrates in place. `key` wins when both are present.
-    // Saving and schema walks only ever see `key`.
-    //
-    //   ref["fieldTwo"].legacy("field2")(fieldTwo);
-    Property legacy(std::string_view previousKey) const
-    {
-        assert(legacyKey.empty()
-               && "Only one legacy key per field is supported: call legacy() once");
-        return {reflector, key, previousKey, description};
-    }
-
-    bool isReadingLegacyKey() const;
-
     Reflector& reflector;
     std::string_view key;
-    std::string_view legacyKey {};
     std::string_view description {};
 };
 
