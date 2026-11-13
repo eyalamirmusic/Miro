@@ -311,8 +311,8 @@ auto attributesDocSpellings =
 
     check(methodCity.description == "City and country");
     check(attributeCity.description == "City and country");
-    check(methodCity.attributes.empty());
-    check(attributeCity.attributes.empty());
+    check(methodCity.attributes.isNull());
+    check(attributeCity.attributes.isNull());
 };
 
 auto attributesRetainedOnTypeNode =
@@ -323,25 +323,26 @@ auto attributesRetainedOnTypeNode =
     auto rangeName = std::string {Detail::qualifiedNameOf<Range>()};
     auto unitName = std::string {Detail::qualifiedNameOf<Unit>()};
 
-    auto& speed = attributeFieldNode(tree, "speed");
-    check(speed.description.empty());
-    check(speed.attributes.size() == 2);
-    check(speed.attributes.at(rangeName).asObject().at("min").asNumber() == 0.0);
-    check(speed.attributes.at(rangeName).asObject().at("max").asNumber() == 10.0);
-    check(speed.attributes.at(unitName).asString() == "hertz");
+    auto& speed = attributeFieldNode(tree, "speed").attributes.asObject();
+    check(attributeFieldNode(tree, "speed").description.empty());
+    check(speed.size() == 2);
+    check(speed.at(rangeName).asObject().at("min").asNumber() == 0.0);
+    check(speed.at(rangeName).asObject().at("max").asNumber() == 10.0);
+    check(speed.at(unitName).asString() == "hertz");
 
     auto& city = attributeFieldNode(tree, "city");
     check(city.description == "City name");
-    check(city.attributes.empty());
+    check(city.attributes.isNull());
 
     // Doc goes to the description; the function-pointer attribute is
     // not reflectable, so it is left out.
     auto& count = attributeFieldNode(tree, "count");
     check(count.description == "How many");
-    check(count.attributes.size() == 1);
-    check(count.attributes.at(rangeName).asObject().at("max").asNumber() == 100.0);
-    check(!count.attributes.contains(
+    check(count.attributes.asObject().size() == 1);
+    check(count.attributes.asObject().at(rangeName).asObject().at("max").asNumber()
+          == 100.0);
+    check(!count.attributes.asObject().contains(
         std::string {Detail::qualifiedNameOf<OnChange>()}));
 
-    check(tree.attributes.empty());
+    check(tree.attributes.isNull());
 };

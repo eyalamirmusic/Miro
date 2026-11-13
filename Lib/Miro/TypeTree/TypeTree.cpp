@@ -69,11 +69,17 @@ void TypeReflector::visitAttributes(std::span<const AttributeRef> attributes)
         }
     }
 
-    if (!saved.isObject())
+    if (!saved.isObject() || saved.asObject().empty())
         return;
 
+    if (!node.attributes.isObject())
+    {
+        node.attributes = std::move(saved);
+        return;
+    }
+
     for (auto& [name, value]: saved.asObject())
-        node.attributes[name] = std::move(value);
+        node.attributes.asObject()[name] = std::move(value);
 }
 
 ValueKind TypeReflector::kind() const
