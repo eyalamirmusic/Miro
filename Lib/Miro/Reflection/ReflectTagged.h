@@ -197,7 +197,6 @@ private:
         auto opts = ref.options();
         opts.shape = Shape::Primitive;
         opts.nullable = false;
-        opts.description = {};
         return opts;
     }
 

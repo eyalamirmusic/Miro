@@ -1,6 +1,7 @@
 #include "TypeTree.h"
 
 #include "../Detail/StringUtilities.h"
+#include "../Reflection/JsonReflector.h"
 
 #include <concepts>
 #include <map>
@@ -42,10 +43,38 @@ TypeReflector::TypeReflector(TypeNode& nodeToUse,
 
     node.optional = opts.nullable;
     node.omittable = opts.omittable;
-    node.description = std::string {opts.description};
 }
 
 TypeReflector::~TypeReflector() = default;
+
+void TypeReflector::visitAttributes(std::span<const AttributeRef> attributes)
+{
+    // Reflectable attributes are written as members of one scratch
+    // object, keyed by type name, then moved onto the node. A repeated
+    // attribute type keeps its last value, and so does a repeated Doc.
+    auto saved = JSON {};
+
+    {
+        auto root = JsonReflector {saved,
+                                   Options {.mode = Mode::Save,
+                                            .shape = Shape::Object,
+                                            .custom = opts.custom}};
+
+        for (auto& attribute: attributes)
+        {
+            if (auto* doc = attribute.as<Doc>())
+                node.description = std::string {doc->text};
+            else
+                attribute.reflectInto(root, attribute.typeName);
+        }
+    }
+
+    if (!saved.isObject())
+        return;
+
+    for (auto& [name, value]: saved.asObject())
+        node.attributes[name] = std::move(value);
+}
 
 ValueKind TypeReflector::kind() const
 {

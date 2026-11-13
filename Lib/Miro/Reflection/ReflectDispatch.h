@@ -10,7 +10,9 @@
 #include <cstdint>
 #include <map>
 #include <optional>
+#include <span>
 #include <string>
+#include <string_view>
 #include <type_traits>
 #include <utility>
 #include <variant>
@@ -219,7 +221,6 @@ Options childOptionsFor(const Options& parent)
     opts.shape = shapeOf<T>();
     opts.nullable = isOptional<T>();
     opts.omittable = isOmittable<T>();
-    opts.description = {};
     return opts;
 }
 
@@ -357,6 +358,32 @@ template <typename T>
 concept HasReflectValue =
     requires(Reflector& ref, T& value) { reflectValue(ref, value); };
 
+// The typed half of AttributeRef::reflectInto. Reflects a copy, so the
+// attribute itself stays const whatever the parent's mode.
+template <typename A>
+void reflectAttributeInto(Reflector& parent,
+                          std::string_view key,
+                          const void* attribute)
+{
+    auto copy = *static_cast<const A*>(attribute);
+    parent[key](copy);
+}
+
+// Compile-time checks on one attribute A of a field of type T. A
+// function so a failure names A and T in the instantiation trace.
+template <typename T, typename A>
+consteval bool checkAttribute()
+{
+    static_assert(std::is_trivially_destructible_v<A>,
+                  "Miro field attributes must be trivially destructible, so "
+                  "passing one can never allocate. Hold text as a "
+                  "std::string_view, not a std::string.");
+    static_assert(AttributeAppliesTo<A, T>::value,
+                  "This attribute does not apply to this field type "
+                  "(see the Miro::AttributeAppliesTo specialization).");
+    return true;
+}
+
 } // namespace Miro::Detail
 
 namespace Miro
@@ -369,13 +396,53 @@ namespace Miro
 // Miro about a new primitive (e.g. juce::String) by adding a free
 // `reflectValue(Reflector&, T&)` overload in namespace `Miro` or in `T`'s
 // own namespace, even after <Miro/Miro.h> has been included.
-template <typename T>
-void Property::operator()(T& value)
+template <typename A>
+AttributeRef AttributeRef::of(const A& attribute)
 {
+    auto ref = AttributeRef {Detail::qualifiedNameOf<A>(), &attribute};
+
+    if constexpr (Detail::HasReflectValue<A> && std::is_copy_constructible_v<A>)
+        ref.reflectFn = &Detail::reflectAttributeInto<A>;
+
+    return ref;
+}
+
+// Attributes cost nothing unless present: with an empty pack and no
+// doc() text this is exactly the old atKey + reflectValue. Otherwise
+// the views live in a stack array (doc() text first, as a Doc) and the
+// child slot gets one visitAttributes call before its value.
+template <typename T, typename... As>
+void Property::operator()(T& value, const As&... attributes)
+{
+    static_assert((Detail::checkAttribute<T, As>() && ...));
+
     using Detail::reflectValue;
-    auto childOpts = Detail::childOptionsFor<T>(reflector.options());
-    childOpts.description = description;
-    reflectValue(reflector.atKey(key, childOpts), value);
+    auto& child =
+        reflector.atKey(key, Detail::childOptionsFor<T>(reflector.options()));
+
+    if constexpr (sizeof...(As) == 0)
+    {
+        if (!description.empty())
+        {
+            auto doc = Doc {description};
+            auto refs = std::array {AttributeRef::of(doc)};
+            child.visitAttributes(refs);
+        }
+    }
+    else
+    {
+        auto doc = Doc {description};
+        auto refs =
+            std::array {AttributeRef::of(doc), AttributeRef::of(attributes)...};
+        auto view = std::span<const AttributeRef> {refs};
+
+        if (description.empty())
+            view = view.subspan(1);
+
+        child.visitAttributes(view);
+    }
+
+    reflectValue(child, value);
 }
 
 template <typename T>

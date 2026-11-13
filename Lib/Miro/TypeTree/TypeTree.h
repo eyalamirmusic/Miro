@@ -1,5 +1,6 @@
 #pragma once
 
+#include "../JSON/Json.h"
 #include "../Reflection/ReflectDispatch.h"
 #include "../Reflection/Reflector.h"
 
@@ -65,12 +66,20 @@ struct TypeNode
     // Primitive only.
     PrimitiveKind primitive = PrimitiveKind::String;
 
-    // Description of the slot this node sits in (Property::doc()). It
-    // belongs to the field, not to the type: a named struct's slot
-    // node doubles as the body renderers hoist into a declaration, so
-    // renderers print it at the use site only, never on the hoisted
-    // definition. Empty when the field carries no description.
+    // Description of the slot this node sits in (a Miro::Doc attribute,
+    // or Property::doc()). It belongs to the field, not to the type: a
+    // named struct's slot node doubles as the body renderers hoist into
+    // a declaration, so renderers print it at the use site only, never
+    // on the hoisted definition. Empty when the field carries no
+    // description.
     std::string description;
+
+    // The slot's other field attributes, each saved as JSON under its
+    // qualified C++ type name (e.g. "Synth::Range" -> {"min":0,"max":10}).
+    // Like `description`, it belongs to the field, not the type.
+    // Attributes Miro can't reflect are left out, and so is Doc, which
+    // lands in `description`. No renderer reads this yet.
+    Json::Object attributes;
 
     // Object / Enum only: the display name emitted in generated source.
     // Defaults to the unqualified C++ type name; on collision the
@@ -145,6 +154,7 @@ public:
     void visit(PrimitiveRef ref) override;
     void writeNull() override;
     ValueKind kind() const override;
+    void visitAttributes(std::span<const AttributeRef> attributes) override;
     bool beginNamedType(TypeId id) override;
     void visitEnum(TypeId id, const Vector<std::string_view>& names) override;
     void visitIntegerEnum(TypeId id, const Vector<EnumEntry>& entries) override;

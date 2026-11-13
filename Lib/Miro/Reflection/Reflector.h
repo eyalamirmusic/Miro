@@ -1,9 +1,11 @@
 #pragma once
 
 #include "../Containers.h"
+#include "TypeName.h"
 
 #include <cstddef>
 #include <cstdint>
+#include <span>
 #include <string>
 #include <string_view>
 #include <utility>
@@ -13,18 +15,98 @@ namespace Miro
 {
 class Reflector;
 
+// Human-readable description. Two uses, one type:
+//  - the first field attribute: ref["city"](city, Miro::Doc {"..."})
+//    (Property::doc() is the older spelling of the same thing);
+//  - the trailing argument of any ApiReflector::command overload:
+//    r.command<&T::getWeather>(Miro::Doc {"Current weather for a city"});
+// Held by view. As a field attribute it lives only for the call; the
+// command descriptor copies it. Data reflectors ignore it; TypeTree
+// records a field's Doc as the slot's TypeNode::description.
+struct Doc
+{
+    std::string_view text;
+};
+
+// A non-owning, type-erased view of one field attribute, handed to
+// Reflector::visitAttributes and valid only for the duration of that
+// call. Attributes are arbitrary user types passed beside the value:
+//   ref["speed"](speed, Range {0.f, 10.f}, Unit::hertz);
+//
+// Identity is the attribute type's qualified name, compared as text —
+// never the address of a per-type static — so a host and a hot-reloaded
+// library, each with its own copy of any static, still agree on what a
+// Range is. (The flip side: two distinct types that print the same
+// qualified name, e.g. same-named types in anonymous namespaces of two
+// TUs, are indistinguishable.)
+struct AttributeRef
+{
+    // Defined in ReflectDispatch.h, which knows how to reflect A.
+    template <typename A>
+    static AttributeRef of(const A& attribute);
+
+    // The attribute as an A, or null when it is some other type.
+    template <typename A>
+    const A* as() const
+    {
+        if (typeName != Detail::qualifiedNameOf<A>())
+            return nullptr;
+
+        return static_cast<const A*>(value);
+    }
+
+    // False for an attribute Miro can't reflect (e.g. one holding a
+    // function pointer): a live reflector can still read it with as<>,
+    // but it can't be written out.
+    bool isReflectable() const { return reflectFn != nullptr; }
+
+    // Reflects a copy of the attribute as member `key` of `parent`,
+    // which must be an Object slot — the child's shape then comes from
+    // the attribute's own type, which only the typed side knows. A
+    // no-op when the attribute isn't reflectable.
+    void reflectInto(Reflector& parent, std::string_view key) const
+    {
+        if (reflectFn != nullptr)
+            reflectFn(parent, key, value);
+    }
+
+    std::string_view typeName;
+    const void* value = nullptr;
+    void (*reflectFn)(Reflector&, std::string_view, const void*) = nullptr;
+};
+
+// Compile-time customization point: may attribute A be attached to a
+// field of type T? Every combination is allowed by default. Specialize
+// it to reject a misuse at the call site, e.g.
+//   template <typename T>
+//   struct Miro::AttributeAppliesTo<Range, T>
+//   {
+//       static constexpr bool value = std::is_arithmetic_v<T>;
+//   };
+// T is the field's declared type (std::optional<float>, not float).
+template <typename A, typename T>
+struct AttributeAppliesTo
+{
+    static constexpr bool value = true;
+};
+
 struct Property
 {
     // Attaches a human-readable description to this field:
     //   ref["city"].doc("City and country")(city);
-    // The text travels to the child slot through Options::description,
-    // so it is held by view and must outlive the reflect() call —
-    // normally a string literal. Data reflectors ignore it; schema
-    // walkers (TypeTree) record it on the field's node.
+    // Same as passing Miro::Doc {"City and country"} as an attribute:
+    // operator() delivers it to the child slot as the first Doc
+    // attribute. Held by view, so it must outlive the reflect() call —
+    // normally a string literal.
     Property doc(std::string_view text) const { return {reflector, key, text}; }
 
-    template <typename T>
-    void operator()(T& value);
+    // Reflects `value` as member `key`. Any trailing arguments are
+    // attributes: the child slot sees them, in order, through one
+    // visitAttributes() call before the value itself is visited. They
+    // must be trivially destructible (so building them never allocates)
+    // and pass AttributeAppliesTo<A, T>.
+    template <typename T, typename... As>
+    void operator()(T& value, const As&... attributes);
 
     Reflector& reflector;
     std::string_view key;
@@ -111,13 +193,6 @@ struct Options
 
     // Propagated parent -> child unchanged (see CustomOptions).
     CustomOptions custom {};
-
-    // Human-readable description of this slot, set by Property::doc().
-    // Per-child like `shape` — childOptionsFor clears it, so it never
-    // leaks into nested slots. Held by view: the text must outlive the
-    // reflect() call that supplied it (normally a string literal).
-    // Data reflectors ignore it; TypeTree copies it onto the TypeNode.
-    std::string_view description {};
 };
 
 // The discriminator value of one alternative of an internally tagged
@@ -231,6 +306,16 @@ public:
     // parent here; one that didn't ignores the call. Never calling it is
     // exactly how "this key is absent" is expressed.
     virtual void markPresent();
+
+    // Called by Property::operator() on the field's child slot, after
+    // the slot is spawned and before its value is visited, with the
+    // field's attributes in call order (a Property::doc() text arrives
+    // first, as a Doc). Never called for a field without attributes.
+    // The views are valid only during the call. The default ignores
+    // them — which is how a reflector says it doesn't support
+    // attributes; TypeTree keeps Doc as the description and every
+    // reflectable attribute as JSON.
+    virtual void visitAttributes(std::span<const AttributeRef> /*attributes*/) {}
 
     // Called by the dispatch right before invoking a reflectable type's
     // own reflect() body. `id` carries both the short and qualified C++
