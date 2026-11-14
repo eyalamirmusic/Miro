@@ -16,11 +16,14 @@
 namespace Miro::Detail
 {
 
-// The fixed-width element types a reflector may take whole through
-// visitPacked(); everything else walks element by element.
+// The element types PackedArrayRef holds; everything else walks element
+// by element.
 template <typename T>
 concept PackableElement =
-    std::same_as<T, std::int32_t> || std::same_as<T, std::int64_t>
+    std::same_as<T, std::int8_t> || std::same_as<T, std::uint8_t>
+    || std::same_as<T, std::int16_t> || std::same_as<T, std::uint16_t>
+    || std::same_as<T, std::int32_t> || std::same_as<T, std::uint32_t>
+    || std::same_as<T, std::int64_t> || std::same_as<T, std::uint64_t>
     || std::same_as<T, float> || std::same_as<T, double>;
 
 template <typename T>

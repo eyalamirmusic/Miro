@@ -144,19 +144,34 @@ auto declinedPackedWalksElements =
     check(log.elementVisits == values.size());
 };
 
+auto smallIntegersPack =
+    test("Packed arrays: 8- and 16-bit and unsigned elements are packed too") = []
+{
+    auto bytes = std::vector<std::uint8_t> {};
+    auto shorts = std::array<std::int16_t, loadedArraySize> {};
+    auto wide = std::vector<std::uint64_t> {};
+
+    check(reflectThroughProbe(bytes, Mode::Load, true).packedCalls == 1);
+    check(reflectThroughProbe(shorts, Mode::Load, true).packedCalls == 1);
+    check(reflectThroughProbe(wide, Mode::Load, true).packedCalls == 1);
+    check(bytes == std::vector<std::uint8_t> {1, 2, 3, 4});
+    check(shorts == std::array<std::int16_t, loadedArraySize> {1, 2, 3, 4});
+    check(wide == std::vector<std::uint64_t> {1, 2, 3, 4});
+};
+
 auto unpackableElementsWalk =
     test("Packed arrays: non-packable elements never reach visitPacked") = []
 {
     auto strings = std::vector<std::string> {"a", "b"};
-    auto shorts = std::vector<std::int16_t> {1, 2, 3};
+    auto flags = std::array<bool, loadedArraySize> {true, false, true, false};
 
     auto stringLog = reflectThroughProbe(strings, Mode::Save, true);
-    auto shortLog = reflectThroughProbe(shorts, Mode::Save, true);
+    auto flagLog = reflectThroughProbe(flags, Mode::Save, true);
 
     check(stringLog.packedCalls == 0);
     check(stringLog.elementVisits == strings.size());
-    check(shortLog.packedCalls == 0);
-    check(shortLog.elementVisits == shorts.size());
+    check(flagLog.packedCalls == 0);
+    check(flagLog.elementVisits == flags.size());
 };
 
 } // namespace

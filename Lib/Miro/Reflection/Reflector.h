@@ -194,8 +194,14 @@ struct PrimitiveRef
 // the caller has already resized to arraySize() and the span is filled.
 struct PackedArrayRef
 {
-    using Variant = std::variant<std::span<std::int32_t>,
+    using Variant = std::variant<std::span<std::int8_t>,
+                                 std::span<std::uint8_t>,
+                                 std::span<std::int16_t>,
+                                 std::span<std::uint16_t>,
+                                 std::span<std::int32_t>,
+                                 std::span<std::uint32_t>,
                                  std::span<std::int64_t>,
+                                 std::span<std::uint64_t>,
                                  std::span<float>,
                                  std::span<double>>;
 
