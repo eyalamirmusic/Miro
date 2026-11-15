@@ -88,41 +88,64 @@ void fromJSONString(T& value, std::string_view jsonString, CustomOptions custom 
     fromJSON(value, Json::getParsedValue(jsonString), std::move(custom));
 }
 
-enum class ParseErrorHandling
+// Malformed JSON gives a default-constructed T. Missing fields and wrong
+// types are fromJSON's to handle in every createFromJSONString form.
+template <typename T>
+T createFromJSONString(std::string_view jsonString,
+                       const Json::ParseOptions& parseOptions,
+                       CustomOptions custom = {})
 {
-    DefaultConstructType,
-    Throw
-};
+    return createFromJSON<T>(Json::getParsedValue(jsonString, parseOptions),
+                             std::move(custom));
+}
 
-// Malformed JSON gives a default-constructed T, or throws Json::ParseError
-// under ParseErrorHandling::Throw. Missing fields and wrong types are
-// fromJSON's to handle either way.
-template <
-    typename T,
-    ParseErrorHandling errorHandling = ParseErrorHandling::DefaultConstructType>
+template <typename T>
 T createFromJSONString(std::string_view jsonString, CustomOptions custom = {})
 {
-    if constexpr (errorHandling == ParseErrorHandling::Throw)
-        return createFromJSON<T>(Json::parse(jsonString), std::move(custom));
-    else
-        return createFromJSON<T>(Json::getParsedValue(jsonString),
-                                 std::move(custom));
+    return createFromJSONString<T>(
+        jsonString, Json::ParseOptions {}, std::move(custom));
+}
+
+// Throws Json::ParseError on malformed JSON.
+template <typename T>
+T createFromJSONStringOrThrow(std::string_view jsonString,
+                              const Json::ParseOptions& parseOptions,
+                              CustomOptions custom = {})
+{
+    return createFromJSON<T>(Json::parse(jsonString, parseOptions),
+                             std::move(custom));
+}
+
+template <typename T>
+T createFromJSONStringOrThrow(std::string_view jsonString, CustomOptions custom = {})
+{
+    return createFromJSONStringOrThrow<T>(
+        jsonString, Json::ParseOptions {}, std::move(custom));
 }
 
 // std::nullopt on malformed JSON.
 template <typename T>
 std::optional<T> tryCreateFromJSONString(std::string_view jsonString,
+                                         const Json::ParseOptions& parseOptions,
                                          CustomOptions custom = {})
 {
     try
     {
-        return createFromJSONString<T, ParseErrorHandling::Throw>(jsonString,
-                                                                  std::move(custom));
+        return createFromJSONStringOrThrow<T>(
+            jsonString, parseOptions, std::move(custom));
     }
     catch (const Json::ParseError&)
     {
         return std::nullopt;
     }
+}
+
+template <typename T>
+std::optional<T> tryCreateFromJSONString(std::string_view jsonString,
+                                         CustomOptions custom = {})
+{
+    return tryCreateFromJSONString<T>(
+        jsonString, Json::ParseOptions {}, std::move(custom));
 }
 
 } // namespace Miro

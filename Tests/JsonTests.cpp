@@ -402,6 +402,37 @@ constexpr auto validSampleJson = R"({"count": 7})";
 constexpr auto malformedSampleJson = R"({"count": 7)";
 constexpr auto expectedSampleCount = 7;
 constexpr auto defaultSampleCount = 0;
+constexpr auto commentedSampleJson = R"({"count": 7 /* note */})";
+constexpr auto duplicatedSampleJson = R"({"count": 1, "count": 7})";
+
+ParseOptions makeOptionsRejectingComments()
+{
+    auto options = ParseOptions {};
+    options.allowComments = false;
+    return options;
+}
+
+ParseOptions makeOptionsKeepingLastDuplicateKey()
+{
+    auto options = ParseOptions {};
+    options.duplicateKeys = ParseOptions::DuplicateKeys::KeepLast;
+    return options;
+}
+
+template <typename Function>
+bool doesThrowParseError(Function&& functionToCall)
+{
+    try
+    {
+        functionToCall();
+    }
+    catch (const ParseError&)
+    {
+        return true;
+    }
+
+    return false;
+}
 
 } // namespace
 
@@ -412,12 +443,11 @@ auto createFromValidJsonByDefault =
     check(sample.count == expectedSampleCount);
 };
 
-auto createFromValidJsonWithThrow =
-    test("createFromJSONString with Throw loads valid JSON") = []
+auto createFromValidJsonOrThrow =
+    test("createFromJSONStringOrThrow loads valid JSON") = []
 {
     auto sample =
-        createFromJSONString<ParseErrorHandlingSample, ParseErrorHandling::Throw>(
-            validSampleJson);
+        createFromJSONStringOrThrow<ParseErrorHandlingSample>(validSampleJson);
     check(sample.count == expectedSampleCount);
 };
 
@@ -436,22 +466,15 @@ auto createFromMalformedJsonByDefault =
     check(sample.count == defaultSampleCount);
 };
 
-auto createFromMalformedJsonWithThrow =
-    test("createFromJSONString with Throw throws ParseError on malformed JSON") = []
+auto createFromMalformedJsonOrThrow =
+    test("createFromJSONStringOrThrow throws ParseError on malformed JSON") = []
 {
-    auto threwParseError = false;
-
-    try
-    {
-        createFromJSONString<ParseErrorHandlingSample, ParseErrorHandling::Throw>(
-            malformedSampleJson);
-    }
-    catch (const ParseError&)
-    {
-        threwParseError = true;
-    }
-
-    check(threwParseError);
+    check(doesThrowParseError(
+        []
+        {
+            createFromJSONStringOrThrow<ParseErrorHandlingSample>(
+                malformedSampleJson);
+        }));
 };
 
 auto tryCreateFromMalformedJson =
@@ -460,4 +483,44 @@ auto tryCreateFromMalformedJson =
     auto sample =
         tryCreateFromJSONString<ParseErrorHandlingSample>(malformedSampleJson);
     check(!sample.has_value());
+};
+
+auto createFromJsonWithParseOptions =
+    test("createFromJSONString passes ParseOptions to the parser") = []
+{
+    auto sample = createFromJSONString<ParseErrorHandlingSample>(
+        duplicatedSampleJson, makeOptionsKeepingLastDuplicateKey());
+    check(sample.count == expectedSampleCount);
+
+    auto rejected = createFromJSONString<ParseErrorHandlingSample>(
+        commentedSampleJson, makeOptionsRejectingComments());
+    check(rejected.count == defaultSampleCount);
+};
+
+auto createFromJsonOrThrowWithParseOptions =
+    test("createFromJSONStringOrThrow passes ParseOptions to the parser") = []
+{
+    auto sample = createFromJSONStringOrThrow<ParseErrorHandlingSample>(
+        duplicatedSampleJson, makeOptionsKeepingLastDuplicateKey());
+    check(sample.count == expectedSampleCount);
+
+    check(doesThrowParseError(
+        []
+        {
+            createFromJSONStringOrThrow<ParseErrorHandlingSample>(
+                commentedSampleJson, makeOptionsRejectingComments());
+        }));
+};
+
+auto tryCreateFromJsonWithParseOptions =
+    test("tryCreateFromJSONString passes ParseOptions to the parser") = []
+{
+    auto sample = tryCreateFromJSONString<ParseErrorHandlingSample>(
+        duplicatedSampleJson, makeOptionsKeepingLastDuplicateKey());
+    check(sample.has_value());
+    check(sample->count == expectedSampleCount);
+
+    auto rejected = tryCreateFromJSONString<ParseErrorHandlingSample>(
+        commentedSampleJson, makeOptionsRejectingComments());
+    check(!rejected.has_value());
 };
