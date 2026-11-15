@@ -330,13 +330,10 @@ void reflectValue(Reflector& ref, T& value)
     value = static_cast<T>(wide);
 }
 
-// Default fallback: a reflectable struct (member reflect() or external
-// `Miro::reflect(Reflector&, T&)` free function). The slot is already
-// committed as Object by the parent's atKey/atIndex via Options.shape,
-// so the dispatcher just runs the user's reflect.
+// A reflectable struct's walk once visitObject has declined it: the
+// beginNamedType announcement, then the user's own reflect.
 template <typename T>
-    requires AbleToReflect<T> && (!std::is_arithmetic_v<T>) && (!std::is_enum_v<T>)
-void reflectValue(Reflector& ref, T& value)
+void reflectObjectBody(Reflector& ref, T& value)
 {
     if constexpr (isNamedUserType<T>())
         if (!ref.beginNamedType(typeIdOf<T>()))
@@ -346,6 +343,28 @@ void reflectValue(Reflector& ref, T& value)
         value.reflect(ref);
     else
         reflect(ref, value);
+}
+
+// The typed half of ObjectView::reflectInto.
+template <typename T>
+void reflectObjectErased(Reflector& ref, void* object)
+{
+    reflectObjectBody(ref, *static_cast<T*>(object));
+}
+
+// Default fallback: a reflectable struct (member reflect() or external
+// `Miro::reflect(Reflector&, T&)` free function). The slot is already
+// committed as Object by the parent's atKey/atIndex via Options.shape.
+// The reflector may claim the whole object through visitObject;
+// otherwise the dispatcher runs the user's reflect.
+template <typename T>
+    requires AbleToReflect<T> && (!std::is_arithmetic_v<T>) && (!std::is_enum_v<T>)
+void reflectValue(Reflector& ref, T& value)
+{
+    if (ref.visitObject(ObjectView::of(value)))
+        return;
+
+    reflectObjectBody(ref, value);
 }
 
 // "The dispatcher knows how to reflect a T." Spelled unqualified from
@@ -405,6 +424,12 @@ AttributeRef AttributeRef::of(const A& attribute)
         ref.reflectFn = &Detail::reflectAttributeInto<A>;
 
     return ref;
+}
+
+template <typename T>
+ObjectView ObjectView::of(T& object)
+{
+    return {typeIdOf<T>(), &object, &Detail::reflectObjectErased<T>};
 }
 
 // Attributes cost nothing unless present: with an empty pack and no

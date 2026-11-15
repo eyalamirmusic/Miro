@@ -227,6 +227,39 @@ constexpr TypeId typeIdOf()
     return {Detail::typeNameOf<T>(), Detail::qualifiedNameOf<T>()};
 }
 
+// A non-owning, type-erased view of one reflectable object, handed to
+// Reflector::visitObject and valid only for the duration of that call.
+// `instance` points at the live T (mutable in both modes: a loading
+// reflector may write through it). `reflect` walks it exactly as the
+// dispatch would have had visitObject declined — beginNamedType, then
+// the type's own reflect() body — into whatever reflector it is given,
+// which must be an Object-shaped slot. It never calls visitObject on
+// that reflector for the object itself, so a reflector can claim an
+// object and still walk it from inside its own visitObject.
+struct ObjectView
+{
+    // Defined in ReflectDispatch.h, which knows how to reflect T.
+    template <typename T>
+    static ObjectView of(T& object);
+
+    // The object as a T, or null when it is some other type. Compared
+    // by qualified name, like AttributeRef::as.
+    template <typename T>
+    T* as() const
+    {
+        if (type.qualifiedName != Detail::qualifiedNameOf<T>())
+            return nullptr;
+
+        return static_cast<T*>(instance);
+    }
+
+    void reflectInto(Reflector& target) const { reflect(target, instance); }
+
+    TypeId type;
+    void* instance = nullptr;
+    void (*reflect)(Reflector&, void*) = nullptr;
+};
+
 // One enumerator of an integer-valued enum (see Miro::EnumFormat): the
 // C++ spelling plus the number that actually travels on the wire.
 // Name-valued enums announce names only, so they use a plain
@@ -334,6 +367,21 @@ public:
     // same type is already being walked further up the chain, or when
     // the reflector has emitted a name reference instead of inlining.
     virtual bool beginNamedType(TypeId /*id*/) { return true; }
+
+    // Called by the dispatch for every reflectable object (a type with a
+    // member, external, MIRO_REFLECT or hand-written reflect — templates
+    // included), in Save and Load modes alike, before anything else is
+    // done with it: before beginNamedType and before its body. Returning
+    // true claims the object — the dispatch then does nothing more with
+    // it, so neither beginNamedType nor the body runs; the reflector has
+    // handled it (and can still walk it with ObjectView::reflectInto).
+    // Returning false carries on exactly as if the hook didn't exist.
+    // Not called for primitives, enums, variants, raw JSON, types with
+    // their own reflectValue, or containers themselves — but it is
+    // called for each reflectable element of a container. The default
+    // declines, so a reflector that doesn't override it pays one virtual
+    // call per object and nothing else.
+    virtual bool visitObject(const ObjectView& /*object*/) { return false; }
 
     // Called by the enum dispatcher in schema mode with the enum's
     // identity and the ordered list of valid enumerator names.

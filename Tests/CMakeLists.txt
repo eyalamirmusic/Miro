@@ -40,6 +40,7 @@ nano_add_executable(MiroTests SOURCES
         OmittableTests.cpp
         DescriptionTests.cpp
         AttributeTests.cpp
+        VisitObjectTests.cpp
         ReflectableConceptTests.cpp
         PublicHeaders/JsonHeaderTests.cpp
         PublicHeaders/UnicodeHeaderTests.cpp
