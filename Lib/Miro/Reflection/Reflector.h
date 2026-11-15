@@ -4,6 +4,7 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <span>
 #include <string>
 #include <string_view>
 #include <utility>
@@ -185,6 +186,25 @@ struct PrimitiveRef
     Variant data;
 };
 
+// A contiguous array of numbers handed to a reflector in one call.
+// Saving: the span holds the elements to write. Loading: the container
+// was already resized to arraySize(), and the span is filled in place.
+struct PackedArrayRef
+{
+    using Variant = std::variant<std::span<std::int8_t>,
+                                 std::span<std::uint8_t>,
+                                 std::span<std::int16_t>,
+                                 std::span<std::uint16_t>,
+                                 std::span<std::int32_t>,
+                                 std::span<std::uint32_t>,
+                                 std::span<std::int64_t>,
+                                 std::span<std::uint64_t>,
+                                 std::span<float>,
+                                 std::span<double>>;
+
+    Variant data;
+};
+
 // A Reflector represents exactly one slot in a tree. Configuration
 // (mode, shape, schema, nullable) is committed at construction time
 // via Options and stored in the base — most queries are non-virtual.
@@ -217,6 +237,10 @@ public:
     virtual void visit(PrimitiveRef ref) = 0;
     virtual void writeNull() = 0;
     virtual ValueKind kind() const = 0;
+
+    // Return true to take a whole array of numbers at once; the default
+    // false walks the elements one by one.
+    virtual bool visitPacked(PackedArrayRef /*ref*/) { return false; }
 
     // Refines ValueKind::Number for a format that stores an exact
     // integer apart from a double, the way the JSON layer does. Only a
