@@ -218,6 +218,15 @@ struct TypeId
     std::string_view qualifiedName;
 };
 
+// The TypeId Miro announces for T before reflecting its body. A custom
+// reflectValue that calls ref.beginNamedType itself uses this, so its
+// type is identified exactly as a MIRO_REFLECT type would be.
+template <typename T>
+constexpr TypeId typeIdOf()
+{
+    return {Detail::typeNameOf<T>(), Detail::qualifiedNameOf<T>()};
+}
+
 // One enumerator of an integer-valued enum (see Miro::EnumFormat): the
 // C++ spelling plus the number that actually travels on the wire.
 // Name-valued enums announce names only, so they use a plain
