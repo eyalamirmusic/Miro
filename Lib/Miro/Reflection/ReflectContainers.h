@@ -5,7 +5,6 @@
 #include <array>
 #include <concepts>
 #include <cstddef>
-#include <cstdint>
 #include <map>
 #include <optional>
 #include <span>
@@ -20,11 +19,7 @@ namespace Miro::Detail
 // by element.
 template <typename T>
 concept PackableElement =
-    std::same_as<T, std::int8_t> || std::same_as<T, std::uint8_t>
-    || std::same_as<T, std::int16_t> || std::same_as<T, std::uint16_t>
-    || std::same_as<T, std::int32_t> || std::same_as<T, std::uint32_t>
-    || std::same_as<T, std::int64_t> || std::same_as<T, std::uint64_t>
-    || std::same_as<T, float> || std::same_as<T, double>;
+    std::constructible_from<PackedArrayRef::Variant, std::span<T>>;
 
 template <typename T>
 void reflectElements(Reflector& ref, std::span<T> elements, const Options& childOpts)
