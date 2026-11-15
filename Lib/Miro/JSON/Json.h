@@ -36,6 +36,22 @@ struct Value
     Value(Array valueToUse);
     Value(Object valueToUse);
 
+    // Copying is declared here and defaulted in Json.cpp rather than
+    // left implicit. An implicit copy is inline, so every TU that copies
+    // a JSON — which is every TU that includes the reflection layer,
+    // through Json::Any — instantiates the std::variant copy and the
+    // std::map<std::string, Value> tree copy behind it. Defining it once
+    // in the library keeps that out of user TUs (~40ms per TU,
+    // measured). Move and destruction stay implicit on purpose: they
+    // are the parser's per-element hot path, and taking them out of
+    // line costs ~12% on a large numeric array. Behaviour is identical
+    // to the implicit versions.
+    Value(const Value& otherToUse);
+    Value& operator=(const Value& otherToUse);
+    Value(Value&& otherToUse) noexcept = default;
+    Value& operator=(Value&& otherToUse) noexcept = default;
+    ~Value() = default;
+
     // Every other integral width, stored exactly as an int64. An
     // unsigned value past INT64_MAX has no exact slot, so it widens to
     // double the way it did before there was an integer alternative.
@@ -138,15 +154,60 @@ const Value* find(const Object& object, std::string_view key);
 // reject null when loading an object-shaped Req.
 Value payloadOrEmpty(const Value& payload);
 
-Value parse(std::string_view inputToUse);
+// Opt-in parser behaviour. A default-constructed ParseOptions parses
+// exactly as parse(text) always has.
+struct ParseOptions
+{
+    enum class DuplicateKeys
+    {
+        KeepFirst,
+        KeepLast
+    };
+
+    // false makes a comment a ParseError.
+    bool allowComments = true;
+
+    // Which value a key repeated within one object keeps.
+    DuplicateKeys duplicateKeys = DuplicateKeys::KeepFirst;
+
+    // true ends the input at its first NUL byte, as if it were a C
+    // string. Otherwise a NUL outside a string is a ParseError.
+    bool endAtNul = false;
+};
+
+// Opt-in printer behaviour. A default-constructed PrintOptions prints
+// exactly as print(value) does, and {.indent = n} as print(value, n).
+struct PrintOptions
+{
+    // Spaces per nesting level. Above 0, every member and element goes
+    // on its own line.
+    int indent = 0;
+
+    // Puts every member and element on its own line even at indent 0:
+    // the indented layout with no leading spaces.
+    bool breakLines = false;
+
+    // A finite double with an integral value prints with a fractional
+    // part or an exponent (1.0, -0.0, 1e+20) rather than as an integer
+    // token, so it parses back as the same double, sign of zero
+    // included.
+    bool keepDoublesAsDoubles = false;
+};
+
+Value parse(std::string_view inputToUse, const ParseOptions& optionsToUse = {});
 
 // Like parse(), but never throws. On malformed input it catches the
 // ParseError (and any other exception) internally and returns a null
 // Value instead. Use this at boundaries where a default-constructed
 // result is preferable to handling a thrown ParseError.
-Value getParsedValue(std::string_view inputToUse);
+Value getParsedValue(std::string_view inputToUse,
+                     const ParseOptions& optionsToUse = {});
 
+// print(value, n) and a braced or converted indent pick the first form;
+// print(value, PrintOptions {...}) and a designated initializer pick the
+// second.
 std::string print(const Value& valueToUse, int indentToUse = 0);
+std::string print(const Value& valueToUse, const PrintOptions& optionsToUse);
 void log(const Value& valueToUse, int indentToUse = 0);
 } // namespace Miro::Json
 

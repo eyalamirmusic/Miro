@@ -9,7 +9,10 @@
 namespace Miro::Json
 {
 
-void printTo(std::string& output, const Value& value, int indent, int depth);
+void printTo(std::string& output,
+             const Value& value,
+             const PrintOptions& options,
+             int depth);
 
 void printString(std::string& output, const std::string& str)
 {
@@ -75,13 +78,33 @@ void printInteger(std::string& output, std::int64_t number)
     printWithToChars(output, number);
 }
 
+// The shortest round-trip spelling of an integral double can be bare
+// digits ("1", "-0"), which reads back as an integer. A ".0" makes it a
+// double again without changing its value or its sign.
+void printIntegralAsDouble(std::string& output, double number)
+{
+    auto mark = output.size();
+    Detail::appendShortestDouble(output, number);
+
+    auto written = std::string_view(output).substr(mark);
+
+    if (written.find_first_of(".eE") == std::string_view::npos)
+        output += ".0";
+}
+
 // Every finite number round-trips. Infinity and NaN have no JSON
 // spelling at all, so they go out as null.
-void printDouble(std::string& output, double number)
+void printDouble(std::string& output, double number, const PrintOptions& options)
 {
     if (!std::isfinite(number))
     {
         output += "null";
+        return;
+    }
+
+    if (options.keepDoublesAsDoubles && number == std::trunc(number))
+    {
+        printIntegralAsDouble(output, number);
         return;
     }
 
@@ -96,13 +119,26 @@ void printDouble(std::string& output, double number)
     Detail::appendShortestDouble(output, number);
 }
 
-void writeIndent(std::string& output, int indent, int depth)
+// The indented layout is used above indent 0, or at any indent when
+// asked for; a negative indent counts as 0.
+bool printsLineBreaks(const PrintOptions& options)
 {
-    output += '\n';
-    output.append(static_cast<std::size_t>(indent * depth), ' ');
+    return options.indent > 0 || options.breakLines;
 }
 
-void printArray(std::string& output, const Array& array, int indent, int depth)
+void writeIndent(std::string& output, const PrintOptions& options, int depth)
+{
+    auto width = options.indent > 0 ? options.indent : 0;
+
+    output += '\n';
+    output.append(static_cast<std::size_t>(width) * static_cast<std::size_t>(depth),
+                  ' ');
+}
+
+void printArray(std::string& output,
+                const Array& array,
+                const PrintOptions& options,
+                int depth)
 {
     output += '[';
 
@@ -121,19 +157,22 @@ void printArray(std::string& output, const Array& array, int indent, int depth)
 
         first = false;
 
-        if (indent > 0)
-            writeIndent(output, indent, depth + 1);
+        if (printsLineBreaks(options))
+            writeIndent(output, options, depth + 1);
 
-        printTo(output, element, indent, depth + 1);
+        printTo(output, element, options, depth + 1);
     }
 
-    if (indent > 0)
-        writeIndent(output, indent, depth);
+    if (printsLineBreaks(options))
+        writeIndent(output, options, depth);
 
     output += ']';
 }
 
-void printObject(std::string& output, const Object& object, int indent, int depth)
+void printObject(std::string& output,
+                 const Object& object,
+                 const PrintOptions& options,
+                 int depth)
 {
     output += '{';
 
@@ -152,25 +191,28 @@ void printObject(std::string& output, const Object& object, int indent, int dept
 
         first = false;
 
-        if (indent > 0)
-            writeIndent(output, indent, depth + 1);
+        if (printsLineBreaks(options))
+            writeIndent(output, options, depth + 1);
 
         printString(output, key);
         output += ':';
 
-        if (indent > 0)
+        if (printsLineBreaks(options))
             output += ' ';
 
-        printTo(output, value, indent, depth + 1);
+        printTo(output, value, options, depth + 1);
     }
 
-    if (indent > 0)
-        writeIndent(output, indent, depth);
+    if (printsLineBreaks(options))
+        writeIndent(output, options, depth);
 
     output += '}';
 }
 
-void printTo(std::string& output, const Value& value, int indent, int depth)
+void printTo(std::string& output,
+             const Value& value,
+             const PrintOptions& options,
+             int depth)
 {
     if (value.isNull())
     {
@@ -186,7 +228,7 @@ void printTo(std::string& output, const Value& value, int indent, int depth)
     }
     else if (value.isNumber())
     {
-        printDouble(output, value.asNumber());
+        printDouble(output, value.asNumber(), options);
     }
     else if (value.isString())
     {
@@ -194,18 +236,25 @@ void printTo(std::string& output, const Value& value, int indent, int depth)
     }
     else if (value.isArray())
     {
-        printArray(output, value.asArray(), indent, depth);
+        printArray(output, value.asArray(), options, depth);
     }
     else if (value.isObject())
     {
-        printObject(output, value.asObject(), indent, depth);
+        printObject(output, value.asObject(), options, depth);
     }
 }
 
 std::string print(const Value& valueToUse, int indentToUse)
 {
+    auto options = PrintOptions {};
+    options.indent = indentToUse;
+    return print(valueToUse, options);
+}
+
+std::string print(const Value& valueToUse, const PrintOptions& optionsToUse)
+{
     auto result = std::string {};
-    printTo(result, valueToUse, indentToUse, 0);
+    printTo(result, valueToUse, optionsToUse, 0);
     return result;
 }
 

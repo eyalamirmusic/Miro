@@ -3,6 +3,9 @@
 namespace Miro
 {
 
+CommandTable::CommandTable() = default;
+CommandTable::~CommandTable() = default;
+
 UnknownCommandError::UnknownCommandError(const std::string& commandToUse)
     : std::runtime_error("unknown command: " + commandToUse)
 {

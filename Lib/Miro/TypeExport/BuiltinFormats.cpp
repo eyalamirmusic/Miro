@@ -16,8 +16,14 @@
 #include "../Cpp/Cpp.h"
 #include "../Cpp/CppClient.h"
 #include "../JSON/Json.h"
+#include "../OpenAI/OpenAI.h"
+#include "../Reflection/Serialize.h"
 #include "../Schema/Schema.h"
 #include "../TypeScript/TypeScript.h"
+
+#include <stdexcept>
+#include <string>
+#include <utility>
 
 namespace
 {
@@ -83,6 +89,44 @@ using Miro::TypeExport::registerFormat;
     {
         auto schema = Miro::formatJsonSchema(ctx.typeRoots);
         return Miro::Json::print(schema, 2);
+    },
+});
+
+// The same "tools" array OpenAI::ToolSet::definitions() returns. Context
+// carries no command -> root index, so each request root is found by
+// its qualified C++ name.
+Miro::TypeTree::TypeNode* findRoot(const Context& ctx,
+                                   const std::string& qualifiedName)
+{
+    for (auto& root: ctx.typeRoots)
+        if (root.qualifiedName == qualifiedName)
+            return &root;
+
+    return nullptr;
+}
+
+[[maybe_unused]] const auto openAiToolsFormat = registerFormat(Format {
+    "openai-tools",
+    ".tools.json",
+    [](const Context& ctx)
+    {
+        auto tools = Miro::Json::Array {};
+
+        for (auto& command: ctx.commands)
+        {
+            auto* request = command.hasRequest
+                                ? findRoot(ctx, command.requestQualifiedName)
+                                : nullptr;
+
+            if (command.hasRequest && request == nullptr)
+                throw std::invalid_argument("openai-tools: no type tree for "
+                                            + command.requestQualifiedName);
+
+            tools.add(Miro::toJSON(
+                Miro::OpenAI::makeTool(command.name, command.description, request)));
+        }
+
+        return Miro::Json::print(Miro::JSON {std::move(tools)}, 2);
     },
 });
 

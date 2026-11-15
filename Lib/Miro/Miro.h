@@ -9,11 +9,13 @@
 //   <Miro/Xml.h>     — XML value type + XML serialization
 //   <Miro/Bridge.h>  — runtime command/event bridge
 //   <Miro/Codegen.h> — type-export / codegen toolchain
+//   <Miro/OpenAI.h>  — OpenAI function tools over a reflected API
 //   <Miro/Unicode.h> — Unicode character properties + UTF-8
 
 #include "Bridge.h"
 #include "Codegen.h"
 #include "Json.h"
+#include "OpenAI.h"
 #include "Reflect.h"
 #include "Unicode.h"
 #include "Xml.h"

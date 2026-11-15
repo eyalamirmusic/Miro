@@ -27,8 +27,10 @@ namespace Miro
 class Bridge
 {
 public:
-    Bridge() = default;
-    ~Bridge() = default;
+    // Defined in Bridge.cpp so the command table and listener storage
+    // behind them are instantiated once in the library, not per TU.
+    Bridge();
+    ~Bridge();
 
     Bridge(const Bridge&) = delete;
     Bridge& operator=(const Bridge&) = delete;
@@ -135,10 +137,7 @@ public:
     // Adopts a Listener so its subscription stays alive as long as
     // this bridge does. Called by BindReflector::eventImpl; rarely
     // called by user code directly.
-    void attachListener(OwningPointer<EA::Listener> listener)
-    {
-        boundListeners.add(std::move(listener));
-    }
+    void attachListener(OwningPointer<EA::Listener> listener);
 
     CommandTable& commandTable() { return commands; }
 

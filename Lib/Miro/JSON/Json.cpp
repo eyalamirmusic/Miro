@@ -119,6 +119,9 @@ Value::Value(Object valueToUse)
 {
 }
 
+Value::Value(const Value& otherToUse) = default;
+Value& Value::operator=(const Value& otherToUse) = default;
+
 bool Value::isNull() const
 {
     return std::holds_alternative<Null>(data);

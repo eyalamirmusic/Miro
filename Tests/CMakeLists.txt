@@ -11,6 +11,9 @@ nano_add_executable(MiroTests SOURCES
         JsonNumberReflectionTests.cpp
         JsonNumberLocaleTests.cpp
         JsonObjectTests.cpp
+        JsonDefaultsTests.cpp
+        JsonCallFormTests.cpp
+        JsonOptionsTests.cpp
         XmlTests.cpp
         ReflectorTests.cpp
         XmlReflectorTests.cpp
@@ -22,6 +25,7 @@ nano_add_executable(MiroTests SOURCES
         CodegenMainTests.cpp
         VirtualReflectorTests.cpp
         SchemaReflectorTests.cpp
+        SchemaDialectTests.cpp
         TypeScriptTests.cpp
         CppExportTests.cpp
         CppClientTests.cpp
@@ -33,12 +37,16 @@ nano_add_executable(MiroTests SOURCES
         EnumFormatTests.cpp
         RawJsonTests.cpp
         OmittableTests.cpp
+        DescriptionTests.cpp
+        ReflectableConceptTests.cpp
         PublicHeaders/JsonHeaderTests.cpp
         PublicHeaders/UnicodeHeaderTests.cpp
         PublicHeaders/ReflectHeaderTests.cpp
         PublicHeaders/XmlHeaderTests.cpp
         PublicHeaders/BridgeHeaderTests.cpp
         PublicHeaders/CodegenHeaderTests.cpp
+        PublicHeaders/OpenAIHeaderTests.cpp
+        OpenAITests.cpp
         TARGETS Miro)
 
 # MiroFormats is an OBJECT library carrying the static-init format

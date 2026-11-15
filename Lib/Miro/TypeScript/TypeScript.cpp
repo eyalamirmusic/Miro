@@ -92,7 +92,8 @@ std::string renderZodObjectInline(const TypeNode& node)
     out << "z.object({\n";
 
     for (auto& field: node.fields)
-        out << "    " << formatPropertyKey(field.name) << ": "
+        out << Detail::formatJsDocLine(field.type->description, "    ") << "    "
+            << formatPropertyKey(field.name) << ": "
             << renderZod(*field.type, /*fieldContext=*/true) << ",\n";
 
     out << "})";
@@ -273,6 +274,7 @@ std::string renderTypeObjectInline(const TypeNode& node)
     {
         auto mayBeMissing = field.type->optional || field.type->omittable;
         auto separator = mayBeMissing ? "?: " : ": ";
+        out << Detail::formatJsDocLine(field.type->description, "    ");
         out << "    " << formatPropertyKey(field.name) << separator
             << renderType(*field.type, /*fieldContext=*/true) << ";\n";
     }

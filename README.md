@@ -104,6 +104,32 @@ print(id);        // "9007199254740993"
 
 Printing round-trips. Integers print in full, and a `double` prints in the shortest form that reads back as the same `double` — `print(parse("3.141592653589793"))` is `3.141592653589793`, not a six-digit approximation. A `double` with no fractional part that fits in `int64` prints without a decimal point, and infinity and NaN print as `null`, having no JSON spelling of their own.
 
+### Print and parse options
+
+`parse` and `getParsedValue` take an optional `ParseOptions` as their second argument, and `print` has an overload taking a `PrintOptions` in place of the indent. Every option defaults to the plain call's behaviour, so a default-constructed struct behaves exactly like it. `print(value, n)`, `print(value, {})` and `print(value, {n})` still mean an indent; a `PrintOptions` value or a designated initializer such as `print(value, {.indent = 2, .breakLines = true})` selects the options.
+
+```cpp
+auto printOptions = PrintOptions {};
+printOptions.indent = 0;                    // spaces per level, as print(value, n)
+printOptions.breakLines = true;             // one member per line, even at indent 0
+printOptions.keepDoublesAsDoubles = true;   // 1.0 prints as "1.0", -0.0 as "-0.0"
+
+auto text = print(value, printOptions);
+
+auto parseOptions = ParseOptions {};
+parseOptions.allowComments = false;         // a comment is a ParseError
+parseOptions.duplicateKeys = ParseOptions::DuplicateKeys::KeepLast; // default KeepFirst
+parseOptions.endAtNul = true;               // the input ends at its first NUL byte
+
+auto parsed = parse(text, parseOptions);
+```
+
+- `breakLines` is the indented layout with an indent of zero: each member and element on its own line, `"key": value`, empty containers as `[]` / `{}`.
+- `keepDoublesAsDoubles` gives a `double` with an integral value a fractional part or an exponent (`1.0`, `-0.0`, `1e+20`), so it parses back as the same `double`, bit for bit. Integers, non-integral doubles and non-finite values print as they otherwise would.
+- By default comments (`//` and `/* */`) are accepted wherever whitespace is, the first of a repeated key wins, and a NUL byte outside a string is a `ParseError`.
+
+They compose with the reflection layer: `print(toJSON(v), printOptions)` and `fromJSON(v, parse(text, parseOptions))`.
+
 ## The reflection layer
 
 Define a `reflect(Miro::Reflector&)` method on your type, binding each field to a key. The same function handles both saving and loading.
@@ -275,7 +301,7 @@ struct Settings
 };
 ```
 
-Equivalent to the hand-written `reflect()` method above.
+Equivalent to the hand-written `reflect()` method above, except that the generated body is a template — see [Compile time](#compile-time) below.
 
 #### `MIRO_REFLECT_MEMBERS` — intrusive, explicit JSON keys
 
@@ -331,6 +357,29 @@ struct Settings
     Broadcaster onLoaded;
 };
 ```
+
+
+#### Compile time
+
+Every macro that generates a `reflect()` body (`MIRO_REFLECT`, `MIRO_REFLECT_MEMBERS`, `MIRO_REFLECT_POLY`, `MIRO_REFLECT_API` and their `_EXTERNAL` forms) emits it as a constrained template:
+
+```cpp
+template <std::derived_from<Miro::Reflector> R>
+void reflect(R& ref) { ... }
+```
+
+A plain inline body is analysed in every translation unit that includes the struct, which instantiates the dispatch chain for every field type whether or not that TU ever serializes anything. A template body is only instantiated in the TUs that actually call `toJSON` / `fromJSON` on the type, so a model header full of reflected structs costs its includers only the parse. Nothing changes at call sites: `Base::reflect(ref)` from a derived class, custom `Reflector` subclasses and the `Miro::Reflectable` concept all work as before.
+
+Two places a template can't go. Write the body by hand there, with `MIRO_FIELDS` keeping it to one line:
+
+- A **local class** (a struct defined inside a function body) — C++ forbids member templates in local classes.
+- A **virtual `reflect()`** you mean to override — templates can't be virtual, and a generated template would hide the base's virtual rather than override it.
+
+```cpp
+void reflect(Miro::Reflector& ref) { MIRO_FIELDS(ref, x, y) }
+```
+
+Beyond that, the single biggest lever is a precompiled header: `target_precompile_headers(YourTarget PRIVATE <Miro/Reflect.h>)` removes the library's own include cost from every TU.
 
 ### Raw JSON fields
 

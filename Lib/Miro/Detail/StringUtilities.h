@@ -27,6 +27,11 @@ std::string trimAsciiWhitespace(std::string_view input);
 
 std::string makeIndent(int width, int depth);
 
+// One `/** text */` line (newline-terminated) prefixed by `indent`, or
+// an empty string when `text` is empty. Line breaks fold to spaces and
+// a `*/` inside the text is escaped so it can't close the comment.
+std::string formatJsDocLine(std::string_view text, std::string_view indent);
+
 // Parses the whole of `text` as a decimal integer: no sign slop, no
 // trailing characters. Formats with no number kind hand integers over
 // as text (an XML attribute is always a string), so an integer-format

@@ -37,7 +37,7 @@ struct Triangle
 
 // Base class for the OwningPointer<Base> / Polymorphic<...> tests. Needs
 // a virtual destructor so dynamic_cast works and OwningPointer's delete
-// is well-formed; an empty reflect() satisfies the Reflectable concept
+// is well-formed; an empty reflect() satisfies Detail::AbleToReflect
 // (the dispatcher never calls it directly — alternatives are always
 // reflected through their concrete derived reflect()).
 struct ShapeBase

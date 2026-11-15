@@ -156,9 +156,9 @@ concept CallableInfo = requires {
 //   - CommandExport::Detail::registerCommand for static-init handlers
 //   - makePmfHandler in Bridge/Callable.h for pmf handlers
 template <CallableInfo Info, typename Callable>
-std::function<JSON(const JSON&)> makeJsonAdapter(Callable callable)
+std::function<JSON(const JSON&)> makeJsonAdapter(Callable callableToUse)
 {
-    return [callable = std::move(callable)](const JSON& payload) -> JSON
+    return [callable = std::move(callableToUse)](const JSON& payload) -> JSON
     {
         ignoreUnused(payload);
         if constexpr (Info::hasReq && Info::hasRes)
@@ -194,9 +194,11 @@ std::function<JSON(const JSON&)> makeJsonAdapter(Callable callable)
 // copy being dropped — funnel through one single-shot guard. Used by
 // CommandTable::onAsync and makeAsyncPmfHandler in Bridge/Callable.h.
 template <CallableInfo Info, typename Callable>
-std::function<void(const JSON&, Resolve)> makeAsyncJsonAdapter(Callable callable)
+std::function<void(const JSON&, Resolve)>
+    makeAsyncJsonAdapter(Callable callableToUse)
 {
-    return [callable = std::move(callable)](const JSON& payload, Resolve resolve)
+    return
+        [callable = std::move(callableToUse)](const JSON& payload, Resolve resolve)
     {
         auto completer = Completer<typename Info::Res> {std::move(resolve)};
 
@@ -226,6 +228,10 @@ std::function<void(const JSON&, Resolve)> makeAsyncJsonAdapter(Callable callable
 class CommandTable
 {
 public:
+    // Defined in CommandTable.cpp: see the note on Json::Value.
+    CommandTable();
+    ~CommandTable();
+
     using RawHandler = std::function<JSON(const JSON& payload)>;
 
     template <typename Req, typename Res>
