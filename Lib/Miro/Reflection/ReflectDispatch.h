@@ -10,7 +10,9 @@
 #include <cstdint>
 #include <map>
 #include <optional>
+#include <span>
 #include <string>
+#include <string_view>
 #include <type_traits>
 #include <utility>
 #include <variant>
@@ -219,7 +221,6 @@ Options childOptionsFor(const Options& parent)
     opts.shape = shapeOf<T>();
     opts.nullable = isOptional<T>();
     opts.omittable = isOmittable<T>();
-    opts.description = {};
     return opts;
 }
 
@@ -329,13 +330,10 @@ void reflectValue(Reflector& ref, T& value)
     value = static_cast<T>(wide);
 }
 
-// Default fallback: a reflectable struct (member reflect() or external
-// `Miro::reflect(Reflector&, T&)` free function). The slot is already
-// committed as Object by the parent's atKey/atIndex via Options.shape,
-// so the dispatcher just runs the user's reflect.
+// A reflectable struct's walk once visitObject has declined it: the
+// beginNamedType announcement, then the user's own reflect.
 template <typename T>
-    requires AbleToReflect<T> && (!std::is_arithmetic_v<T>) && (!std::is_enum_v<T>)
-void reflectValue(Reflector& ref, T& value)
+void reflectObjectBody(Reflector& ref, T& value)
 {
     if constexpr (isNamedUserType<T>())
         if (!ref.beginNamedType(typeIdOf<T>()))
@@ -347,6 +345,28 @@ void reflectValue(Reflector& ref, T& value)
         reflect(ref, value);
 }
 
+// The typed half of ObjectView::reflectInto.
+template <typename T>
+void reflectObjectErased(Reflector& ref, void* object)
+{
+    reflectObjectBody(ref, *static_cast<T*>(object));
+}
+
+// Default fallback: a reflectable struct (member reflect() or external
+// `Miro::reflect(Reflector&, T&)` free function). The slot is already
+// committed as Object by the parent's atKey/atIndex via Options.shape.
+// The reflector may claim the whole object through visitObject;
+// otherwise the dispatcher runs the user's reflect.
+template <typename T>
+    requires AbleToReflect<T> && (!std::is_arithmetic_v<T>) && (!std::is_enum_v<T>)
+void reflectValue(Reflector& ref, T& value)
+{
+    if (ref.visitObject(ObjectView::of(value)))
+        return;
+
+    reflectObjectBody(ref, value);
+}
+
 // "The dispatcher knows how to reflect a T." Spelled unqualified from
 // inside Detail for the same reason Property::operator() is: ordinary
 // lookup sees every built-in overload above, and ADL at the point of use
@@ -356,6 +376,32 @@ void reflectValue(Reflector& ref, T& value)
 template <typename T>
 concept HasReflectValue =
     requires(Reflector& ref, T& value) { reflectValue(ref, value); };
+
+// The typed half of AttributeRef::reflectInto. Reflects a copy, so the
+// attribute itself stays const whatever the parent's mode.
+template <typename A>
+void reflectAttributeInto(Reflector& parent,
+                          std::string_view key,
+                          const void* attribute)
+{
+    auto copy = *static_cast<const A*>(attribute);
+    parent[key](copy);
+}
+
+// Compile-time checks on one attribute A of a field of type T. A
+// function so a failure names A and T in the instantiation trace.
+template <typename T, typename A>
+consteval bool checkAttribute()
+{
+    static_assert(std::is_trivially_destructible_v<A>,
+                  "Miro field attributes must be trivially destructible, so "
+                  "passing one can never allocate. Hold text as a "
+                  "std::string_view, not a std::string.");
+    static_assert(AttributeAppliesTo<A, T>::value,
+                  "This attribute does not apply to this field type "
+                  "(see the Miro::AttributeAppliesTo specialization).");
+    return true;
+}
 
 } // namespace Miro::Detail
 
@@ -369,13 +415,59 @@ namespace Miro
 // Miro about a new primitive (e.g. juce::String) by adding a free
 // `reflectValue(Reflector&, T&)` overload in namespace `Miro` or in `T`'s
 // own namespace, even after <Miro/Miro.h> has been included.
-template <typename T>
-void Property::operator()(T& value)
+template <typename A>
+AttributeRef AttributeRef::of(const A& attribute)
 {
+    auto ref = AttributeRef {Detail::qualifiedNameOf<A>(), &attribute};
+
+    if constexpr (Detail::HasReflectValue<A> && std::is_copy_constructible_v<A>)
+        ref.reflectFn = &Detail::reflectAttributeInto<A>;
+
+    return ref;
+}
+
+template <typename T>
+ObjectView ObjectView::of(T& object)
+{
+    return {typeIdOf<T>(), &object, &Detail::reflectObjectErased<T>};
+}
+
+// Attributes cost nothing unless present: with an empty pack and no
+// doc() text this is exactly the old atKey + reflectValue. Otherwise
+// the views live in a stack array (doc() text first, as a Doc) and the
+// child slot gets one visitAttributes call before its value.
+template <typename T, typename... As>
+void Property::operator()(T& value, const As&... attributes)
+{
+    static_assert((Detail::checkAttribute<T, As>() && ...));
+
     using Detail::reflectValue;
-    auto childOpts = Detail::childOptionsFor<T>(reflector.options());
-    childOpts.description = description;
-    reflectValue(reflector.atKey(key, childOpts), value);
+    auto& child =
+        reflector.atKey(key, Detail::childOptionsFor<T>(reflector.options()));
+
+    if constexpr (sizeof...(As) == 0)
+    {
+        if (!description.empty())
+        {
+            auto doc = Doc {description};
+            auto refs = std::array {AttributeRef::of(doc)};
+            child.visitAttributes(refs);
+        }
+    }
+    else
+    {
+        auto doc = Doc {description};
+        auto refs =
+            std::array {AttributeRef::of(doc), AttributeRef::of(attributes)...};
+        auto view = std::span<const AttributeRef> {refs};
+
+        if (description.empty())
+            view = view.subspan(1);
+
+        child.visitAttributes(view);
+    }
+
+    reflectValue(child, value);
 }
 
 template <typename T>
