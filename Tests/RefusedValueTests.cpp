@@ -1,6 +1,6 @@
 // Reflector::reportRefusedValue: when Miro refuses a loaded value (a number
-// that doesn't fit its field, an enum number with no enumerator), the field
-// keeps its prior value and the reflector is told.
+// that doesn't fit its field or an enum's underlying type, an enum name with
+// no enumerator), the field keeps its prior value and the reflector is told.
 
 #include <Miro/Reflect.h>
 #include <NanoTest/NanoTest.h>
@@ -73,6 +73,12 @@ private:
     StoredScalar stored;
 };
 
+enum class Weapon : std::uint8_t
+{
+    sword = 1,
+    bow = 2
+};
+
 template <typename T>
 int loadAndCountRefusals(T& value, StoredScalar stored)
 {
@@ -110,4 +116,32 @@ auto floatOverflowIsReported =
 
     check(loadAndCountRefusals(field, 1e300) == 1);
     check(field == prior);
+};
+
+auto enumNumberPastUnderlyingTypeIsRefused =
+    test("reportRefusedValue: an enum number past its underlying type is "
+         "refused") = []
+{
+    auto weapon = Weapon::bow;
+
+    check(loadAndCountRefusals(weapon, std::int64_t {257}) == 1);
+    check(weapon == Weapon::bow);
+};
+
+auto enumNumberOfEnumeratorLoads =
+    test("reportRefusedValue: an enum number naming an enumerator loads") = []
+{
+    auto weapon = Weapon::bow;
+
+    check(loadAndCountRefusals(weapon, std::int64_t {1}) == 0);
+    check(weapon == Weapon::sword);
+};
+
+auto unknownEnumNameIsRefused =
+    test("reportRefusedValue: an enum name with no enumerator is refused") = []
+{
+    auto weapon = Weapon::bow;
+
+    check(loadAndCountRefusals(weapon, std::string {"axe"}) == 1);
+    check(weapon == Weapon::bow);
 };
