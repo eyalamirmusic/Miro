@@ -233,7 +233,7 @@ template <typename T>
     requires std::is_enum_v<T>
 void saveEnum(Reflector& ref, T& value)
 {
-    auto id = TypeId {typeNameOf<T>(), qualifiedNameOf<T>()};
+    auto id = typeIdOf<T>();
 
     if (ref.isSchema())
     {

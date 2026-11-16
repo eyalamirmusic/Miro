@@ -68,16 +68,12 @@ namespace Miro
 class Bridge;
 class ApiReflector;
 
-// Human-readable description of a command, passed as the trailing
-// argument of any ApiReflector::command overload:
+// Commands take a trailing Miro::Doc (declared in Reflection/Reflector.h,
+// where it doubles as the field description attribute):
 //   r.command<&T::getWeather>(Miro::Doc {"Current weather for a city"});
 //   r.command(&T::m, "wire_name", Miro::Doc {"..."});
 // The descriptor copies the text, so a temporary is fine. Codegen
 // (DescribeReflector, CommandEntry) carries it; BindReflector ignores it.
-struct Doc
-{
-    std::string_view text;
-};
 
 namespace Detail
 {
