@@ -17,6 +17,7 @@ nano_add_executable(MiroTests SOURCES
         XmlTests.cpp
         ReflectorTests.cpp
         NumberRangeTests.cpp
+        TypeIdTests.cpp
         XmlReflectorTests.cpp
         CommandTableTests.cpp
         CommandExportTests.cpp
@@ -39,6 +40,8 @@ nano_add_executable(MiroTests SOURCES
         RawJsonTests.cpp
         OmittableTests.cpp
         DescriptionTests.cpp
+        AttributeTests.cpp
+        VisitObjectTests.cpp
         ReflectableConceptTests.cpp
         PublicHeaders/JsonHeaderTests.cpp
         PublicHeaders/UnicodeHeaderTests.cpp
@@ -61,5 +64,13 @@ nano_add_executable(MiroRecursionTests SOURCES
         TARGETS Miro)
 
 target_link_libraries(MiroRecursionTests PRIVATE miro_warnings)
+
+# Replaces the global operator new to count allocations, so it gets an
+# executable of its own rather than disturbing every other test.
+nano_add_executable(MiroAttributeAllocationTests SOURCES
+        AttributeAllocationTests.cpp
+        TARGETS Miro)
+
+target_link_libraries(MiroAttributeAllocationTests PRIVATE miro_warnings)
 
 add_subdirectory(Benchmark)
