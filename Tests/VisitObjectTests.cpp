@@ -8,6 +8,7 @@
 #include <NanoTest/NanoTest.h>
 
 #include <algorithm>
+#include <array>
 #include <initializer_list>
 #include <memory>
 #include <string>
@@ -52,10 +53,10 @@ struct Holder
 
 struct ObjectLog
 {
-    std::vector<std::string> events;
-    std::vector<const void*> claimedAddresses;
-    std::vector<std::string_view> claimedTypes;
-    std::string_view claimType;
+    std::vector<std::string> events {};
+    std::vector<const void*> claimedAddresses {};
+    std::vector<std::string_view> claimedTypes {};
+    std::string_view claimType {};
     bool walkClaimed = false;
     int loadedX = 0;
 };
@@ -240,6 +241,75 @@ auto firesInLoadMode = test("visitObject: fires in Load mode") = []
     check(holder.written.point.x == 42);
     check(holder.points[0].x == 42);
     check(holder.points[1].x == 42);
+};
+
+namespace
+{
+
+struct alignas(32) Aligned
+{
+    MIRO_REFLECT(values)
+
+    std::array<double, 4> values {};
+};
+
+struct ShapeLog
+{
+    std::vector<const void*> instances;
+    std::vector<std::size_t> sizes;
+    std::vector<std::size_t> alignments;
+};
+
+struct ShapeRecorder : Reflector
+{
+    explicit ShapeRecorder(ShapeLog& logToUse)
+        : Reflector({.shape = Shape::Object})
+        , log(logToUse)
+    {
+    }
+
+    bool visitObject(const ObjectView& object) override
+    {
+        log.instances.push_back(object.instance);
+        log.sizes.push_back(object.size);
+        log.alignments.push_back(object.alignment);
+        return true;
+    }
+
+    void visit(PrimitiveRef) override {}
+    void writeNull() override {}
+    ValueKind kind() const override { return ValueKind::Absent; }
+    Reflector& atKey(std::string_view, Options) override { return *this; }
+    Reflector& atIndex(std::size_t, Options) override { return *this; }
+
+    ShapeLog& log;
+};
+
+} // namespace
+
+auto viewCarriesSize =
+    test("visitObject: ObjectView carries size and alignment") = []
+{
+    auto holder = Holder {};
+    auto aligned = Aligned {};
+    auto log = ShapeLog {};
+    auto recorder = ShapeRecorder {log};
+    recorder["holder"](holder);
+    recorder["aligned"](aligned);
+
+    check(log.instances == std::vector<const void*> {&holder, &aligned});
+    check(log.sizes == std::vector<std::size_t> {sizeof(Holder), sizeof(Aligned)});
+    check(log.alignments
+          == std::vector<std::size_t> {alignof(Holder), std::size_t {32}});
+};
+
+auto viewOfCarriesSize = test("ObjectView::of carries size and alignment") = []
+{
+    auto point = Point {};
+    auto view = ObjectView::of(point);
+
+    check(view.size == sizeof(Point));
+    check(view.alignment == alignof(Point));
 };
 
 auto jsonUnchanged = test("visitObject: JSON round trip is unchanged") = []

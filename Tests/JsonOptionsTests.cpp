@@ -1043,12 +1043,18 @@ auto strictRoundTrip =
 
 // --- Locale ---
 
+std::string currentNumericLocale()
+{
+    auto* name = std::setlocale(LC_NUMERIC, nullptr);
+    return name != nullptr ? name : "C";
+}
+
 // Selects a decimal-comma LC_NUMERIC for the scope and puts the previous
 // one back on exit; `active` says whether one took.
 struct CommaLocale
 {
     CommaLocale()
-        : previous(std::setlocale(LC_NUMERIC, nullptr))
+        : previous(currentNumericLocale())
     {
         for (auto* candidate: {"de_DE.UTF-8",
                                "de_DE.utf8",

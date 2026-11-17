@@ -1,18 +1,20 @@
 #pragma once
 
 #include <array>
+#include <cstddef>
+#include <cstdint>
 #include <string_view>
 
 namespace Miro::Detail
 {
 
-// Extracts a compile-time, compiler-derived name for type T from
-// __PRETTY_FUNCTION__ / __FUNCSIG__. Same trick as enumNameRaw in
-// ReflectEnum.h, generalized to any T. Returns the spelling the
-// compiler chose for the template argument (may include namespace
-// qualifiers and template arguments).
+// Extracts a compiler-derived name for type T from __PRETTY_FUNCTION__ /
+// __FUNCSIG__. Same trick as enumNameRaw in ReflectEnum.h, generalized to
+// any T. Returns the spelling the compiler chose for the template argument
+// (may include namespace qualifiers and template arguments). Only
+// evaluated in a constant expression, by TypeNames<T> below.
 template <typename T>
-constexpr std::string_view rawTypeNameOf()
+constexpr std::string_view scanRawTypeName()
 {
 #if defined(__clang__) || defined(__GNUC__)
     constexpr auto prefix = std::string_view {"T = "};
@@ -22,7 +24,7 @@ constexpr std::string_view rawTypeNameOf()
     auto end = sig.find_first_of(terminators, start);
     return sig.substr(start, end - start);
 #elif defined(_MSC_VER)
-    constexpr auto prefix = std::string_view {"rawTypeNameOf<"};
+    constexpr auto prefix = std::string_view {"scanRawTypeName<"};
     constexpr auto terminator = std::string_view {">("};
     auto sig = std::string_view {__FUNCSIG__};
     auto start = sig.find(prefix) + prefix.size();
@@ -33,15 +35,11 @@ constexpr std::string_view rawTypeNameOf()
 #endif
 }
 
-// Like rawTypeNameOf but strips the leading C++ class-key keyword that
-// MSVC's __FUNCSIG__ emits ("struct ", "class ", "enum "). All namespace
-// qualifiers and template arguments are preserved. This is the canonical
-// spelling to compare or hash across compilers — Clang/GCC don't emit
-// the keyword in __PRETTY_FUNCTION__, so this is a no-op there.
-template <typename T>
-constexpr std::string_view qualifiedNameOf()
+// Strips the leading C++ class-key keyword that MSVC's __FUNCSIG__ emits
+// ("struct ", "class ", "enum "). Clang/GCC don't emit it, so this is a
+// no-op there.
+constexpr std::string_view withoutClassKey(std::string_view raw)
 {
-    auto raw = rawTypeNameOf<T>();
     constexpr auto prefixes = std::array {
         std::string_view {"struct "},
         std::string_view {"class "},
@@ -53,15 +51,10 @@ constexpr std::string_view qualifiedNameOf()
     return raw;
 }
 
-// Returns just the unqualified short name. Strips namespaces (incl.
-// "(anonymous namespace)::"). Templates and STL types are deliberately
-// left intact in the raw form — callers that want to filter them can
-// inspect for '<' / "std::" themselves.
-template <typename T>
-constexpr std::string_view typeNameOf()
+// Strips namespaces (incl. "(anonymous namespace)::"), leaving template
+// arguments intact.
+constexpr std::string_view withoutQualifiers(std::string_view name)
 {
-    auto name = qualifiedNameOf<T>();
-
     // Find the rightmost "::" that is *not* inside template angle
     // brackets, and trim everything before it.
     auto depth = 0;
@@ -81,6 +74,59 @@ constexpr std::string_view typeNameOf()
         name.remove_prefix(lastColon + 2);
 
     return name;
+}
+
+// 64-bit FNV-1a. Applied to qualified names, so the result depends only
+// on the text and is the same in every binary that names the type.
+constexpr std::uint64_t hashTypeName(std::string_view name)
+{
+    auto hash = std::uint64_t {14695981039346656037ull};
+
+    for (auto c: name)
+    {
+        hash ^= static_cast<std::uint8_t>(c);
+        hash *= std::uint64_t {1099511628211ull};
+    }
+
+    return hash;
+}
+
+// Every name of T, worked out once per type in a constant expression, so
+// nothing searches __PRETTY_FUNCTION__ at run time.
+template <typename T>
+struct TypeNames
+{
+    static constexpr auto raw = scanRawTypeName<T>();
+    static constexpr auto qualified = withoutClassKey(raw);
+    static constexpr auto unqualified = withoutQualifiers(qualified);
+    static constexpr auto hash = hashTypeName(qualified);
+};
+
+// The spelling the compiler chose for T (may include namespace
+// qualifiers, template arguments and, on MSVC, a class key).
+template <typename T>
+constexpr std::string_view rawTypeNameOf()
+{
+    return TypeNames<T>::raw;
+}
+
+// rawTypeNameOf without MSVC's class key. All namespace qualifiers and
+// template arguments are preserved. This is the canonical spelling to
+// compare or hash across compilers.
+template <typename T>
+constexpr std::string_view qualifiedNameOf()
+{
+    return TypeNames<T>::qualified;
+}
+
+// Returns just the unqualified short name. Strips namespaces (incl.
+// "(anonymous namespace)::"). Templates and STL types are deliberately
+// left intact in the raw form — callers that want to filter them can
+// inspect for '<' / "std::" themselves.
+template <typename T>
+constexpr std::string_view typeNameOf()
+{
+    return TypeNames<T>::unqualified;
 }
 
 // Compile-time extraction of a pointer-to-member's short name from

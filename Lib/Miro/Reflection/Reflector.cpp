@@ -6,6 +6,12 @@
 namespace Miro
 {
 
+const CustomOptions& CustomOptions::none()
+{
+    static const auto empty = CustomOptions {};
+    return empty;
+}
+
 Property Reflector::operator[](std::string_view key)
 {
     return {*this, key};

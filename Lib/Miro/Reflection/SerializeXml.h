@@ -28,8 +28,7 @@ Xml::Node toXML(const T& value, CustomOptions custom = {})
 {
     auto root = Xml::Node {.name = std::string(Detail::typeNameOf<T>())};
     auto ref = XmlReflector {
-        root,
-        Detail::topLevelOptions<T>(Mode::Save, /*schema=*/false, std::move(custom))};
+        root, Detail::topLevelOptions<T>(Mode::Save, /*schema=*/false, &custom)};
     Detail::reflectValue(ref, const_cast<T&>(value));
     return root;
 }
@@ -40,7 +39,7 @@ void fromXML(T& value, const Xml::Node& node, CustomOptions custom = {})
     auto mutableNode = node;
     auto ref = XmlReflector {
         mutableNode,
-        Detail::topLevelOptions<T>(Mode::Load, /*schema=*/false, std::move(custom))};
+        Detail::topLevelOptions<T>(Mode::Load, /*schema=*/false, &custom)};
     Detail::reflectValue(ref, value);
 }
 
