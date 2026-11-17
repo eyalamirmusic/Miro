@@ -65,6 +65,12 @@ nano_add_executable(MiroRecursionTests SOURCES
 
 target_link_libraries(MiroRecursionTests PRIVATE miro_warnings)
 
+nano_add_executable(MiroBridgeRawJsonTests SOURCES
+        BridgeRawJsonTests.cpp
+        TARGETS Miro)
+
+target_link_libraries(MiroBridgeRawJsonTests PRIVATE miro_warnings)
+
 # Replaces the global operator new to count allocations, so it gets an
 # executable of its own rather than disturbing every other test.
 nano_add_executable(MiroAttributeAllocationTests SOURCES
