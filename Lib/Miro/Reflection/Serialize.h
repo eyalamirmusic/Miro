@@ -5,6 +5,7 @@
 #include "ReflectDispatch.h"
 #include "TypeName.h"
 
+#include <optional>
 #include <string>
 #include <string_view>
 #include <utility>
@@ -85,12 +86,64 @@ void fromJSONString(T& value, std::string_view jsonString, CustomOptions custom 
     fromJSON(value, Json::getParsedValue(jsonString), std::move(custom));
 }
 
-// Non-throwing counterpart of createFromJSON for a raw string; see
-// fromJSONString.
+// Malformed JSON gives a default-constructed T. Missing fields and wrong
+// types are fromJSON's to handle in every createFromJSONString form.
+template <typename T>
+T createFromJSONString(std::string_view jsonString,
+                       const Json::ParseOptions& parseOptions,
+                       CustomOptions custom = {})
+{
+    return createFromJSON<T>(Json::getParsedValue(jsonString, parseOptions),
+                             std::move(custom));
+}
+
 template <typename T>
 T createFromJSONString(std::string_view jsonString, CustomOptions custom = {})
 {
-    return createFromJSON<T>(Json::getParsedValue(jsonString), std::move(custom));
+    return createFromJSONString<T>(
+        jsonString, Json::ParseOptions {}, std::move(custom));
+}
+
+// Throws Json::ParseError on malformed JSON.
+template <typename T>
+T createFromJSONStringOrThrow(std::string_view jsonString,
+                              const Json::ParseOptions& parseOptions,
+                              CustomOptions custom = {})
+{
+    return createFromJSON<T>(Json::parse(jsonString, parseOptions),
+                             std::move(custom));
+}
+
+template <typename T>
+T createFromJSONStringOrThrow(std::string_view jsonString, CustomOptions custom = {})
+{
+    return createFromJSONStringOrThrow<T>(
+        jsonString, Json::ParseOptions {}, std::move(custom));
+}
+
+// std::nullopt on malformed JSON.
+template <typename T>
+std::optional<T> tryCreateFromJSONString(std::string_view jsonString,
+                                         const Json::ParseOptions& parseOptions,
+                                         CustomOptions custom = {})
+{
+    try
+    {
+        return createFromJSONStringOrThrow<T>(
+            jsonString, parseOptions, std::move(custom));
+    }
+    catch (const Json::ParseError&)
+    {
+        return std::nullopt;
+    }
+}
+
+template <typename T>
+std::optional<T> tryCreateFromJSONString(std::string_view jsonString,
+                                         CustomOptions custom = {})
+{
+    return tryCreateFromJSONString<T>(
+        jsonString, Json::ParseOptions {}, std::move(custom));
 }
 
 } // namespace Miro
