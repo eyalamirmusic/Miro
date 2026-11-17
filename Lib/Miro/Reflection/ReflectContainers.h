@@ -3,15 +3,36 @@
 #include "ReflectDispatch.h"
 
 #include <array>
+#include <concepts>
 #include <cstddef>
 #include <map>
 #include <optional>
+#include <span>
 #include <string>
 #include <utility>
 #include <vector>
 
 namespace Miro::Detail
 {
+
+// The element types PackedArrayRef holds; everything else walks element
+// by element.
+template <typename T>
+concept PackableElement =
+    std::constructible_from<PackedArrayRef::Variant, std::span<T>>;
+
+template <typename T>
+void reflectElements(Reflector& ref, std::span<T> elements, const Options& childOpts)
+{
+    if constexpr (PackableElement<T>)
+    {
+        if (ref.visitPacked(PackedArrayRef {elements}))
+            return;
+    }
+
+    for (std::size_t i = 0; i < elements.size(); ++i)
+        reflectValue(ref.atIndex(i, childOpts), elements[i]);
+}
 
 template <typename T>
 void reflectValue(Reflector& ref, std::vector<T>& value)
@@ -28,15 +49,13 @@ void reflectValue(Reflector& ref, std::vector<T>& value)
         else
         {
             ref.resizeArray(value.size());
-            for (std::size_t i = 0; i < value.size(); ++i)
-                reflectValue(ref.atIndex(i, childOpts), value[i]);
+            reflectElements(ref, std::span<T> {value}, childOpts);
         }
     }
     else
     {
         value.resize(ref.arraySize());
-        for (std::size_t i = 0; i < value.size(); ++i)
-            reflectValue(ref.atIndex(i, childOpts), value[i]);
+        reflectElements(ref, std::span<T> {value}, childOpts);
     }
 }
 
@@ -56,16 +75,14 @@ void reflectValue(Reflector& ref, std::array<T, N>& value)
         else
         {
             ref.resizeArray(N);
-            for (std::size_t i = 0; i < N; ++i)
-                reflectValue(ref.atIndex(i, childOpts), value[i]);
+            reflectElements(ref, std::span<T> {value}, childOpts);
         }
     }
     else
     {
         auto size = ref.arraySize();
         auto count = size < N ? size : N;
-        for (std::size_t i = 0; i < count; ++i)
-            reflectValue(ref.atIndex(i, childOpts), value[i]);
+        reflectElements(ref, std::span<T> {value.data(), count}, childOpts);
     }
 }
 
