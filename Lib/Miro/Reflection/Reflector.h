@@ -8,6 +8,7 @@
 #include <span>
 #include <string>
 #include <string_view>
+#include <type_traits>
 #include <utility>
 #include <variant>
 
@@ -157,7 +158,7 @@ enum class ValueKind
 
 // User-supplied, format-agnostic payload threaded verbatim through an
 // entire reflection walk. Seeded at the top-level toJSON/fromJSON (or
-// toXML/fromXML) call and copied unchanged from a parent reflector to
+// toXML/fromXML) call and shared unchanged by a parent reflector with
 // every child — so, unlike the per-child fields of Options, a value set
 // at the root is visible to every nested type's reflect() body via
 // reflector.customOptions(). Types that care can branch on it (e.g.
@@ -167,6 +168,9 @@ enum class ValueKind
 // machinery.
 struct CustomOptions
 {
+    // What customOptions() returns for a walk seeded without any.
+    static const CustomOptions& none();
+
     std::string tag {};
 };
 
@@ -175,7 +179,8 @@ struct CustomOptions
 // non-virtual reads. When a parent spawns a child via atKey/atIndex,
 // the dispatcher constructs the child's Options from the parent's —
 // mode, schema and custom propagate; shape, nullable and omittable are
-// set per-child based on the value type being reflected.
+// set per-child based on the value type being reflected. Trivially
+// copyable, so spawning a child copies a few words and never allocates.
 struct Options
 {
     Mode mode = Mode::Save;
@@ -191,8 +196,11 @@ struct Options
 
     bool schema = false;
 
-    // Propagated parent -> child unchanged (see CustomOptions).
-    CustomOptions custom {};
+    // Propagated parent -> child unchanged (see CustomOptions). Borrowed:
+    // it points at the CustomOptions the walk was seeded with, which the
+    // entry point keeps alive for the whole walk. Null reads as
+    // CustomOptions::none().
+    const CustomOptions* custom = nullptr;
 };
 
 // The discriminator value of one alternative of an internally tagged
@@ -211,20 +219,30 @@ struct TagLiteral
 // generated output); `qualifiedName` is the compiler-derived full path
 // from `__PRETTY_FUNCTION__`/`__FUNCSIG__` (e.g. "Ns::Inner::Foo"),
 // stable per type and used as the dedup key when two types in different
-// namespaces happen to share a short name.
+// namespaces happen to share a short name. `hash` is a 64-bit hash of
+// `qualifiedName` — like the name, the same in every binary, so it is a
+// cheap key to compare or bucket on, with the name to settle a collision.
 struct TypeId
 {
+    friend constexpr bool operator==(const TypeId& lhs, const TypeId& rhs)
+    {
+        return lhs.hash == rhs.hash && lhs.qualifiedName == rhs.qualifiedName;
+    }
+
     std::string_view shortName;
     std::string_view qualifiedName;
+    std::uint64_t hash = 0;
 };
 
 // The TypeId Miro announces for T before reflecting its body. A custom
 // reflectValue that calls ref.beginNamedType itself uses this, so its
-// type is identified exactly as a MIRO_REFLECT type would be.
+// type is identified exactly as a MIRO_REFLECT type would be. A compile-
+// time constant: the names are worked out once per type (TypeNames<T>).
 template <typename T>
 constexpr TypeId typeIdOf()
 {
-    return {Detail::typeNameOf<T>(), Detail::qualifiedNameOf<T>()};
+    using Names = Detail::TypeNames<T>;
+    return {Names::unqualified, Names::qualified, Names::hash};
 }
 
 // A non-owning, type-erased view of one reflectable object, handed to
@@ -235,7 +253,9 @@ constexpr TypeId typeIdOf()
 // the type's own reflect() body — into whatever reflector it is given,
 // which must be an Object-shaped slot. It never calls visitObject on
 // that reflector for the object itself, so a reflector can claim an
-// object and still walk it from inside its own visitObject.
+// object and still walk it from inside its own visitObject. `size` and
+// `alignment` are sizeof(T) and alignof(T): the object occupies
+// [instance, instance + size).
 struct ObjectView
 {
     // Defined in ReflectDispatch.h, which knows how to reflect T.
@@ -243,11 +263,11 @@ struct ObjectView
     static ObjectView of(T& object);
 
     // The object as a T, or null when it is some other type. Compared
-    // by qualified name, like AttributeRef::as.
+    // by qualified name (hash first), like AttributeRef::as.
     template <typename T>
     T* as() const
     {
-        if (type.qualifiedName != Detail::qualifiedNameOf<T>())
+        if (type != typeIdOf<T>())
             return nullptr;
 
         return static_cast<T*>(instance);
@@ -258,6 +278,8 @@ struct ObjectView
     TypeId type;
     void* instance = nullptr;
     void (*reflect)(Reflector&, void*) = nullptr;
+    std::size_t size = 0;
+    std::size_t alignment = 0;
 };
 
 // One enumerator of an integer-valued enum (see Miro::EnumFormat): the
@@ -270,36 +292,135 @@ struct EnumEntry
     std::int64_t value = 0;
 };
 
+// The C++ type a primitive is stored as. Integers are named by width and
+// signedness, so `int` is Int32 and `long` is Int32 or Int64 by platform.
+enum class StorageType
+{
+    Bool,
+    Int8,
+    Int16,
+    Int32,
+    Int64,
+    UInt8,
+    UInt16,
+    UInt32,
+    UInt64,
+    Float,
+    Double,
+    LongDouble,
+    String
+};
+
+template <typename T>
+consteval StorageType storageTypeOf()
+{
+    if constexpr (std::is_same_v<T, bool>)
+        return StorageType::Bool;
+    else if constexpr (std::is_same_v<T, std::string>)
+        return StorageType::String;
+    else if constexpr (std::is_same_v<T, float>)
+        return StorageType::Float;
+    else if constexpr (std::is_same_v<T, double>)
+        return StorageType::Double;
+    else if constexpr (std::is_same_v<T, long double>)
+        return StorageType::LongDouble;
+    else
+    {
+        static_assert(std::is_integral_v<T> && sizeof(T) <= 8,
+                      "storageTypeOf: not a primitive Miro stores");
+
+        constexpr auto isSigned = std::is_signed_v<T>;
+
+        if constexpr (sizeof(T) == 1)
+            return isSigned ? StorageType::Int8 : StorageType::UInt8;
+        else if constexpr (sizeof(T) == 2)
+            return isSigned ? StorageType::Int16 : StorageType::UInt16;
+        else if constexpr (sizeof(T) == 4)
+            return isSigned ? StorageType::Int32 : StorageType::UInt32;
+        else
+            return isSigned ? StorageType::Int64 : StorageType::UInt64;
+    }
+}
+
 // First-class primitive handle. Constructs implicitly from any built-in
 // primitive — `ref.visit(myInt)` Just Works. To support a new primitive
 // type, add another constructor + variant alternative below (or provide
 // a free `makePrimitiveRef(T&)` overload and a templated constructor).
+//
+// `data` is what a reflector reads and writes: one of five wide types.
+// `storage` / `storageType` say where the value really lives. They match
+// `data` unless the dispatch narrowed the value: a float, or an integer
+// other than int / int64, is visited through a widened double / int64
+// copy, and `storage` then points at the field itself. A reflector that
+// works on memory (offsets, in-place reads) uses storage; everything
+// else keeps using data. On a load either may be written: the dispatch
+// copies the widened value back into the field only when it changed.
 struct PrimitiveRef
 {
     using Variant = std::variant<bool*, int*, double*, std::string*, std::int64_t*>;
 
     PrimitiveRef(bool& value)
         : data(&value)
+        , storage(&value)
+        , storageType(StorageType::Bool)
     {
     }
     PrimitiveRef(int& value)
         : data(&value)
+        , storage(&value)
+        , storageType(storageTypeOf<int>())
     {
     }
     PrimitiveRef(double& value)
         : data(&value)
+        , storage(&value)
+        , storageType(StorageType::Double)
     {
     }
     PrimitiveRef(std::string& value)
         : data(&value)
+        , storage(&value)
+        , storageType(StorageType::String)
     {
     }
     PrimitiveRef(std::int64_t& value)
         : data(&value)
+        , storage(&value)
+        , storageType(StorageType::Int64)
     {
     }
 
+    // `widened` is the copy a reflector reads and writes through data;
+    // `field` is the value it stands for.
+    template <typename Wide, typename T>
+    static PrimitiveRef narrowed(Wide& widened, T& field)
+    {
+        auto ref = PrimitiveRef {widened};
+        ref.storage = &field;
+        ref.storageType = storageTypeOf<T>();
+        return ref;
+    }
+
+    // True when data points at a widened copy rather than at storage.
+    bool isNarrowed() const
+    {
+        return std::visit([this](auto* value) { return value != storage; }, data);
+    }
+
+    // The stored value as a T, or null when it is stored as another type.
+    // Any T of the same StorageType matches (int and std::int32_t alike).
+    template <typename T>
+    T* storageAs() const
+    {
+        if (storageType != storageTypeOf<T>())
+            return nullptr;
+
+        return static_cast<T*>(storage);
+    }
+
     Variant data;
+    void* storage = nullptr;
+    StorageType storageType = StorageType::Bool;
 };
 
 // A Reflector represents exactly one slot in a tree. Configuration
@@ -321,7 +442,10 @@ public:
     Element operator[](std::size_t index);
 
     const Options& options() const { return opts; }
-    const CustomOptions& customOptions() const { return opts.custom; }
+    const CustomOptions& customOptions() const
+    {
+        return opts.custom != nullptr ? *opts.custom : CustomOptions::none();
+    }
     Mode mode() const { return opts.mode; }
     Shape shape() const { return opts.shape; }
     bool isSaving() const { return opts.mode == Mode::Save; }

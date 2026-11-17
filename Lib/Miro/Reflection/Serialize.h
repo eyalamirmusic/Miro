@@ -27,8 +27,7 @@ JSON toJSON(const T& value, CustomOptions custom = {})
 {
     auto json = JSON {};
     auto ref = JsonReflector {
-        json,
-        Detail::topLevelOptions<T>(Mode::Save, /*schema=*/false, std::move(custom))};
+        json, Detail::topLevelOptions<T>(Mode::Save, /*schema=*/false, &custom)};
     Detail::reflectValue(ref, const_cast<T&>(value));
     return json;
 }
@@ -45,10 +44,9 @@ void fromJSON(T& value, const JSON& json, CustomOptions custom = {})
     try
     {
         auto mutableJson = json;
-        auto ref =
-            JsonReflector {mutableJson,
-                           Detail::topLevelOptions<T>(
-                               Mode::Load, /*schema=*/false, std::move(custom))};
+        auto ref = JsonReflector {
+            mutableJson,
+            Detail::topLevelOptions<T>(Mode::Load, /*schema=*/false, &custom)};
         Detail::reflectValue(ref, value);
     }
     catch (...)

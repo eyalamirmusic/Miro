@@ -75,4 +75,45 @@ auto typeIdOfMatchesDispatch = test("typeIdOf matches the announced TypeId") = [
     auto expected = Miro::typeIdOf<TypeIdOuter::Inner::Widget>();
     check(recorder.announced.shortName == expected.shortName);
     check(recorder.announced.qualifiedName == expected.qualifiedName);
+    check(recorder.announced.hash == expected.hash);
+    check(recorder.announced == expected);
+};
+
+// The whole TypeId is a compile-time constant, hash included.
+constexpr auto widgetId = Miro::typeIdOf<TypeIdOuter::Inner::Widget>();
+static_assert(widgetId.qualifiedName == "TypeIdOuter::Inner::Widget");
+static_assert(widgetId.hash
+              == Miro::Detail::hashTypeName("TypeIdOuter::Inner::Widget"));
+static_assert(widgetId == Miro::typeIdOf<TypeIdOuter::Inner::Widget>());
+static_assert(widgetId != Miro::typeIdOf<TypeIdPlain>());
+
+auto typeIdIsStable = test("typeIdOf is the same on every call") = []
+{
+    auto first = Miro::typeIdOf<TypeIdPlain>();
+    auto second = Miro::typeIdOf<TypeIdPlain>();
+
+    check(first == second);
+    check(first.hash == second.hash);
+    check(first.qualifiedName.data() == second.qualifiedName.data());
+    check(first.shortName.data() == second.shortName.data());
+};
+
+auto typeIdHashSeparatesTypes = test("typeIdOf hashes distinct types apart") = []
+{
+    auto plain = Miro::typeIdOf<TypeIdPlain>();
+    auto widget = Miro::typeIdOf<TypeIdOuter::Inner::Widget>();
+
+    check(plain.hash != widget.hash);
+    check(plain != widget);
+    check(plain.hash != 0);
+};
+
+auto objectViewCarriesTypeId = test("ObjectView carries typeIdOf") = []
+{
+    auto widget = TypeIdOuter::Inner::Widget {};
+    auto view = Miro::ObjectView::of(widget);
+
+    check(view.type == Miro::typeIdOf<TypeIdOuter::Inner::Widget>());
+    check(view.as<TypeIdOuter::Inner::Widget>() == &widget);
+    check(view.as<TypeIdPlain>() == nullptr);
 };

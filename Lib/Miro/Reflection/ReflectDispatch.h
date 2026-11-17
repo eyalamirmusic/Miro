@@ -5,6 +5,7 @@
 #include "TypeName.h"
 
 #include <array>
+#include <bit>
 #include <concepts>
 #include <cstddef>
 #include <cstdint>
@@ -210,12 +211,11 @@ consteval Shape shapeOf()
 }
 
 // Build child Options from a parent's Options. mode, schema and the
-// custom payload inherit (the plain copy of `parent` carries them);
-// shape, nullable and omittable are decided by the value type T. Not
-// constexpr: Options now holds a std::string (CustomOptions), and this
-// is only ever evaluated at runtime while spawning a child reflector.
+// custom payload inherit (the plain copy of `parent` carries them — the
+// payload by pointer, so nothing is allocated); shape, nullable and
+// omittable are decided by the value type T.
 template <typename T>
-Options childOptionsFor(const Options& parent)
+constexpr Options childOptionsFor(const Options& parent)
 {
     auto opts = parent;
     opts.shape = shapeOf<T>();
@@ -225,11 +225,13 @@ Options childOptionsFor(const Options& parent)
 }
 
 // Build top-level Options for a fresh root reflector reflecting T. The
-// custom payload defaults to empty; the JSON/XML entry points pass the
+// custom payload defaults to none; the JSON/XML entry points pass the
 // caller-supplied CustomOptions here so it drills down to every child.
+// It must outlive every reflector built from these Options.
 template <typename T>
-Options
-    topLevelOptions(Mode mode, bool schema = false, const CustomOptions& custom = {})
+constexpr Options topLevelOptions(Mode mode,
+                                  bool schema = false,
+                                  const CustomOptions* custom = nullptr)
 {
     return Options {
         .mode = mode,
@@ -317,17 +319,24 @@ template <std::integral T>
 void reflectValue(Reflector& ref, T& value)
 {
     auto wide = static_cast<std::int64_t>(value);
-    ref.visit(wide);
-    value = static_cast<T>(wide);
+    auto before = wide;
+    ref.visit(PrimitiveRef::narrowed(wide, value));
+
+    if (wide != before)
+        value = static_cast<T>(wide);
 }
 
+// Compared bit for bit, so a NaN left as it was counts as unchanged.
 template <std::floating_point T>
     requires(!std::same_as<T, double>)
 void reflectValue(Reflector& ref, T& value)
 {
     auto wide = static_cast<double>(value);
-    ref.visit(wide);
-    value = static_cast<T>(wide);
+    auto before = std::bit_cast<std::uint64_t>(wide);
+    ref.visit(PrimitiveRef::narrowed(wide, value));
+
+    if (std::bit_cast<std::uint64_t>(wide) != before)
+        value = static_cast<T>(wide);
 }
 
 // A reflectable struct's walk once visitObject has declined it: the
@@ -429,7 +438,11 @@ AttributeRef AttributeRef::of(const A& attribute)
 template <typename T>
 ObjectView ObjectView::of(T& object)
 {
-    return {typeIdOf<T>(), &object, &Detail::reflectObjectErased<T>};
+    return {typeIdOf<T>(),
+            &object,
+            &Detail::reflectObjectErased<T>,
+            sizeof(T),
+            alignof(T)};
 }
 
 // Attributes cost nothing unless present: with an empty pack and no
