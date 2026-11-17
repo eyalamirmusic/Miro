@@ -12,13 +12,19 @@ using namespace Miro::Json;
 namespace
 {
 
+std::string currentNumericLocale()
+{
+    auto* name = std::setlocale(LC_NUMERIC, nullptr);
+    return name != nullptr ? name : "C";
+}
+
 // Selects a decimal-comma LC_NUMERIC for the scope and puts the previous
 // one back on exit. The spelling of such a locale differs per platform,
 // so a handful of candidates are tried; `active` says whether one took.
 struct DecimalCommaLocale
 {
     DecimalCommaLocale()
-        : previous(std::setlocale(LC_NUMERIC, nullptr))
+        : previous(currentNumericLocale())
     {
         for (auto* candidate: {"de_DE.UTF-8",
                                "de_DE.utf8",

@@ -8,6 +8,7 @@
 #include <NanoTest/NanoTest.h>
 
 #include <algorithm>
+#include <array>
 #include <initializer_list>
 #include <memory>
 #include <string>
@@ -52,10 +53,10 @@ struct Holder
 
 struct ObjectLog
 {
-    std::vector<std::string> events;
-    std::vector<const void*> claimedAddresses;
-    std::vector<std::string_view> claimedTypes;
-    std::string_view claimType;
+    std::vector<std::string> events {};
+    std::vector<const void*> claimedAddresses {};
+    std::vector<std::string_view> claimedTypes {};
+    std::string_view claimType {};
     bool walkClaimed = false;
     int loadedX = 0;
 };
@@ -247,9 +248,9 @@ namespace
 
 struct alignas(32) Aligned
 {
-    MIRO_REFLECT(value)
+    MIRO_REFLECT(values)
 
-    char value = 'a';
+    std::array<double, 4> values {};
 };
 
 struct ShapeLog

@@ -11,6 +11,7 @@
 #include <memory>
 #include <string>
 #include <string_view>
+#include <type_traits>
 #include <utility>
 #include <variant>
 #include <vector>
@@ -146,7 +147,6 @@ auto narrowedPrimitivesExposeField =
         {&value.tiny, StorageType::Int8},
         {&value.gain, StorageType::Float},
         {&value.big, StorageType::UInt64},
-        {&value.lng, storageTypeOf<long>()},
     };
 
     for (auto index = std::size_t {0}; index < expected.size(); ++index)
@@ -157,6 +157,24 @@ auto narrowedPrimitivesExposeField =
         check(primitive.storageType == expected[index].second);
         check(primitive.narrowed);
     }
+};
+
+// `long` is std::int64_t on LP64 Linux, so it is visited in place there,
+// and narrowed where it is a distinct type (macOS, Windows).
+auto longStoredByPlatform =
+    test("PrimitiveStorage: long is narrowed only when it is not int64") = []
+{
+    auto value = Mixed {};
+    auto seen = walk(value, Mode::Save);
+    constexpr auto longIsInt64 = std::is_same_v<long, std::int64_t>;
+
+    check(seen.size() == 10);
+
+    auto& primitive = seen.back();
+    check(primitive.storage == &value.lng);
+    check(primitive.storageType == storageTypeOf<long>());
+    check(primitive.narrowed == !longIsInt64);
+    check((primitive.data == &value.lng) == longIsInt64);
 };
 
 auto storageAsMatchesType = test("PrimitiveStorage: storageAs checks the type") = []
